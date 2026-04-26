@@ -146,7 +146,7 @@ if (isset($_GET['action'])) {
 
 <script>
 const SHOWS     = <?= json_encode(array_values($showDefs)) ?>;
-const AJAX_BASE = '<?= "plugin.php?plugin={$plugin}&page=index.php&tab=schedule" ?>';
+const AJAX_BASE = '<?= "plugin.php?plugin=" . basename(__DIR__) . "&page=index.php&tab=schedule" ?>';
 let curYear  = <?= date('Y') ?>;
 let curMonth = <?= date('n') ?>;
 let calData  = {};   // date -> [entry, ...]
