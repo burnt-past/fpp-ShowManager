@@ -113,6 +113,14 @@ if (is_dir($playlistDir)) {
     <label>From<input type="date" id="rep-start"></label>
     <label>To<input type="date" id="rep-end"></label>
     <label>Time<input type="time" id="rep-time" value="19:00"></label>
+    <label>Type
+      <select id="rep-type" onchange="toggleRepType()">
+        <option value="single">Single playlist</option>
+        <option value="alternating">Alternating playlists</option>
+      </select>
+    </label>
+  </div>
+  <div id="rep-single" class="rep-fields">
     <label>Playlist
       <select id="rep-playlist">
         <?php foreach ($playlists as $p): ?>
@@ -120,6 +128,15 @@ if (is_dir($playlistDir)) {
         <?php endforeach; ?>
       </select>
     </label>
+  </div>
+  <div id="rep-alternating" style="display:none;margin-bottom:12px;">
+    <p style="font-size:.82em;color:#999;margin:0 0 6px;">Select 2+ playlists — they rotate each time the slot fires.</p>
+    <?php foreach ($playlists as $p): ?>
+    <label style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:.85em;margin-bottom:4px;">
+      <input type="checkbox" class="rep-alt-cb" value="<?= htmlspecialchars($p) ?>">
+      <?= htmlspecialchars($p) ?>
+    </label>
+    <?php endforeach; ?>
   </div>
   <div style="font-size:.85em;color:#bbb;margin-bottom:6px;">Days of week:</div>
   <div class="dow-row">
@@ -259,21 +276,35 @@ async function toggleBlackout() {
     updateBlackoutBtn(); renderCalendar();
 }
 
-async function scheduleRepeat() {
-    const start    = document.getElementById('rep-start').value;
-    const end      = document.getElementById('rep-end').value;
-    const time     = document.getElementById('rep-time').value || '19:00';
-    const playlist = document.getElementById('rep-playlist').value;
-    const days     = [...document.querySelectorAll('.dow-btn.on')].map(el => +el.dataset.dow);
-    const status   = document.getElementById('rep-status');
+function toggleRepType() {
+    const alt = document.getElementById('rep-type').value === 'alternating';
+    document.getElementById('rep-single').style.display      = alt ? 'none' : '';
+    document.getElementById('rep-alternating').style.display = alt ? ''     : 'none';
+}
 
-    if (!start || !end)   { alert('Set a start and end date.'); return; }
-    if (start > end)      { alert('Start must be before end.'); return; }
-    if (!days.length)     { alert('Select at least one day of the week.'); return; }
-    if (!playlist)        { alert('Select a playlist.'); return; }
+async function scheduleRepeat() {
+    const start  = document.getElementById('rep-start').value;
+    const end    = document.getElementById('rep-end').value;
+    const time   = document.getElementById('rep-time').value || '19:00';
+    const days   = [...document.querySelectorAll('.dow-btn.on')].map(el => +el.dataset.dow);
+    const status = document.getElementById('rep-status');
+    const type   = document.getElementById('rep-type').value;
+
+    if (!start || !end) { alert('Set a start and end date.'); return; }
+    if (start > end)    { alert('Start must be before end.'); return; }
+    if (!days.length)   { alert('Select at least one day of the week.'); return; }
+
+    const body = { start_date: start, end_date: end, time, days };
+    if (type === 'alternating') {
+        body.playlists = [...document.querySelectorAll('.rep-alt-cb:checked')].map(c => c.value);
+        if (body.playlists.length < 2) { alert('Select at least 2 playlists to alternate.'); return; }
+    } else {
+        body.playlist = document.getElementById('rep-playlist').value;
+        if (!body.playlist) { alert('Select a playlist.'); return; }
+    }
 
     status.textContent = 'Adding…';
-    const data = await postJSON('schedule_repeat', { start_date: start, end_date: end, time, days, playlist });
+    const data = await postJSON('schedule_repeat', body);
     status.textContent = `${data.count} show(s) added.`;
     loadMonth(curYear, curMonth);
 }

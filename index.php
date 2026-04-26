@@ -1,9 +1,9 @@
 <?php
-$tab = $_GET['tab'] ?? 'hardware';
+$tab = $_GET['tab'] ?? 'status';
 
 $base  = "plugin.php?plugin=" . basename(__DIR__) . "&page=index.php";
-$tabs  = ['hardware' => 'Hardware', 'schedule' => 'Schedule', 'announcements' => 'Announcements'];
-$files = ['hardware' => 'config.php', 'schedule' => 'schedule.php', 'announcements' => 'announcements.php'];
+$tabs  = ['status' => 'Status', 'schedule' => 'Schedule', 'announcements' => 'Announcements', 'hardware' => 'Hardware'];
+$files = ['status' => 'status.php', 'schedule' => 'schedule.php', 'announcements' => 'announcements.php', 'hardware' => 'config.php'];
 
 ob_start();
 include __DIR__ . '/' . ($files[$tab] ?? 'config.php');

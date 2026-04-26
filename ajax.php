@@ -10,6 +10,13 @@ $schedule = file_exists($scheduleFile)
 
 switch ($_GET['action'] ?? '') {
 
+    case 'get_status':
+        $faderRaw = @file_get_contents('/tmp/xr18_current_fader');
+        echo json_encode([
+            'xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null,
+        ]);
+        break;
+
     case 'get_month':
         $year   = (int)($_GET['year']  ?? date('Y'));
         $month  = (int)($_GET['month'] ?? date('n'));
