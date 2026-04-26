@@ -1,8 +1,12 @@
 <?php
-    $pluginJson = $settings['pluginDirectory'] . "/XR18VolumeControl/pluginInfo.json";
-    $pluginData = json_decode(file_get_contents($pluginJson), true);
-    $pluginName = $pluginData['name'];
-    $configPage = $settings['pluginDirectory'] . "/XR18VolumeControl/config.php";
-    $menuItems = array();
-    $menuItems[$pluginName] = $configPage;
-    ?>
+$pluginDir  = $settings['pluginDirectory'] . "/XR18VolumeControl";
+$pluginJson = "$pluginDir/pluginInfo.json";
+$pluginData = json_decode(file_get_contents($pluginJson), true);
+$pluginBase = $pluginData['name'];
+
+$menuItems = [];
+$menuItems["$pluginBase - Hardware"]      = "$pluginDir/config.php";
+$menuItems["$pluginBase - Shows"]         = "$pluginDir/shows.php";
+$menuItems["$pluginBase - Schedule"]      = "$pluginDir/schedule.php";
+$menuItems["$pluginBase - Announcements"] = "$pluginDir/announcements.php";
+?>
