@@ -2,8 +2,8 @@
 $tab = $_GET['tab'] ?? 'hardware';
 
 $base  = "plugin.php?plugin=" . basename(__DIR__) . "&page=index.php";
-$tabs  = ['hardware' => 'Hardware', 'shows' => 'Shows', 'schedule' => 'Schedule', 'announcements' => 'Announcements'];
-$files = ['hardware' => 'config.php', 'shows' => 'shows.php', 'schedule' => 'schedule.php', 'announcements' => 'announcements.php'];
+$tabs  = ['hardware' => 'Hardware', 'schedule' => 'Schedule', 'announcements' => 'Announcements'];
+$files = ['hardware' => 'config.php', 'schedule' => 'schedule.php', 'announcements' => 'announcements.php'];
 
 ob_start();
 include __DIR__ . '/' . ($files[$tab] ?? 'config.php');

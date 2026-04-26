@@ -1,7 +1,10 @@
 <?php
-$showsFile = $settings['configDirectory'] . "/ShowManagerShows.config";
-$showsData = file_exists($showsFile) ? json_decode(file_get_contents($showsFile), true) : [];
-$showDefs  = $showsData['shows'] ?? [];
+$playlists = [];
+$playlistDir = "/home/fpp/media/playlists";
+if (is_dir($playlistDir)) {
+    foreach (glob("$playlistDir/*.json") as $f) $playlists[] = basename($f, '.json');
+    sort($playlists);
+}
 ?>
 <style>
 /* ── Calendar ─────────────────────────────── */
@@ -11,41 +14,39 @@ $showDefs  = $showsData['shows'] ?? [];
 #cal-grid td { border: 1px solid #555; border-radius: 3px; padding: 5px 4px; vertical-align: top;
                cursor: pointer; min-height: 62px; background: #2d2d2d; color: #ddd; }
 #cal-grid td:hover { background: #383838; }
-#cal-grid td.is-today   { border: 2px solid #4a9fd4; }
+#cal-grid td.is-today    { border: 2px solid #4a9fd4; }
 #cal-grid td.is-blackout { background: #4a1515; }
-#cal-grid td.is-empty   { background: transparent; border: none; cursor: default; }
-.cal-num   { font-size: .82em; font-weight: 700; margin-bottom: 2px; }
-.cal-show  { display: block; font-size: .62em; background: #1d6b35; color: #cef5d8;
-             border-radius: 2px; padding: 1px 3px; margin-top: 2px;
-             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-blk   { font-size: .62em; color: #f77; margin-top: 2px; }
+#cal-grid td.is-empty    { background: transparent; border: none; cursor: default; }
+.cal-num  { font-size: .82em; font-weight: 700; margin-bottom: 2px; }
+.cal-show { display: block; font-size: .62em; background: #1d6b35; color: #cef5d8;
+            border-radius: 2px; padding: 1px 3px; margin-top: 2px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-blk  { font-size: .62em; color: #f77; margin-top: 2px; }
 
 /* ── Day modal ────────────────────────────── */
-#day-modal  { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.72);
-              z-index: 9999; overflow-y: auto; padding: 16px 10px; }
-.m-box      { background: #2d2d2d; color: #e8e8e8; border-radius: 8px;
-              padding: 20px 16px; max-width: 460px; margin: 0 auto; }
-.m-box h3   { margin: 0 0 12px; font-size: 1.05em; color: #fff; }
-.m-box hr   { border-color: #484848; margin: 14px 0; }
-.m-row      { margin-bottom: 10px; }
+#day-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.72);
+             z-index: 9999; overflow-y: auto; padding: 16px 10px; }
+.m-box     { background: #2d2d2d; color: #e8e8e8; border-radius: 8px;
+             padding: 20px 16px; max-width: 460px; margin: 0 auto; }
+.m-box h3  { margin: 0 0 12px; font-size: 1.05em; color: #fff; }
+.m-box hr  { border-color: #484848; margin: 14px 0; }
+.m-row     { margin-bottom: 10px; }
 .m-row label { display: block; font-size: .88em; color: #bbb; margin-bottom: 3px; }
 .m-row select, .m-row input { background: #3d3d3d; color: #eee; border: 1px solid #5a5a5a;
                                border-radius: 4px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
-.m-entry    { display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-              background: #3a3a3a; padding: 7px 10px; border-radius: 4px; color: #ddd; }
+.m-entry   { display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+             background: #3a3a3a; padding: 7px 10px; border-radius: 4px; color: #ddd; }
 
 /* ── Repeat panel ─────────────────────────── */
 .rep-panel  { border: 1px solid #484848; border-radius: 6px; padding: 16px; margin-top: 24px; }
 .rep-panel h4 { margin: 0 0 6px; color: #ddd; font-size: 1em; }
 .rep-fields { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 .rep-fields label { font-size: .88em; color: #bbb; }
-.rep-fields input { background: #3d3d3d; color: #eee; border: 1px solid #5a5a5a;
+.rep-fields input, .rep-fields select { background: #3d3d3d; color: #eee; border: 1px solid #5a5a5a;
                     border-radius: 4px; padding: 5px 7px; display: block; margin-top: 3px; }
-.rep-fields select { background: #3d3d3d; color: #eee; border: 1px solid #5a5a5a;
-                     border-radius: 4px; padding: 5px 7px; display: block; margin-top: 3px; }
-.dow-row    { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
-.dow-btn    { padding: 6px 11px; border: 1px solid #555; border-radius: 4px; cursor: pointer;
-              background: #2d2d2d; color: #bbb; font-size: .82em; user-select: none; }
+.dow-row   { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 14px; }
+.dow-btn   { padding: 6px 11px; border: 1px solid #555; border-radius: 4px; cursor: pointer;
+             background: #2d2d2d; color: #bbb; font-size: .82em; user-select: none; }
 .dow-btn.on { background: #1a5fa8; border-color: #2a7fd8; color: #fff; }
 </style>
 
@@ -71,26 +72,26 @@ $showDefs  = $showsData['shows'] ?? [];
       <input type="time" id="new-time" value="19:00">
     </div>
     <div class="m-row">
-      <label>Assignment</label>
+      <label>Type</label>
       <select id="new-assign-type" onchange="toggleAssignType()">
-        <option value="specific">Specific show</option>
-        <option value="rotation">Rotation (alternating)</option>
+        <option value="single">Single playlist</option>
+        <option value="alternating">Alternating playlists</option>
       </select>
     </div>
-    <div id="assign-specific" class="m-row">
-      <label>Show</label>
-      <select id="new-show-id">
-        <?php foreach ($showDefs as $s): ?>
-        <option value="<?= htmlspecialchars($s['id']) ?>"><?= htmlspecialchars($s['name']) ?></option>
+    <div id="assign-single" class="m-row">
+      <label>Playlist</label>
+      <select id="new-playlist">
+        <?php foreach ($playlists as $p): ?>
+        <option value="<?= htmlspecialchars($p) ?>"><?= htmlspecialchars($p) ?></option>
         <?php endforeach; ?>
       </select>
     </div>
-    <div id="assign-rotation" style="display:none;" class="m-row">
-      <p style="font-size:.82em;color:#999;margin:0 0 6px;">Select 2+ shows — they alternate each time this slot fires.</p>
-      <?php foreach ($showDefs as $s): ?>
+    <div id="assign-alternating" style="display:none;" class="m-row">
+      <p style="font-size:.82em;color:#999;margin:0 0 6px;">Select 2+ playlists — they rotate each time this slot fires.</p>
+      <?php foreach ($playlists as $p): ?>
       <label style="display:flex;align-items:center;gap:6px;color:#ccc;font-size:.88em;margin-bottom:4px;">
-        <input type="checkbox" class="rotation-cb" value="<?= htmlspecialchars($s['id']) ?>" style="width:auto;">
-        <?= htmlspecialchars($s['name']) ?>
+        <input type="checkbox" class="alt-cb" value="<?= htmlspecialchars($p) ?>" style="width:auto;">
+        <?= htmlspecialchars($p) ?>
       </label>
       <?php endforeach; ?>
     </div>
@@ -112,10 +113,10 @@ $showDefs  = $showsData['shows'] ?? [];
     <label>From<input type="date" id="rep-start"></label>
     <label>To<input type="date" id="rep-end"></label>
     <label>Time<input type="time" id="rep-time" value="19:00"></label>
-    <label>Show
-      <select id="rep-show">
-        <?php foreach ($showDefs as $s): ?>
-        <option value="<?= htmlspecialchars($s['id']) ?>"><?= htmlspecialchars($s['name']) ?></option>
+    <label>Playlist
+      <select id="rep-playlist">
+        <?php foreach ($playlists as $p): ?>
+        <option value="<?= htmlspecialchars($p) ?>"><?= htmlspecialchars($p) ?></option>
         <?php endforeach; ?>
       </select>
     </label>
@@ -131,7 +132,6 @@ $showDefs  = $showsData['shows'] ?? [];
 </div>
 
 <script>
-const SHOWS     = <?= json_encode(array_values($showDefs)) ?>;
 const AJAX_BASE = '<?= "plugin.php?plugin=" . basename(__DIR__) . "&page=ajax.php&nopage=1" ?>';
 let curYear   = <?= date('Y') ?>;
 let curMonth  = <?= date('n') ?>;
@@ -151,9 +151,9 @@ function renderCalendar() {
     document.getElementById('cal-title').textContent =
         new Date(curYear, curMonth - 1, 1).toLocaleString('default', {month:'long', year:'numeric'});
 
-    const first  = new Date(curYear, curMonth - 1, 1).getDay();
-    const days   = new Date(curYear, curMonth, 0).getDate();
-    const today  = new Date().toISOString().slice(0, 10);
+    const first = new Date(curYear, curMonth - 1, 1).getDay();
+    const days  = new Date(curYear, curMonth, 0).getDate();
+    const today = new Date().toISOString().slice(0, 10);
 
     let html = '<table id="cal-grid"><thead><tr>' +
         ['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => `<th>${d}</th>`).join('') +
@@ -175,7 +175,7 @@ function renderCalendar() {
 
         html += `<td class="${cls.trim()}" onclick="openDay('${date}')">` +
             `<div class="cal-num">${d}</div>` +
-            shows.map(s => `<span class="cal-show">${s.time} ${label(s)}</span>`).join('') +
+            shows.map(s => `<span class="cal-show">${s.time} ${entryLabel(s)}</span>`).join('') +
             (blackout ? '<div class="cal-blk">BLACKOUT</div>' : '') +
             '</td>';
     }
@@ -183,9 +183,10 @@ function renderCalendar() {
     document.getElementById('calendar').innerHTML = html + '</tr></tbody></table>';
 }
 
-function label(e) {
-    if (e.show_id) { const s = SHOWS.find(x => x.id === e.show_id); return s ? s.name : e.show_id; }
-    return '↻ ' + (e.rotation_ids || []).map(id => { const s = SHOWS.find(x => x.id === id); return s ? s.name : id; }).join('/');
+function entryLabel(e) {
+    if (e.playlist)  return e.playlist;
+    if (e.playlists) return '↻ ' + e.playlists.join(' / ');
+    return '?';
 }
 
 function prevMonth() { curMonth--; if (curMonth < 1)  { curMonth = 12; curYear--; } loadMonth(curYear, curMonth); }
@@ -205,7 +206,7 @@ document.getElementById('day-modal').addEventListener('click', e => { if (e.targ
 function renderModalEntries() {
     const shows = (calData[modalDate] || []).filter(e => e.type === 'show');
     document.getElementById('modal-entries').innerHTML = shows.length
-        ? shows.map(e => `<div class="m-entry"><span>${e.time} — ${label(e)}</span>
+        ? shows.map(e => `<div class="m-entry"><span>${e.time} — ${entryLabel(e)}</span>
             <button class="btn btn-danger btn-sm" style="margin-left:auto;padding:2px 7px;" onclick="deleteEntry('${e.id}')">✕</button></div>`).join('')
         : '<p style="color:#888;margin:0 0 4px;font-size:.88em;">No shows scheduled.</p>';
 }
@@ -220,20 +221,20 @@ function updateBlackoutBtn() {
 
 function toggleAssignType() {
     const t = document.getElementById('new-assign-type').value;
-    document.getElementById('assign-specific').style.display = t === 'specific' ? '' : 'none';
-    document.getElementById('assign-rotation').style.display = t === 'rotation'  ? '' : 'none';
+    document.getElementById('assign-single').style.display      = t === 'single'      ? '' : 'none';
+    document.getElementById('assign-alternating').style.display = t === 'alternating' ? '' : 'none';
 }
 
 async function addShow() {
     const time = document.getElementById('new-time').value || '19:00';
     const mode = document.getElementById('new-assign-type').value;
     const body = { date: modalDate, type: 'show', time };
-    if (mode === 'specific') {
-        body.show_id = document.getElementById('new-show-id').value;
-        if (!body.show_id) { alert('Select a show.'); return; }
+    if (mode === 'single') {
+        body.playlist = document.getElementById('new-playlist').value;
+        if (!body.playlist) { alert('Select a playlist.'); return; }
     } else {
-        body.rotation_ids = [...document.querySelectorAll('.rotation-cb:checked')].map(c => c.value);
-        if (body.rotation_ids.length < 2) { alert('Select at least 2 shows for rotation.'); return; }
+        body.playlists = [...document.querySelectorAll('.alt-cb:checked')].map(c => c.value);
+        if (body.playlists.length < 2) { alert('Select at least 2 playlists to alternate.'); return; }
     }
     const data = await postJSON('save_entry', body);
     (calData[modalDate] = calData[modalDate] || []).push(data.entry);
@@ -259,20 +260,20 @@ async function toggleBlackout() {
 }
 
 async function scheduleRepeat() {
-    const start  = document.getElementById('rep-start').value;
-    const end    = document.getElementById('rep-end').value;
-    const time   = document.getElementById('rep-time').value || '19:00';
-    const show   = document.getElementById('rep-show').value;
-    const days   = [...document.querySelectorAll('.dow-btn.on')].map(el => +el.dataset.dow);
-    const status = document.getElementById('rep-status');
+    const start    = document.getElementById('rep-start').value;
+    const end      = document.getElementById('rep-end').value;
+    const time     = document.getElementById('rep-time').value || '19:00';
+    const playlist = document.getElementById('rep-playlist').value;
+    const days     = [...document.querySelectorAll('.dow-btn.on')].map(el => +el.dataset.dow);
+    const status   = document.getElementById('rep-status');
 
     if (!start || !end)   { alert('Set a start and end date.'); return; }
     if (start > end)      { alert('Start must be before end.'); return; }
     if (!days.length)     { alert('Select at least one day of the week.'); return; }
-    if (!show)            { alert('Select a show.'); return; }
+    if (!playlist)        { alert('Select a playlist.'); return; }
 
     status.textContent = 'Adding…';
-    const data = await postJSON('schedule_repeat', { start_date: start, end_date: end, time, days, show_id: show });
+    const data = await postJSON('schedule_repeat', { start_date: start, end_date: end, time, days, playlist });
     status.textContent = `${data.count} show(s) added.`;
     loadMonth(curYear, curMonth);
 }

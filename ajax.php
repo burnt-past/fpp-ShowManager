@@ -28,8 +28,8 @@ switch ($_GET['action'] ?? '') {
         $entry = ['id' => $body['id'] ?? uniqid('e_'), 'date' => $body['date'], 'type' => $body['type']];
         if ($body['type'] === 'show') {
             $entry['time'] = $body['time'] ?? '19:00';
-            if (!empty($body['show_id'])) $entry['show_id'] = $body['show_id'];
-            else $entry['rotation_ids'] = $body['rotation_ids'] ?? [];
+            if (!empty($body['playlist'])) $entry['playlist'] = $body['playlist'];
+            else $entry['playlists'] = $body['playlists'] ?? [];
         } elseif ($body['type'] === 'blackout') {
             $entry['reason'] = $body['reason'] ?? '';
         }
@@ -65,8 +65,8 @@ switch ($_GET['action'] ?? '') {
         for ($d = clone $start; $d <= $end; $d->modify('+1 day')) {
             if (!in_array((int)$d->format('w'), $days)) continue;
             $entry = ['id' => uniqid('e_'), 'date' => $d->format('Y-m-d'), 'type' => 'show', 'time' => $time];
-            if (!empty($body['show_id'])) $entry['show_id'] = $body['show_id'];
-            else $entry['rotation_ids'] = $body['rotation_ids'] ?? [];
+            if (!empty($body['playlist'])) $entry['playlist'] = $body['playlist'];
+            else $entry['playlists'] = $body['playlists'] ?? [];
             $entries[] = $entry;
             $count++;
         }
