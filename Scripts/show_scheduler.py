@@ -289,17 +289,57 @@ def play_announcement(audio_path, hw_cfg, an_cfg):
 # Schedule helpers
 # ---------------------------------------------------------------------------
 
+def expand_rules_for_date(rules, date_str):
+    """Expand repeating rules into virtual show entries for date_str."""
+    d = datetime.date.fromisoformat(date_str)
+    js_dow = (d.weekday() + 1) % 7   # Python Mon=0 → Sun=0 like PHP date('w')
+    shows = []
+    for rule in rules:
+        if date_str < rule.get('start_date', '') or date_str > rule.get('end_date', ''):
+            continue
+        if js_dow not in rule.get('days', [0, 1, 2, 3, 4, 5, 6]):
+            continue
+        window_start  = rule.get('window_start', '19:00')
+        window_end    = rule.get('window_end')
+        interval_mins = int(rule.get('interval_mins', 0))
+        if window_end and interval_mins > 0:
+            times = []
+            base  = datetime.datetime.strptime('2000-01-01 ' + window_start, '%Y-%m-%d %H:%M')
+            end_t = datetime.datetime.strptime('2000-01-01 ' + window_end,   '%Y-%m-%d %H:%M')
+            t = base
+            while t <= end_t:
+                times.append(t.strftime('%H:%M'))
+                t += datetime.timedelta(minutes=interval_mins)
+        else:
+            times = [window_start]
+        for time_str in times:
+            entry = {
+                'id':      f"{rule['id']}|{date_str}|{time_str}",
+                'date':    date_str,
+                'type':    'show',
+                'time':    time_str,
+                'rule_id': rule['id'],
+            }
+            if 'playlist' in rule:    entry['playlist']  = rule['playlist']
+            elif 'playlists' in rule: entry['playlists'] = rule['playlists']
+            shows.append(entry)
+    return shows
+
+
 def schedule_for_date(date_str):
     """
     Return sorted list of show entries for date_str, or None on blackout days.
-    Each entry: {id, date, type:'show', time, show_id or rotation_ids:[...]}
+    Includes both manual one-off entries and entries generated from repeating rules.
     """
-    entries = load_json(SCHEDULE_CONFIG, {"entries": []}).get("entries", [])
+    schedule = load_json(SCHEDULE_CONFIG, {"entries": [], "rules": []})
+    entries  = schedule.get("entries", [])
+    rules    = schedule.get("rules", [])
 
     if any(e["date"] == date_str and e.get("type") == "blackout" for e in entries):
         return None
 
-    shows = [e for e in entries if e["date"] == date_str and e.get("type") == "show"]
+    shows  = [e for e in entries if e["date"] == date_str and e.get("type") == "show"]
+    shows += expand_rules_for_date(rules, date_str)
     return sorted(shows, key=lambda e: e["time"])
 
 def resolve_show_id(entry):
