@@ -3,6 +3,28 @@ $announceFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config
 $hwFile       = $settings['configDirectory'] . "/ShowManager.config";
 $announceDir  = __DIR__ . "/announcements";
 
+// ---- File upload ----
+if (isset($_POST['do_upload']) && !empty($_FILES['upload_file']['name'])) {
+    $f    = $_FILES['upload_file'];
+    $ext  = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+    $dest = ($_POST['upload_folder'] === 'daytime') ? $announceDir . '/daytime' : $announceDir;
+    @mkdir($dest, 0755, true);
+    if (in_array($ext, ['mp3', 'wav', 'ogg']) && $f['error'] === UPLOAD_ERR_OK) {
+        move_uploaded_file($f['tmp_name'], $dest . '/' . basename($f['name']));
+        echo '<div class="alert alert-success">File uploaded.</div>';
+    } else {
+        echo '<div class="alert alert-danger">Upload failed — only MP3, WAV, and OGG are accepted.</div>';
+    }
+}
+
+// ---- File delete ----
+if (isset($_POST['do_delete'])) {
+    $target = realpath($announceDir . '/' . ltrim($_POST['do_delete'], '/'));
+    if ($target && str_starts_with($target, realpath($announceDir) . DIRECTORY_SEPARATOR)) {
+        unlink($target);
+    }
+}
+
 // ---- FPP playlist list ----
 $playlists = [];
 $playlistDir = "/home/fpp/media/playlists";
@@ -191,6 +213,62 @@ Each row fires one announcement the specified number of minutes before the show.
 <br>
 <input type="submit" name="save_announcements" value="Save Settings" class="buttons">
 </form>
+
+<hr style="margin:28px 0;">
+
+<h3>Announcement Files</h3>
+
+<form method="post" enctype="multipart/form-data">
+<table class="fpp-settings-table">
+  <tr>
+    <td>File</td>
+    <td><input type="file" name="upload_file" accept=".mp3,.wav,.ogg"></td>
+    <td>MP3, WAV, or OGG</td>
+  </tr>
+  <tr>
+    <td>Destination</td>
+    <td>
+      <select name="upload_folder" class="fpp-select">
+        <option value="main">Main (pre-show announcements)</option>
+        <option value="daytime">Daytime</option>
+      </select>
+    </td>
+    <td></td>
+  </tr>
+</table>
+<br>
+<input type="submit" name="do_upload" value="Upload File" class="buttons">
+</form>
+
+<?php
+$allFiles = [];
+foreach (glob($announceDir . '/*.{mp3,wav,ogg}', GLOB_BRACE) as $f)
+    $allFiles[] = ['name' => basename($f), 'path' => basename($f), 'folder' => 'Main'];
+foreach (glob($announceDir . '/daytime/*.{mp3,wav,ogg}', GLOB_BRACE) as $f)
+    $allFiles[] = ['name' => basename($f), 'path' => 'daytime/' . basename($f), 'folder' => 'Daytime'];
+?>
+
+<?php if ($allFiles): ?>
+<table class="fpp-settings-table" style="margin-top:16px;">
+  <thead><tr><th>File</th><th>Folder</th><th></th></tr></thead>
+  <tbody>
+  <?php foreach ($allFiles as $f): ?>
+  <tr>
+    <td><?= htmlspecialchars($f['name']) ?></td>
+    <td><?= $f['folder'] ?></td>
+    <td>
+      <form method="post" style="display:inline;">
+        <input type="hidden" name="do_delete" value="<?= htmlspecialchars($f['path']) ?>">
+        <button type="submit" class="buttons" onclick="return confirm('Delete <?= htmlspecialchars($f['name']) ?>?')">Delete</button>
+      </form>
+    </td>
+  </tr>
+  <?php endforeach; ?>
+  </tbody>
+</table>
+<?php else: ?>
+<p style="color:#888;margin-top:12px;">No announcement files uploaded yet.</p>
+<?php endif; ?>
 
 <script>
 function addPreRow() {

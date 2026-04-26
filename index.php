@@ -1,12 +1,6 @@
 <?php
 $tab = $_GET['tab'] ?? 'hardware';
 
-// AJAX passthrough — schedule.php outputs JSON and exits
-if ($tab === 'schedule' && isset($_GET['action'])) {
-    include __DIR__ . '/schedule.php';
-    exit;
-}
-
 $base  = "plugin.php?plugin=" . basename(__DIR__) . "&page=index.php";
 $tabs  = ['hardware' => 'Hardware', 'shows' => 'Shows', 'schedule' => 'Schedule', 'announcements' => 'Announcements'];
 $files = ['hardware' => 'config.php', 'shows' => 'shows.php', 'schedule' => 'schedule.php', 'announcements' => 'announcements.php'];
