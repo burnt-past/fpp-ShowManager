@@ -1,6 +1,3 @@
 #!/bin/bash
-
-PLUGIN_DIR="/home/fpp/media/plugins/XR18VolumeControl"
-
-# Load functions from other scripts if necessary
-. ${PLUGIN_DIR}/Scripts/poll_volume.sh
+# FPP plugin callbacks — the bridge daemon (xr18_bridge.py) handles all
+# XR18 communication continuously; no per-event work is needed here.

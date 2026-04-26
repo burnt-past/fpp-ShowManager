@@ -1,13 +1,11 @@
 <?php
 $pluginName = "XR18VolumeControl";
-$scriptPath1 = "/home/fpp/media/plugins/$pluginName/Scripts/poll_volume.sh";
-$scriptPath2 = "/home/fpp/media/plugins/$pluginName/Scripts/midi_listener.sh";
+$bridge     = "/home/fpp/media/plugins/$pluginName/Scripts/xr18_bridge.py";
 
-// Ensure the script is executable
-chmod($scriptPath1, 0755);
-chmod($scriptPath2, 0755);
+chmod($bridge, 0755);
 
-// Start the script
-exec("$scriptPath1 > /dev/null 2>&1 &");
-exec("$scriptPath2 > /dev/null 2>&1 &");
-?>
+// Kill any stale instance before (re)starting
+exec("pkill -f xr18_bridge.py 2>/dev/null");
+sleep(1);
+
+exec("python3 $bridge >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &");
