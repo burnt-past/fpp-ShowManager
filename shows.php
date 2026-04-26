@@ -1,5 +1,4 @@
 <?php
-$pluginName = "ShowManager";
 $showsFile  = $settings['configDirectory'] . "/ShowManagerShows.config";
 
 // ---- FPP playlist list (for dropdowns) ----

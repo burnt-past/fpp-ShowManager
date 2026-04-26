@@ -43,7 +43,7 @@ FADER_STATE_FILE = "/tmp/xr18_current_fader"
 LOG_PATH         = "/home/fpp/media/logs/showmanager.log"
 
 XR18_PORT        = 10024
-ANNOUNCE_FOLDER  = "/home/fpp/media/plugins/ShowManager/announcements"
+ANNOUNCE_FOLDER  = os.path.join(os.path.dirname(os.path.dirname(__file__)), "announcements")
 
 logging.basicConfig(
     filename=LOG_PATH,

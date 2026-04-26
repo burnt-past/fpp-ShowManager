@@ -2,14 +2,14 @@
 	"repoName": "fpp-ShowManager",
 	"name": "Show Manager",
 	"author": "Alexander Woolum",
-	"description": "Synchronizes FPP volume control with Behringer XR18 mixer via MIDI.",
+	"description": "FPP show management plugin — volume sync with Behringer XR18 via OSC, scheduled shows, announcements, and lighting transitions.",
 	"homeURL": "adeptevents.com",
 	"srcURL": "https://github.com/burnt-past/fpp-ShowManager",
 	"bugURL": "https://github.com/burnt-past/fpp-ShowManager/issues",
 	"allowUpdates": 1,
 	"versions": [
 		{
-			"minFPPVersion": "5.0",
+			"minFPPVersion": "9.4",
 			"maxFPPVersion": "0",
 			"branch": "main",
 			"sha": ""

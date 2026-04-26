@@ -1,6 +1,5 @@
 <?php
-$pluginName = "ShowManager";
-$pluginDir  = "/home/fpp/media/plugins/$pluginName";
+$pluginDir  = __DIR__;
 
 $bridge    = "$pluginDir/Scripts/xr18_bridge.py";
 $scheduler = "$pluginDir/Scripts/show_scheduler.py";
