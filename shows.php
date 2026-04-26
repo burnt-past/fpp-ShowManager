@@ -63,6 +63,7 @@ function pl_select($name, $selected, $playlists, $allow_blank = true) {
 <p>Define each show playlist here. The schedule page uses these to build your calendar.</p>
 
 <form method="post">
+<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
 <table class="fpp-settings-table" id="shows-table">
   <thead>
     <tr>
@@ -89,6 +90,7 @@ function pl_select($name, $selected, $playlists, $allow_blank = true) {
   <?php endforeach; ?>
   </tbody>
 </table>
+</div>
 
 <br>
 <button type="button" class="buttons" onclick="addRow()">+ Add Show</button>

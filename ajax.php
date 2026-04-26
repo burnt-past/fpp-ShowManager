@@ -54,6 +54,27 @@ switch ($_GET['action'] ?? '') {
         echo json_encode(['ok' => true]);
         break;
 
+    case 'schedule_repeat':
+        $body  = json_decode(file_get_contents('php://input'), true);
+        $start = new DateTime($body['start_date'] ?? 'today');
+        $end   = new DateTime($body['end_date']   ?? 'today');
+        $days  = array_map('intval', $body['days'] ?? []);
+        $time  = $body['time'] ?? '19:00';
+        $entries = $schedule['entries'] ?? [];
+        $count   = 0;
+        for ($d = clone $start; $d <= $end; $d->modify('+1 day')) {
+            if (!in_array((int)$d->format('w'), $days)) continue;
+            $entry = ['id' => uniqid('e_'), 'date' => $d->format('Y-m-d'), 'type' => 'show', 'time' => $time];
+            if (!empty($body['show_id'])) $entry['show_id'] = $body['show_id'];
+            else $entry['rotation_ids'] = $body['rotation_ids'] ?? [];
+            $entries[] = $entry;
+            $count++;
+        }
+        $schedule['entries'] = $entries;
+        file_put_contents($scheduleFile, json_encode($schedule, JSON_PRETTY_PRINT));
+        echo json_encode(['ok' => true, 'count' => $count]);
+        break;
+
     default:
         http_response_code(400);
         echo json_encode(['error' => 'unknown action']);
