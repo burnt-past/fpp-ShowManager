@@ -60,7 +60,6 @@ function pl_select($name, $selected, $playlists, $allow_blank = true) {
 }
 ?>
 
-<h2>Show Definitions</h2>
 <p>Define each show playlist here. The schedule page uses these to build your calendar.</p>
 
 <form method="post">

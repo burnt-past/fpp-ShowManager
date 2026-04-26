@@ -77,7 +77,6 @@ if (isset($_GET['action'])) {
 }
 ?>
 
-<h2>Show Schedule</h2>
 <p>Click any day to add or edit shows. Days highlighted in red are blackout days (no shows).</p>
 
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
@@ -146,7 +145,8 @@ if (isset($_GET['action'])) {
 </div>
 
 <script>
-const SHOWS = <?= json_encode(array_values($showDefs)) ?>;
+const SHOWS     = <?= json_encode(array_values($showDefs)) ?>;
+const AJAX_BASE = '<?= "plugin.php?plugin={$plugin}&page=index.php&tab=schedule" ?>';
 let curYear  = <?= date('Y') ?>;
 let curMonth = <?= date('n') ?>;
 let calData  = {};   // date -> [entry, ...]
@@ -158,7 +158,7 @@ let modalDate = null;
 
 async function loadMonth(year, month) {
     curYear = year; curMonth = month;
-    const res  = await fetch(`schedule.php?action=get_month&year=${year}&month=${month}`);
+    const res  = await fetch(`${AJAX_BASE}&action=get_month&year=${year}&month=${month}`);
     const entries = await res.json();
     calData = {};
     entries.forEach(e => {
@@ -286,7 +286,7 @@ async function addShow() {
         if (body.rotation_ids.length < 2) { alert('Select at least 2 shows for a rotation.'); return; }
     }
 
-    const res = await fetch('schedule.php?action=save_entry', {
+    const res = await fetch(`${AJAX_BASE}&action=save_entry`, {
         method: 'POST', body: JSON.stringify(body), headers: {'Content-Type':'application/json'}
     });
     const data = await res.json();
@@ -297,7 +297,7 @@ async function addShow() {
 }
 
 async function deleteEntry(id) {
-    await fetch(`schedule.php?action=delete_entry&id=${id}`);
+    await fetch(`${AJAX_BASE}&action=delete_entry&id=${id}`);
     calData[modalDate] = (calData[modalDate] || []).filter(e => e.id !== id);
     renderModalEntries();
     renderCalendar();
@@ -306,10 +306,10 @@ async function deleteEntry(id) {
 async function toggleBlackout() {
     const existing = (calData[modalDate] || []).find(e => e.type === 'blackout');
     if (existing) {
-        await fetch(`schedule.php?action=delete_entry&id=${existing.id}`);
+        await fetch(`${AJAX_BASE}&action=delete_entry&id=${existing.id}`);
         calData[modalDate] = (calData[modalDate] || []).filter(e => e.id !== existing.id);
     } else {
-        const res = await fetch('schedule.php?action=save_entry', {
+        const res = await fetch(`${AJAX_BASE}&action=save_entry`, {
             method: 'POST',
             body: JSON.stringify({ date: modalDate, type: 'blackout', reason: '' }),
             headers: {'Content-Type':'application/json'}

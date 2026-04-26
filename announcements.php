@@ -87,8 +87,6 @@ function pl_option($name, $selected, $playlists) {
 }
 ?>
 
-<h2>Announcement Settings</h2>
-
 <form method="post">
 
 <h3>Ducking</h3>
