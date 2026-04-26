@@ -18,7 +18,7 @@ import time
 import urllib.error
 import urllib.request
 
-CONFIG_PATH = "/home/fpp/media/config/XR18VolumeControl.config"
+CONFIG_PATH = "/home/fpp/media/config/ShowManager.config"
 LOG_PATH    = "/home/fpp/media/logs/xr18_bridge.log"
 XR18_PORT   = 10024
 LISTEN_PORT = 10023   # local UDP port; XR18 sends updates back here

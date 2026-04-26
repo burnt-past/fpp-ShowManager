@@ -1,6 +1,6 @@
 <?php
-$pluginName = "XR18VolumeControl";
-$showsFile  = $settings['configDirectory'] . "/XR18Shows.config";
+$pluginName = "ShowManager";
+$showsFile  = $settings['configDirectory'] . "/ShowManagerShows.config";
 
 // ---- FPP playlist list (for dropdowns) ----
 $playlists = [];

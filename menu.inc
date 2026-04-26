@@ -1,5 +1,5 @@
 <?php
-$pluginDir  = $settings['pluginDirectory'] . "/XR18VolumeControl";
+$pluginDir  = $settings['pluginDirectory'] . "/ShowManager";
 $pluginJson = "$pluginDir/pluginInfo.json";
 $pluginData = json_decode(file_get_contents($pluginJson), true);
 $pluginBase = $pluginData['name'];

@@ -9,10 +9,10 @@ flag/state files:
   /tmp/xr18_current_fader     — bridge writes current fader level here
 
 Config files (all in /home/fpp/media/config/):
-  XR18VolumeControl.config    — hardware settings (IP, channels, duck level)
-  XR18Shows.config            — show definitions
-  XR18Schedule.config         — calendar entries (shows + blackout dates)
-  XR18Announcements.config    — announcement settings
+  ShowManager.config    — hardware settings (IP, channels, duck level)
+  ShowManagerShows.config            — show definitions
+  ShowManagerSchedule.config         — calendar entries (shows + blackout dates)
+  ShowManagerAnnouncements.config    — announcement settings
 """
 
 import datetime
@@ -33,17 +33,17 @@ import urllib.request
 # Paths
 # ---------------------------------------------------------------------------
 
-HARDWARE_CONFIG  = "/home/fpp/media/config/XR18VolumeControl.config"
-SHOWS_CONFIG     = "/home/fpp/media/config/XR18Shows.config"
-SCHEDULE_CONFIG  = "/home/fpp/media/config/XR18Schedule.config"
-ANNOUNCE_CONFIG  = "/home/fpp/media/config/XR18Announcements.config"
-ROTATION_STATE   = "/home/fpp/media/config/XR18RotationState.config"
+HARDWARE_CONFIG  = "/home/fpp/media/config/ShowManager.config"
+SHOWS_CONFIG     = "/home/fpp/media/config/ShowManagerShows.config"
+SCHEDULE_CONFIG  = "/home/fpp/media/config/ShowManagerSchedule.config"
+ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
+ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
-LOG_PATH         = "/home/fpp/media/logs/xr18_scheduler.log"
+LOG_PATH         = "/home/fpp/media/logs/showmanager.log"
 
 XR18_PORT        = 10024
-ANNOUNCE_FOLDER  = "/home/fpp/media/plugins/XR18VolumeControl/announcements"
+ANNOUNCE_FOLDER  = "/home/fpp/media/plugins/ShowManager/announcements"
 
 logging.basicConfig(
     filename=LOG_PATH,

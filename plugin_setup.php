@@ -1,5 +1,5 @@
 <?php
-$pluginName = "XR18VolumeControl";
+$pluginName = "ShowManager";
 $pluginDir  = "/home/fpp/media/plugins/$pluginName";
 
 $bridge    = "$pluginDir/Scripts/xr18_bridge.py";
@@ -17,5 +17,5 @@ exec("pkill -f show_scheduler.py 2>/dev/null");
 sleep(1);
 
 exec("python3 $bridge    >> /home/fpp/media/logs/xr18_bridge.log    2>&1 &");
-exec("python3 $scheduler >> /home/fpp/media/logs/xr18_scheduler.log 2>&1 &");
+exec("python3 $scheduler >> /home/fpp/media/logs/showmanager.log 2>&1 &");
 ?>

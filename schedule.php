@@ -1,6 +1,6 @@
 <?php
-$scheduleFile = $settings['configDirectory'] . "/XR18Schedule.config";
-$showsFile    = $settings['configDirectory'] . "/XR18Shows.config";
+$scheduleFile = $settings['configDirectory'] . "/ShowManagerSchedule.config";
+$showsFile    = $settings['configDirectory'] . "/ShowManagerShows.config";
 
 // ---- Load shows for dropdowns ----
 $showsData = file_exists($showsFile) ? json_decode(file_get_contents($showsFile), true) : [];

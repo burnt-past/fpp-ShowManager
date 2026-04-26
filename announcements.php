@@ -1,7 +1,7 @@
 <?php
-$pluginName   = "XR18VolumeControl";
-$announceFile = $settings['configDirectory'] . "/XR18Announcements.config";
-$hwFile       = $settings['configDirectory'] . "/XR18VolumeControl.config";
+$pluginName   = "ShowManager";
+$announceFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
+$hwFile       = $settings['configDirectory'] . "/ShowManager.config";
 $announceDir  = "/home/fpp/media/plugins/$pluginName/announcements";
 
 // ---- FPP playlist list ----
