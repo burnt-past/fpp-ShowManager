@@ -1,3 +1,3 @@
 <?php
-    echo "XR18 Volume Control Plugin is active.";
+    echo "Show Manager is active.";
     ?>

@@ -18,7 +18,7 @@ import time
 import urllib.error
 import urllib.request
 
-CONFIG_PATH = "/home/fpp/media/config/XR18VolumeControl.config"
+CONFIG_PATH = "/home/fpp/media/config/ShowManager.config"
 LOG_PATH    = "/home/fpp/media/logs/xr18_bridge.log"
 XR18_PORT   = 10024
 LISTEN_PORT = 10023   # local UDP port; XR18 sends updates back here
@@ -26,6 +26,8 @@ FPP_VOL_URL = "http://localhost/api/system/volume"
 POLL_INTERVAL   = 2   # seconds between FPP volume polls
 XREMOTE_INTERVAL = 9  # seconds between /xremote heartbeats
 ANNOUNCE_SYNC_INTERVAL = 30  # seconds between announcement-channel restorations
+PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"    # scheduler creates this during announcements
+FADER_STATE_FILE = "/tmp/xr18_current_fader" # bridge writes current level here
 
 logging.basicConfig(
     filename=LOG_PATH,
@@ -166,6 +168,11 @@ class XR18Bridge:
     def _poll_fpp(self):
         """FPP → XR18: push volume changes to music channels."""
         while True:
+            # Yield control to the scheduler during announcements
+            if os.path.exists(PAUSE_SYNC_FLAG):
+                time.sleep(POLL_INTERVAL)
+                continue
+
             vol = fpp_get_volume()
             if vol is not None:
                 with self._lock:
@@ -178,6 +185,12 @@ class XR18Bridge:
                             vol, self.music_ch1, self.music_ch2, fader,
                         )
                         self._prev_fpp_vol = vol
+                        # Share current fader level with the scheduler
+                        try:
+                            with open(FADER_STATE_FILE, "w") as f:
+                                f.write(f"{fader:.4f}")
+                        except Exception:
+                            pass
             time.sleep(POLL_INTERVAL)
 
     def _listen_xr18(self):
