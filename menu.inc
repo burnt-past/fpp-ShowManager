@@ -1,5 +1,5 @@
 <?php
-$pluginDir  = $settings['pluginDirectory'] . "/ShowManager";
+$pluginDir  = __DIR__;
 $pluginJson = "$pluginDir/pluginInfo.json";
 $pluginData = json_decode(file_get_contents($pluginJson), true);
 $pluginBase = $pluginData['name'];

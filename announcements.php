@@ -1,8 +1,7 @@
 <?php
-$pluginName   = "ShowManager";
 $announceFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
 $hwFile       = $settings['configDirectory'] . "/ShowManager.config";
-$announceDir  = "/home/fpp/media/plugins/$pluginName/announcements";
+$announceDir  = __DIR__ . "/announcements";
 
 // ---- FPP playlist list ----
 $playlists = [];
