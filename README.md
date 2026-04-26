@@ -1,4 +1,4 @@
-# FPP XR18 Volume Control Plugin
+# FPP Show Manager
 
 A [Falcon Pi Player](https://github.com/FalconChristmas/fpp) plugin that integrates a **Behringer XR18** digital mixer with FPP for complete show management — volume sync, scheduled shows, pre-show announcements, lighting transitions, and background music automation.
 
@@ -21,13 +21,13 @@ A [Falcon Pi Player](https://github.com/FalconChristmas/fpp) plugin that integra
 
 | Requirement | Notes |
 |---|---|
-| Falcon Pi Player ≥ 5.0 | Running on Raspberry Pi |
-| Behringer XR18 (X Air 18) | Connected to the same network as the Pi |
+| Falcon Pi Player ≥ 5.0 | Running on a Linux machine |
+| Behringer XR18 (X Air 18) | Connected to the same network as the FPP host |
 | [fpp-brightness](https://github.com/FalconChristmas/fpp-brightness) plugin | For pre-show lighting dim/restore |
 | Python 3.7+ | Pre-installed on FPP images |
 | `ffmpeg` **or** `mpg123` | For announcement audio playback (`sudo apt install ffmpeg`) |
 | XR18 connected via USB | For audio output from FPP to the mixer |
-| Pi and XR18 on the same LAN | OSC control travels over UDP, not USB |
+| FPP host and XR18 on the same LAN | OSC control travels over UDP, not USB |
 
 ---
 
@@ -35,7 +35,7 @@ A [Falcon Pi Player](https://github.com/FalconChristmas/fpp) plugin that integra
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        Raspberry Pi (FPP)                        │
+│                        FPP Host (Linux)                          │
 │                                                                  │
 │  ┌──────────────┐   OSC fader sync    ┌──────────────────────┐  │
 │  │ xr18_bridge  │◄───────────────────►│                      │  │
@@ -88,16 +88,16 @@ See **[docs/setup.md](docs/setup.md)** for the full installation guide.
 Quick version:
 
 ```bash
-# On the Pi, install the plugin via FPP Plugin Manager
-# Plugin name: XR18 Volume Control Plugin
-# Repo: https://github.com/burnt-past/fpp-XR18VolumeContro
+# Install the plugin via FPP Plugin Manager
+# Plugin name: Show Manager
+# Repo: https://github.com/burnt-past/fpp-ShowManager
 
 # Install ffmpeg for announcement playback
 sudo apt install -y ffmpeg
 
 # Place announcement MP3s here:
-# /home/fpp/media/plugins/XR18VolumeControl/announcements/       ← pre-show
-# /home/fpp/media/plugins/XR18VolumeControl/announcements/daytime/ ← general
+# /home/fpp/media/plugins/ShowManager/announcements/       ← pre-show
+# /home/fpp/media/plugins/ShowManager/announcements/daytime/ ← general
 ```
 
 ---
@@ -120,7 +120,7 @@ After installation the FPP menu gains four entries:
 | File | Contains |
 |---|---|
 | `/home/fpp/media/logs/xr18_bridge.log` | Volume sync, XR18 OSC activity |
-| `/home/fpp/media/logs/xr18_scheduler.log` | Show triggers, announcements, errors |
+| `/home/fpp/media/logs/showmanager.log` | Show triggers, announcements, errors |
 
 ---
 
@@ -130,11 +130,11 @@ All stored in `/home/fpp/media/config/`:
 
 | File | Contents |
 |---|---|
-| `XR18VolumeControl.config` | Hardware: IP, channels, duck level, fade time |
-| `XR18Shows.config` | Show definitions (playlists, durations) |
-| `XR18Schedule.config` | Calendar entries (shows + blackout dates) |
-| `XR18Announcements.config` | Announcement and brightness settings |
-| `XR18RotationState.config` | Auto-managed rotation index per slot |
+| `ShowManager.config` | Hardware: IP, channels, duck level, fade time |
+| `ShowManagerShows.config` | Show definitions (playlists, durations) |
+| `ShowManagerSchedule.config` | Calendar entries (shows + blackout dates) |
+| `ShowManagerAnnouncements.config` | Announcement and brightness settings |
+| `ShowManagerRotation.config` | Auto-managed rotation index per slot |
 
 ---
 

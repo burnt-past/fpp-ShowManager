@@ -6,7 +6,7 @@ The scheduler lets you plan shows by calendar date rather than by day-of-week pa
 
 ## The Shows Page
 
-Before you can schedule anything you need at least one show defined. Go to **XR18 Volume Control — Shows**.
+Before you can schedule anything you need at least one show defined. Go to **Show Manager — Shows**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -37,7 +37,7 @@ Before you can schedule anything you need at least one show defined. Go to **XR1
 
 ## The Schedule Calendar
 
-Go to **XR18 Volume Control — Schedule**.
+Go to **Show Manager — Schedule**.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -105,10 +105,10 @@ Dec 9  21:00  → Show A   (index 0, wraps)
 ...
 ```
 
-The state is stored in `XR18RotationState.config`. If you want to reset the rotation (start back at Show A), delete the file or use the FPP SSH terminal:
+The state is stored in `ShowManagerRotation.config`. If you want to reset the rotation (start back at Show A), delete the file or use the FPP SSH terminal:
 
 ```bash
-rm /home/fpp/media/config/XR18RotationState.config
+rm /home/fpp/media/config/ShowManagerRotation.config
 ```
 
 Rotation is per slot key (the comma-joined list of show IDs). Changing which shows are in the rotation creates a new key and resets the counter for that group.
@@ -137,7 +137,7 @@ The scheduler loop runs every **30 seconds**. For each upcoming show on today's 
 | Pre-show announcement (e.g. 5 min) | 4:30–5:30 before show time |
 | Show start | 0:30 before to 0:30 after show time |
 
-Each event fires **at most once per day per slot** — a duplicate-prevention set is cleared at midnight. This means if the Pi clock drifts slightly or the daemon restarts mid-day, events won't double-fire.
+Each event fires **at most once per day per slot** — a duplicate-prevention set is cleared at midnight. This means if the system clock drifts slightly or the daemon restarts mid-day, events won't double-fire.
 
 ---
 

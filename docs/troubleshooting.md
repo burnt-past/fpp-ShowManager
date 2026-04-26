@@ -4,7 +4,7 @@
 
 ```bash
 tail -50 /home/fpp/media/logs/xr18_bridge.log
-tail -50 /home/fpp/media/logs/xr18_scheduler.log
+tail -50 /home/fpp/media/logs/showmanager.log
 ```
 
 Both logs include timestamps. Errors are labelled `ERROR`, warnings `WARNING`.
@@ -22,7 +22,7 @@ ps aux | grep xr18_bridge.py
 
 If no process is listed, restart it:
 ```bash
-python3 /home/fpp/media/plugins/XR18VolumeControl/Scripts/xr18_bridge.py &
+python3 /home/fpp/media/plugins/ShowManager/Scripts/xr18_bridge.py &
 ```
 
 **Check the XR18 IP:**
@@ -39,7 +39,7 @@ If wrong, update the IP in the Hardware settings page and restart the bridge.
 ping 192.168.1.50          # replace with your XR18 IP
 ```
 
-If ping fails, check that the Pi and XR18 are on the same subnet. On dedicated event Wi-Fi networks, client isolation (AP isolation) can block device-to-device UDP — disable it on your access point.
+If ping fails, check that the FPP host and XR18 are on the same subnet. On dedicated event Wi-Fi networks, client isolation (AP isolation) can block device-to-device UDP — disable it on your access point.
 
 **Check firewall:**
 ```bash
@@ -87,21 +87,21 @@ ps aux | grep show_scheduler.py
 
 **Check today's schedule is loaded:**
 ```bash
-grep "$(date +%Y-%m-%d)" /home/fpp/media/config/XR18Schedule.config
+grep "$(date +%Y-%m-%d)" /home/fpp/media/config/ShowManagerSchedule.config
 ```
 
 If the date isn't there, add the show in the Schedule page.
 
 **Check for a blackout entry:**
 ```bash
-grep "blackout" /home/fpp/media/config/XR18Schedule.config
+grep "blackout" /home/fpp/media/config/ShowManagerSchedule.config
 ```
 
 If today is a blackout day, all shows are suppressed. Open that date in the Schedule page and click **Remove Blackout**.
 
 **Check the scheduler log for the event:**
 ```bash
-grep "Show starting\|Show ended\|skip" /home/fpp/media/logs/xr18_scheduler.log
+grep "Show starting\|Show ended\|skip" /home/fpp/media/logs/showmanager.log
 ```
 
 ---
@@ -123,12 +123,12 @@ Try starting the playlist manually from the FPP web interface to confirm it work
 Check `background_playlist` in the Announcements settings page — if it's blank, nothing starts. Make sure the name matches exactly the FPP playlist name (case-sensitive).
 
 ```bash
-grep "background_playlist" /home/fpp/media/config/XR18Announcements.config
+grep "background_playlist" /home/fpp/media/config/ShowManagerAnnouncements.config
 ```
 
 Also check the scheduler log:
 ```bash
-grep "Resuming background" /home/fpp/media/logs/xr18_scheduler.log
+grep "Resuming background" /home/fpp/media/logs/showmanager.log
 ```
 
 ---
@@ -147,7 +147,7 @@ If not: `sudo apt install -y ffmpeg`
 
 **Check the audio file exists:**
 ```bash
-ls /home/fpp/media/plugins/XR18VolumeControl/announcements/
+ls /home/fpp/media/plugins/ShowManager/announcements/
 ```
 
 **Check the ALSA default device is the XR18:**
@@ -159,7 +159,7 @@ The announcement is played to the ALSA `default` device. If FPP's audio is going
 
 **Check the scheduler log:**
 ```bash
-grep -i "announcement\|audio" /home/fpp/media/logs/xr18_scheduler.log
+grep -i "announcement\|audio" /home/fpp/media/logs/showmanager.log
 ```
 
 ---
@@ -204,7 +204,7 @@ If this returns an error, the plugin isn't running. Install it via FPP Plugin Ma
 
 Check the scheduler log:
 ```bash
-grep -i "brightness\|dim" /home/fpp/media/logs/xr18_scheduler.log
+grep -i "brightness\|dim" /home/fpp/media/logs/showmanager.log
 ```
 
 Verify the `pre_show_brightness` value is set in Announcements settings (default: `20`).
@@ -219,15 +219,15 @@ Verify the `pre_show_brightness` value is set in Announcements settings (default
 pkill -f xr18_bridge.py
 pkill -f show_scheduler.py
 sleep 1
-python3 /home/fpp/media/plugins/XR18VolumeControl/Scripts/xr18_bridge.py \
+python3 /home/fpp/media/plugins/ShowManager/Scripts/xr18_bridge.py \
     >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &
-python3 /home/fpp/media/plugins/XR18VolumeControl/Scripts/show_scheduler.py \
-    >> /home/fpp/media/logs/xr18_scheduler.log 2>&1 &
+python3 /home/fpp/media/plugins/ShowManager/Scripts/show_scheduler.py \
+    >> /home/fpp/media/logs/showmanager.log 2>&1 &
 ```
 
 Or re-save any settings page in the FPP UI — that triggers `plugin_setup.php` which does the same thing.
 
-### Make daemons start on Pi boot
+### Make daemons start on FPP boot
 
 FPP runs `plugin_setup.php` when FPP starts if the plugin is enabled, so the daemons start automatically. If they don't, check that the plugin is enabled in FPP Plugin Manager.
 
@@ -248,7 +248,7 @@ This wipes the coordination files without touching your config. The daemons star
 If shows are alternating in the wrong order, reset the rotation state:
 
 ```bash
-rm /home/fpp/media/config/XR18RotationState.config
+rm /home/fpp/media/config/ShowManagerRotation.config
 ```
 
 The file is recreated automatically. The first show in the rotation list will play next.
@@ -262,7 +262,7 @@ The log files grow indefinitely. To rotate them:
 ```bash
 # Add to crontab (crontab -e):
 0 4 * * * truncate -s 0 /home/fpp/media/logs/xr18_bridge.log \
-    /home/fpp/media/logs/xr18_scheduler.log
+    /home/fpp/media/logs/showmanager.log
 ```
 
 This clears both logs at 4 AM daily.

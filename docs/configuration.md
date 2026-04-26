@@ -4,7 +4,7 @@ All settings are stored as JSON files in `/home/fpp/media/config/`. They are wri
 
 ---
 
-## XR18VolumeControl.config — Hardware
+## ShowManager.config — Hardware
 
 Managed by the **Hardware** page.
 
@@ -32,7 +32,7 @@ Managed by the **Hardware** page.
 
 ---
 
-## XR18Shows.config — Show Definitions
+## ShowManagerShows.config — Show Definitions
 
 Managed by the **Shows** page.
 
@@ -70,7 +70,7 @@ Managed by the **Shows** page.
 
 ---
 
-## XR18Schedule.config — Calendar
+## ShowManagerSchedule.config — Calendar
 
 Managed by the **Schedule** page. You should not need to edit this manually.
 
@@ -112,7 +112,7 @@ Managed by the **Schedule** page. You should not need to edit this manually.
 ```json
 { "type": "show", "date": "2024-12-14", "time": "21:00", "rotation_ids": ["show_a", "show_b"] }
 ```
-Rotation automatically alternates between shows in order each time that slot fires. State is tracked in `XR18RotationState.config`.
+Rotation automatically alternates between shows in order each time that slot fires. State is tracked in `ShowManagerRotation.config`.
 
 **`blackout`:**
 ```json
@@ -122,13 +122,13 @@ All shows and pre-show announcements for this date are suppressed.
 
 ---
 
-## XR18Announcements.config — Announcements
+## ShowManagerAnnouncements.config — Announcements
 
 Managed by the **Announcements** page.
 
 ```json
 {
-  "folder":              "/home/fpp/media/plugins/XR18VolumeControl/announcements",
+  "folder":              "/home/fpp/media/plugins/ShowManager/announcements",
   "gain_db":             6.0,
   "max_duration_secs":   300,
   "background_playlist": "BackgroundMusic",
@@ -144,7 +144,7 @@ Managed by the **Announcements** page.
     "start":         "10:00",
     "end":           "18:00",
     "interval_mins": 20,
-    "folder":        "/home/fpp/media/plugins/XR18VolumeControl/announcements/daytime"
+    "folder":        "/home/fpp/media/plugins/ShowManager/announcements/daytime"
   }
 }
 ```
@@ -165,7 +165,7 @@ Managed by the **Announcements** page.
 
 ---
 
-## XR18RotationState.config — Rotation State
+## ShowManagerRotation.config — Rotation State
 
 **Auto-managed — do not edit manually.**
 
@@ -189,10 +189,10 @@ To reset a rotation (start back from the first show), delete the matching key fr
 
 | Direction | Protocol | Port | Purpose |
 |---|---|---|---|
-| Pi → XR18 | UDP | 10024 | Send fader commands, `/xremote` heartbeat |
-| XR18 → Pi | UDP | 10023 | Receive fader update notifications |
+| FPP host → XR18 | UDP | 10024 | Send fader commands, `/xremote` heartbeat |
+| XR18 → FPP host | UDP | 10023 | Receive fader update notifications |
 
-Ensure no firewall blocks these ports on the Pi or your router/switch.
+Ensure no firewall blocks these ports on the FPP host or your router/switch.
 
 ---
 

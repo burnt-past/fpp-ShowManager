@@ -73,13 +73,13 @@ The music never stops — it stays playing at the ducked level the entire time. 
 
 Place MP3 files in:
 ```
-/home/fpp/media/plugins/XR18VolumeControl/announcements/
+/home/fpp/media/plugins/ShowManager/announcements/
 ```
 
 Copy files via SFTP (FileZilla, Cyberduck) or `scp`:
 
 ```bash
-scp 5min.mp3 fpp@your-pi-ip:/home/fpp/media/plugins/XR18VolumeControl/announcements/
+scp 5min.mp3 fpp@your-pi-ip:/home/fpp/media/plugins/ShowManager/announcements/
 ```
 
 The **Announcements** page shows a dropdown of detected MP3s in that folder to prevent typos.
@@ -109,7 +109,7 @@ It's skipped silently and logged. The duplicate-prevention set means it won't re
 
 Place MP3s in the daytime subfolder:
 ```
-/home/fpp/media/plugins/XR18VolumeControl/announcements/daytime/
+/home/fpp/media/plugins/ShowManager/announcements/daytime/
 ```
 
 The scheduler picks a **random file** from this folder each time. If the folder is empty it falls back to the main announcements folder.
@@ -183,4 +183,4 @@ The background playlist should be a standard FPP audio-only playlist. It does no
 | Loudness | Normalize to –14 LUFS for consistent levels |
 | Length | Keep pre-show announcements under 60 seconds |
 
-Normalizing your announcement files means the `gain_db` setting has a consistent reference point. Use `ffmpeg-normalize` or Audacity's normalization feature before putting files on the Pi.
+Normalizing your announcement files means the `gain_db` setting has a consistent reference point. Use `ffmpeg-normalize` or Audacity's normalization feature before putting files on the FPP host.

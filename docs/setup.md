@@ -4,17 +4,17 @@
 
 Before installing this plugin you need:
 
-- **FPP 5.0 or later** running on a Raspberry Pi
-- **Behringer XR18** on the same local network as the Pi (Ethernet or Wi-Fi)
+- **FPP 5.0 or later** running on a Linux machine
+- **Behringer XR18** on the same local network as the FPP host (Ethernet or Wi-Fi)
 - **fpp-brightness plugin** installed (for pre-show lighting dim/restore)
-- The Pi connected to the XR18 via **USB** for audio output
-- `ffmpeg` installed on the Pi for announcement playback
+- The FPP host connected to the XR18 via **USB** for audio output
+- `ffmpeg` installed for announcement playback
 
 ---
 
 ## Step 1 — Install dependencies
 
-SSH into your Pi:
+SSH into your FPP host:
 
 ```bash
 sudo apt update
@@ -39,8 +39,8 @@ sudo apt install -y mpg123
 
 1. Open the FPP web interface in your browser
 2. Go to **Content Setup → Plugin Manager**
-3. Search for **XR18 Volume Control** or paste the repository URL:
-   `https://github.com/burnt-past/fpp-XR18VolumeContro`
+3. Search for **Show Manager** or paste the repository URL:
+   `https://github.com/burnt-past/fpp-ShowManager`
 4. Click **Install**
 5. FPP will clone the repo and run `plugin_setup.php`, which starts both background daemons
 
@@ -59,13 +59,13 @@ If not already installed:
 
 ### Network connection
 
-The XR18 must be reachable from the Pi over UDP. Find its IP address in **X AIR Edit** (the Behringer control app) under the network status screen.
+The XR18 must be reachable from the FPP host over UDP. Find its IP address in **X AIR Edit** (the Behringer control app) under the network status screen.
 
-Make sure your Pi and XR18 are on the **same subnet**. A dedicated Wi-Fi network for the XR18 (common in live setups) works as long as the Pi can reach it.
+Make sure your FPP host and XR18 are on the **same subnet**. A dedicated Wi-Fi network for the XR18 (common in live setups) works as long as the FPP host can reach it.
 
 ### USB audio connection
 
-Plug a USB cable from the Pi to the XR18's USB port. The XR18 will appear as an ALSA audio device. To confirm:
+Plug a USB cable from the FPP host to the XR18's USB port. The XR18 will appear as an ALSA audio device. To confirm:
 
 ```bash
 aplay -l
@@ -87,7 +87,7 @@ Both channels should be assigned to the main LR mix.
 
 ## Step 5 — Configure the plugin
 
-Open **FPP → Plugins → XR18 Volume Control — Hardware**:
+Open **FPP → Plugins → Show Manager — Hardware**:
 
 | Field | Value |
 |---|---|
@@ -103,7 +103,7 @@ Click **Save Settings**.
 
 ## Step 6 — Define your shows
 
-Go to **XR18 Volume Control — Shows**:
+Go to **Show Manager — Shows**:
 
 1. Click **+ Add Show** for each show you have
 2. Give it an ID (no spaces, e.g. `show_a`), a display name, and select its FPP playlist from the dropdown
@@ -116,12 +116,12 @@ Go to **XR18 Volume Control — Shows**:
 
 ## Step 7 — Configure announcements
 
-Go to **XR18 Volume Control — Announcements**:
+Go to **Show Manager — Announcements**:
 
 ### Place your audio files
 
 ```
-/home/fpp/media/plugins/XR18VolumeControl/announcements/
+/home/fpp/media/plugins/ShowManager/announcements/
     5min.mp3              ← pre-show warning files (any name you choose)
     10min.mp3
     15min.mp3
@@ -147,7 +147,7 @@ The folders are created automatically when the plugin loads. Copy files in via S
 
 ## Step 8 — Schedule your shows
 
-Go to **XR18 Volume Control — Schedule**:
+Go to **Show Manager — Schedule**:
 
 1. Navigate to the current month using **Prev / Next**
 2. Click on any day to open the day editor
@@ -161,7 +161,7 @@ The scheduler reads this calendar every 30 seconds. No restart is needed after m
 ## Folder structure
 
 ```
-/home/fpp/media/plugins/XR18VolumeControl/
+/home/fpp/media/plugins/ShowManager/
 │
 ├── Scripts/
 │   ├── xr18_bridge.py          ← XR18 OSC volume sync daemon
@@ -181,15 +181,15 @@ The scheduler reads this calendar every 30 seconds. No restart is needed after m
 └── pluginInfo.json
 
 /home/fpp/media/config/
-├── XR18VolumeControl.config    ← Hardware settings (JSON)
-├── XR18Shows.config            ← Show definitions (JSON)
-├── XR18Schedule.config         ← Calendar entries (JSON)
-├── XR18Announcements.config    ← Announcement settings (JSON)
-└── XR18RotationState.config    ← Auto-managed rotation state (JSON)
+├── ShowManager.config    ← Hardware settings (JSON)
+├── ShowManagerShows.config            ← Show definitions (JSON)
+├── ShowManagerSchedule.config         ← Calendar entries (JSON)
+├── ShowManagerAnnouncements.config    ← Announcement settings (JSON)
+└── ShowManagerRotation.config    ← Auto-managed rotation state (JSON)
 
 /home/fpp/media/logs/
 ├── xr18_bridge.log             ← Volume sync log
-└── xr18_scheduler.log          ← Scheduler / announcement log
+└── showmanager.log          ← Scheduler / announcement log
 ```
 
 ---
@@ -204,7 +204,7 @@ You should see two Python processes. If not, check the logs:
 
 ```bash
 tail -f /home/fpp/media/logs/xr18_bridge.log
-tail -f /home/fpp/media/logs/xr18_scheduler.log
+tail -f /home/fpp/media/logs/showmanager.log
 ```
 
 To restart manually:
@@ -212,8 +212,8 @@ To restart manually:
 ```bash
 pkill -f xr18_bridge.py
 pkill -f show_scheduler.py
-python3 /home/fpp/media/plugins/XR18VolumeControl/Scripts/xr18_bridge.py &
-python3 /home/fpp/media/plugins/XR18VolumeControl/Scripts/show_scheduler.py &
+python3 /home/fpp/media/plugins/ShowManager/Scripts/xr18_bridge.py &
+python3 /home/fpp/media/plugins/ShowManager/Scripts/show_scheduler.py &
 ```
 
 Or simply disable and re-enable the plugin in FPP's Plugin Manager, which re-runs `plugin_setup.php`.
