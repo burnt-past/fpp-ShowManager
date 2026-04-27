@@ -130,11 +130,17 @@ async function renderStatus(){
   </div>
 </div>
 <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-  ${[['FPP Version',fpp.version||'—'],['Instance',fpp.HostName||fpp.hostname||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length]].map(([l,v])=>`
+  ${[['FPP Version',fpp.version||'—'],['Instance',fpp.HostName||fpp.hostname||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length],['Volume',fpp.volume!=null?fpp.volume+'%':'—'],['XR18',xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'—']].map(([l,v])=>`
   <div class="sm-card" style="flex:1;min-width:100px;margin-bottom:0">
     <div style="font-size:11px;color:var(--sub);font-weight:500">${l}</div>
     <div style="margin-top:6px;font-size:18px;font-family:monospace;font-weight:600;color:var(--mint);word-break:break-all;line-height:1.2">${escH(String(v))}</div>
   </div>`).join('')}
+</div>
+<div class="sm-card" style="margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="font-size:12px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.08em">Manual Trigger</span>
+  <select id="trig-pl" class="sm-select" style="flex:1;min-width:160px">${plOptions('')}</select>
+  <button class="sm-btn solid" onclick="triggerPlaylist()">&#9654; Start</button>
+  <button class="sm-btn danger" onclick="stopPlaylist()">&#9646;&#9646; Stop</button>
 </div>
 <div style="display:flex;gap:12px;flex-wrap:wrap">
   <div class="sm-card" style="flex:1;min-width:200px">
@@ -172,6 +178,18 @@ async function renderStatus(){
 </div>`;
   // scroll log to bottom after render
   requestAnimationFrame(()=>{const lc=document.getElementById('sm-log-content');if(lc)lc.scrollTop=lc.scrollHeight;});
+}
+async function triggerPlaylist(){
+  const pl=document.getElementById('trig-pl').value;
+  if(!pl)return alert('Select a playlist.');
+  const r=await fetch(AJAX+'&action=trigger_playlist&playlist='+encodeURIComponent(pl)).then(r=>r.json());
+  const lc=document.getElementById('sm-log-content');
+  if(lc){lc.textContent+='\n[Manual trigger] '+pl+' → HTTP '+r.http+' '+(r.response||'');lc.scrollTop=lc.scrollHeight;}
+}
+async function stopPlaylist(){
+  const r=await fetch(AJAX+'&action=stop_playlist').then(r=>r.json());
+  const lc=document.getElementById('sm-log-content');
+  if(lc){lc.textContent+='\n[Manual stop] HTTP '+r.http+' '+(r.response||'');lc.scrollTop=lc.scrollHeight;}
 }
 async function refreshLog(){
   const r=await fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>null);

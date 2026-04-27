@@ -84,6 +84,25 @@ switch ($_GET['action'] ?? '') {
         echo json_encode($results);
         break;
 
+    case 'trigger_playlist':
+        $playlist = $_GET['playlist'] ?? '';
+        if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
+        $enc = rawurlencode($playlist);
+        $url = "http://localhost/api/command/Start%20Playlist?name=$enc&repeat=false";
+        $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+        $body = @file_get_contents($url, false, $ctx);
+        $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
+        echo json_encode(['ok' => $code === 200, 'http' => $code, 'response' => $body, 'url' => $url]);
+        break;
+
+    case 'stop_playlist':
+        $url = "http://localhost/api/command/Stop%20Now";
+        $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+        $body = @file_get_contents($url, false, $ctx);
+        $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
+        echo json_encode(['ok' => true, 'http' => $code, 'response' => $body]);
+        break;
+
     case 'get_status':
         $faderRaw = @file_get_contents('/tmp/xr18_current_fader');
         echo json_encode(['xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null]);
