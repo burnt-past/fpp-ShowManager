@@ -34,6 +34,7 @@ import urllib.request
 # ---------------------------------------------------------------------------
 
 HARDWARE_CONFIG  = "/home/fpp/media/config/ShowManager.config"
+SHOWS_CONFIG     = "/home/fpp/media/config/ShowManagerShows.config"
 SCHEDULE_CONFIG  = "/home/fpp/media/config/ShowManagerSchedule.config"
 ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
 ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
@@ -341,15 +342,22 @@ def schedule_for_date(date_str):
     shows += expand_rules_for_date(rules, date_str)
     return sorted(shows, key=lambda e: e["time"])
 
-def resolve_playlist(entry):
-    """Return the FPP playlist name to use for this entry (handles alternating)."""
-    if "playlist" in entry:
-        return entry["playlist"]
-    playlists = entry.get("playlists", [])
-    if not playlists:
+def resolve_show_id(entry):
+    """
+    Return the show_id to use for this entry.
+    Supports direct assignment (show_id) and rotation (rotation_ids list).
+    """
+    if "show_id" in entry:
+        return entry["show_id"]
+    ids = entry.get("rotation_ids", [])
+    if not ids:
         return None
-    key = ",".join(playlists)
-    return next_rotation_show(key, playlists)
+    key = ",".join(ids)
+    return next_rotation_show(key, ids)
+
+def get_show_def(show_id):
+    shows = load_json(SHOWS_CONFIG, {"shows": []}).get("shows", [])
+    return next((s for s in shows if s["id"] == show_id), None)
 
 
 # ---------------------------------------------------------------------------
@@ -388,22 +396,26 @@ class ShowScheduler:
     # ---- show runner -------------------------------------------------------
 
     def _run_show(self, entry):
-        playlist = resolve_playlist(entry)
+        show_id  = resolve_show_id(entry)
+        show_def = get_show_def(show_id) if show_id else None
         an_cfg   = self._an()
 
-        if not playlist:
-            log.error("No playlist found for entry %s", entry.get("id"))
+        if not show_def:
+            log.error("No show definition for id=%s", show_id)
             return
 
-        log.info("--- Show starting: %s ---", playlist)
+        log.info("--- Show starting: %s (%s) ---", show_def["name"], show_def["playlist"])
         self._in_show.set()
 
         try:
+            # Dim lighting via external plugin
             trigger_dim(an_cfg)
-            fpp_start_playlist(playlist)
 
-            # Wait until FPP goes idle; 4-hour hard cap as a safety net
-            max_wait = 4 * 60 * 60
+            # Trigger the show playlist
+            fpp_start_playlist(show_def["playlist"])
+
+            # Wait for show to end (poll FPP, with a generous timeout as safety net)
+            max_wait = show_def.get("duration_mins", 20) * 60 * 3
             waited   = 0
             while waited < max_wait:
                 time.sleep(5)
@@ -411,7 +423,7 @@ class ShowScheduler:
                 if is_fpp_idle():
                     break
 
-            log.info("--- Show ended: %s ---", playlist)
+            log.info("--- Show ended: %s ---", show_def["name"])
 
         finally:
             self._in_show.clear()

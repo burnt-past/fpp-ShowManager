@@ -1,7 +1,6 @@
 <?php
-
 $menuEntries = Array(
-	Array('text' => 'Show Manager', 'type' => 'status', 'page' => 'index.php', 'wrap' => 1),
+	Array('text' => 'Show Manager', 'type' => 'status', 'page' => 'app.php', 'wrap' => 1),
 );
 
 foreach ($menuEntries as $entry)
