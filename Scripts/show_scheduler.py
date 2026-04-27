@@ -128,11 +128,15 @@ def _fpp(path, method="GET", body=None, timeout=5):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = r.read().strip()
             if not data:
-                return True  # HTTP success, empty body (e.g. playlist start)
+                return True  # HTTP success, empty body
             try:
                 return json.loads(data)
             except ValueError:
-                return True  # HTTP success, non-JSON body
+                log.debug("FPP non-JSON response for %s: %s", path, data[:120])
+                return True
+    except urllib.error.HTTPError as e:
+        log.warning("FPP API HTTP %d %s %s: %s", e.code, method, path, e.read()[:120])
+        return None
     except Exception as e:
         log.warning("FPP API %s %s: %s", method, path, e)
         return None
@@ -143,11 +147,19 @@ def fpp_status():
 def fpp_start_playlist(name, repeat=0):
     enc = urllib.parse.quote(name)
     result = _fpp(f"/api/playlist/{enc}/start?repeat={repeat}")
-    if result is not None:
-        log.info("Started FPP playlist: %s", name)
+    if result is None:
+        log.error("Failed to start playlist '%s' — HTTP/network error", name)
+        return False
+    # FPP may return {"Status":"FAILED",...} with HTTP 200
+    if isinstance(result, dict):
+        status = result.get("Status", result.get("status", ""))
+        if str(status).upper() in ("FAILED", "ERROR", "false", "0"):
+            log.error("FPP rejected playlist start '%s': %s", name, result)
+            return False
+        log.info("Started FPP playlist '%s' — FPP response: %s", name, result)
     else:
-        log.error("Failed to start playlist: %s", name)
-    return result is not None
+        log.info("Started FPP playlist '%s' — response: %s", name, result)
+    return True
 
 def fpp_stop():
     _fpp("/api/fppd/stop")
@@ -162,7 +174,12 @@ def is_show_running():
     return bool(fpp_status().get("current_sequence", ""))
 
 def is_fpp_idle():
-    return fpp_status().get("status_name", "idle") == "idle"
+    st = fpp_status()
+    status_num  = st.get("status", 0)
+    status_name = st.get("status_name", "?")
+    log.info("FPP idle check: status=%s status_name=%s", status_num, status_name)
+    # FPP: status 0 = idle, 1 = playing
+    return status_num == 0
 
 
 # ---------------------------------------------------------------------------
