@@ -154,16 +154,56 @@ switch ($_GET['action'] ?? '') {
 
     case 'get_announcements':
         $annFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
+        $hwFile  = $settings['configDirectory'] . "/ShowManagerHardware.config";
         $ann = file_exists($annFile) ? (json_decode(file_get_contents($annFile), true) ?? []) : [];
+        $hw  = file_exists($hwFile)  ? (json_decode(file_get_contents($hwFile),  true) ?? []) : [];
+        if (isset($hw['duck_level']))    $ann['duck_level']    = $hw['duck_level'];
+        if (isset($hw['duck_fade_secs'])) $ann['duck_fade_secs'] = $hw['duck_fade_secs'];
+        $announceDir = __DIR__ . '/announcements';
+        $mainFiles = array_map('basename', glob($announceDir . '/*.{mp3,wav,ogg}', GLOB_BRACE) ?: []);
+        $dtFiles   = array_map('basename', glob($announceDir . '/daytime/*.{mp3,wav,ogg}', GLOB_BRACE) ?: []);
+        $ann['_files'] = ['main' => $mainFiles, 'daytime' => $dtFiles];
         echo json_encode($ann);
         break;
 
     case 'save_announcements':
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body) { http_response_code(400); echo json_encode(['error' => 'invalid']); break; }
+        $hwFile  = $settings['configDirectory'] . "/ShowManagerHardware.config";
         $annFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
+        $hw = file_exists($hwFile) ? (json_decode(file_get_contents($hwFile), true) ?? []) : [];
+        if (isset($body['duck_level']))    { $hw['duck_level']    = (float)$body['duck_level'];    unset($body['duck_level']); }
+        if (isset($body['duck_fade_secs'])){ $hw['duck_fade_secs']= (float)$body['duck_fade_secs']; unset($body['duck_fade_secs']); }
+        file_put_contents($hwFile, json_encode($hw, JSON_PRETTY_PRINT));
+        unset($body['_files']);
+        $announceDir = __DIR__ . '/announcements';
+        $body['folder'] = $announceDir;
+        @mkdir($announceDir . '/daytime', 0755, true);
         file_put_contents($annFile, json_encode($body, JSON_PRETTY_PRINT));
         echo json_encode(['ok' => true]);
+        break;
+
+    case 'upload_announcement':
+        $folder = ($_POST['folder'] ?? 'main') === 'daytime' ? 'daytime' : '';
+        $announceDir = __DIR__ . '/announcements' . ($folder ? "/$folder" : '');
+        @mkdir($announceDir, 0755, true);
+        if (empty($_FILES['file']['name'])) { http_response_code(400); echo json_encode(['error' => 'no file']); break; }
+        $f = $_FILES['file'];
+        $ext = strtolower(pathinfo($f['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, ['mp3','wav','ogg']) || $f['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400); echo json_encode(['error' => 'invalid file']); break;
+        }
+        move_uploaded_file($f['tmp_name'], $announceDir . '/' . basename($f['name']));
+        echo json_encode(['ok' => true]);
+        break;
+
+    case 'delete_announcement':
+        $path = $_GET['path'] ?? '';
+        $base = realpath(__DIR__ . '/announcements');
+        $target = realpath(__DIR__ . '/announcements/' . ltrim($path, '/'));
+        if ($base && $target && str_starts_with($target, $base . DIRECTORY_SEPARATOR)) {
+            unlink($target); echo json_encode(['ok' => true]);
+        } else { http_response_code(400); echo json_encode(['error' => 'invalid path']); }
         break;
 
     default:

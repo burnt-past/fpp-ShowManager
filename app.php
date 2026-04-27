@@ -128,10 +128,10 @@ async function renderStatus(){
   </div>
 </div>
 <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-  ${[['FPP Version',fpp.version||'—'],['Instance',fpp.Instance_Name||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length]].map(([l,v])=>`
+  ${[['FPP Version',fpp.version||'—'],['Instance',fpp.HostName||fpp.hostname||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length]].map(([l,v])=>`
   <div class="sm-card" style="flex:1;min-width:100px;margin-bottom:0">
     <div style="font-size:11px;color:var(--sub);font-weight:500">${l}</div>
-    <div style="margin-top:6px;font-size:20px;font-family:monospace;font-weight:600;color:var(--mint)">${escH(String(v))}</div>
+    <div style="margin-top:6px;font-size:18px;font-family:monospace;font-weight:600;color:var(--mint);word-break:break-all;line-height:1.2">${escH(String(v))}</div>
   </div>`).join('')}
 </div>
 <div style="display:flex;gap:12px;flex-wrap:wrap">
@@ -426,39 +426,125 @@ async function saveRule(){
 }
 
 /* ── ANNOUNCEMENTS TAB ── */
+let annCfg={};
 async function loadAnnouncements(){
-  const el=document.getElementById('sm-announcements');
   const r=await fetch(AJAX+'&action=get_announcements');
-  const cfg=await r.json();
-  renderAnnouncements(cfg);
+  annCfg=await r.json();
+  renderAnnouncements();
 }
-function renderAnnouncements(cfg){
+function annGetPreRows(){
+  const rows=[];let i=0;
+  while(document.getElementById('pre-off-'+i)){
+    rows.push({mins_before:parseFloat(document.getElementById('pre-off-'+i).value)||5,file:document.getElementById('pre-file-'+i).value});
+    i++;
+  }
+  return rows;
+}
+function annAddPre(){annCfg.pre_show=annGetPreRows();annCfg.pre_show.push({mins_before:5,file:''});renderAnnouncements();}
+function annRemovePre(i){annCfg.pre_show=annGetPreRows();annCfg.pre_show.splice(i,1);renderAnnouncements();}
+function renderAnnouncements(){
   const el=document.getElementById('sm-announcements');
-  const msg=escH(cfg.message||'');
-  const en=cfg.enabled?'checked':'';
-  const pre=escH(cfg.pre_show_mins!=null?String(cfg.pre_show_mins):'30');
-  const post=escH(cfg.post_show_mins!=null?String(cfg.post_show_mins):'0');
-  el.innerHTML=`<div class="sm-card" style="max-width:560px">
-    <h3 style="margin:0 0 16px;color:var(--text)">Show Announcements</h3>
-    <div class="sm-fr"><label>Enable announcements</label><input type="checkbox" id="ann-en" ${en} style="width:auto"></div>
-    <div class="sm-fr"><label>Pre-show message (mins before)</label><input type="number" id="ann-pre" class="sm-input" value="${pre}" min="0"></div>
-    <div class="sm-fr"><label>Post-show message (mins after)</label><input type="number" id="ann-post" class="sm-input" value="${post}" min="0"></div>
-    <div class="sm-fr" style="align-items:flex-start"><label style="padding-top:6px">Message text</label><textarea id="ann-msg" class="sm-input" rows="4" style="resize:vertical">${msg}</textarea></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:12px">
-      <button class="sm-btn solid" onclick="saveAnnouncements()">Save</button>
+  const cfg=annCfg;
+  const files=cfg._files||{main:[],daytime:[]};
+  const preShow=cfg.pre_show||[{mins_before:5,file:''}];
+  const daytime=cfg.daytime||{};
+  const allMp3s=[...(files.main||[]),...(files.daytime||[])];
+  const datalist=allMp3s.map(f=>`<option value="${escH(f)}">`).join('');
+  const preRows=preShow.map((p,i)=>`<tr>
+    <td><input type="number" class="sm-input" style="width:70px" value="${p.mins_before||5}" min="1" max="120" id="pre-off-${i}"></td>
+    <td style="flex:1"><input type="text" class="sm-input" style="width:100%" value="${escH(p.file||'')}" list="mp3-list" id="pre-file-${i}"></td>
+    <td><button class="sm-btn sm danger" onclick="annRemovePre(${i})">×</button></td>
+  </tr>`).join('');
+  const mainRows=(files.main||[]).map(f=>`<tr><td>${escH(f)}</td><td style="color:var(--sub)">Main</td><td><button class="sm-btn sm danger" onclick="annDeleteFile('${escH(f)}')">Delete</button></td></tr>`).join('');
+  const dtRows=(files.daytime||[]).map(f=>`<tr><td>${escH(f)}</td><td style="color:var(--sub)">Daytime</td><td><button class="sm-btn sm danger" onclick="annDeleteFile('daytime/${escH(f)}')">Delete</button></td></tr>`).join('');
+  const fileRows=mainRows+dtRows;
+  el.innerHTML=`<datalist id="mp3-list">${datalist}</datalist>
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:680px">
+  <div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Ducking</h4>
+    <div class="sm-fr"><label>Duck level (0–1)</label><input type="number" id="ann-duck" class="sm-input" value="${cfg.duck_level??0.25}" min="0" max="1" step="0.05"></div>
+    <div class="sm-fr"><label>Fade duration (sec)</label><input type="number" id="ann-fade" class="sm-input" value="${cfg.duck_fade_secs??2}" min="0.5" max="10" step="0.5"></div>
+    <div class="sm-fr"><label>Gain boost (dB)</label><input type="number" id="ann-gain" class="sm-input" value="${cfg.gain_db??6}" min="0" max="24"></div>
+    <div class="sm-fr"><label>Max duration (sec)</label><input type="number" id="ann-maxdur" class="sm-input" value="${cfg.max_duration_secs??300}" min="10" max="3600"></div>
+  </div>
+  <div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Lighting</h4>
+    <div class="sm-fr"><label>Pre-show brightness</label><input type="number" id="ann-prebright" class="sm-input" value="${cfg.pre_show_brightness??20}" min="0" max="200"></div>
+    <div class="sm-fr"><label>Normal brightness</label><input type="number" id="ann-normbright" class="sm-input" value="${cfg.normal_brightness??100}" min="0" max="200"></div>
+  </div>
+  <div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Background Music</h4>
+    <div class="sm-fr"><label>Background playlist</label><select id="ann-bgpl" class="sm-select">${plOptions(cfg.background_playlist||'')}</select></div>
+  </div>
+  <div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Pre-Show Announcements</h4>
+    <p style="font-size:12px;color:var(--sub);margin:0 0 10px">Each row fires one announcement N minutes before show time.</p>
+    <table id="ann-pre-table" style="width:100%;border-collapse:collapse">
+      <thead><tr><th style="text-align:left;font-size:11px;color:var(--mut);padding:0 8px 6px 0">Mins before</th><th style="text-align:left;font-size:11px;color:var(--mut);padding:0 0 6px">Audio file</th><th></th></tr></thead>
+      <tbody>${preRows}</tbody>
+    </table>
+    <button class="sm-btn" style="margin-top:8px" onclick="annAddPre()">+ Add</button>
+  </div>
+  <div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Daytime Announcements</h4>
+    <div class="sm-fr"><label>Enable</label><input type="checkbox" id="ann-dt-en" ${daytime.enabled?'checked':''} style="width:auto"></div>
+    <div class="sm-fr"><label>Window</label>
+      <input type="time" id="ann-dt-start" class="sm-input" value="${escH(daytime.start||'10:00')}" style="width:110px">
+      <span style="align-self:center;padding:0 6px;color:var(--sub)">to</span>
+      <input type="time" id="ann-dt-end" class="sm-input" value="${escH(daytime.end||'18:00')}" style="width:110px">
     </div>
+    <div class="sm-fr"><label>Interval (mins)</label><input type="number" id="ann-dt-iv" class="sm-input" value="${daytime.interval_mins??20}" min="5" max="240"></div>
+  </div>
+  <div style="display:flex;justify-content:flex-end">
+    <button class="sm-btn solid" onclick="saveAnnouncements()">Save Settings</button>
+  </div>
+  <div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Upload Announcement File</h4>
+    <div class="sm-fr"><label>File (MP3/WAV/OGG)</label><input type="file" id="ann-file" accept=".mp3,.wav,.ogg" class="sm-input"></div>
+    <div class="sm-fr"><label>Destination</label><select id="ann-dest" class="sm-select"><option value="main">Main (pre-show)</option><option value="daytime">Daytime</option></select></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="sm-btn solid" onclick="annUpload()">Upload</button></div>
+  </div>
+  ${fileRows?`<div class="sm-card">
+    <h4 style="margin:0 0 12px;color:var(--text)">Announcement Files</h4>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr><th style="text-align:left;font-size:11px;color:var(--mut);padding:0 0 6px">File</th><th style="text-align:left;font-size:11px;color:var(--mut)">Folder</th><th></th></tr></thead>
+      <tbody>${fileRows}</tbody>
+    </table>
+  </div>`:''}
   </div>`;
 }
 async function saveAnnouncements(){
+  const preShow=annGetPreRows().filter(r=>r.file);
+  preShow.sort((a,b)=>b.mins_before-a.mins_before);
   const body={
-    enabled:document.getElementById('ann-en').checked,
-    pre_show_mins:parseInt(document.getElementById('ann-pre').value)||0,
-    post_show_mins:parseInt(document.getElementById('ann-post').value)||0,
-    message:document.getElementById('ann-msg').value,
+    duck_level:parseFloat(document.getElementById('ann-duck').value)||0.25,
+    duck_fade_secs:parseFloat(document.getElementById('ann-fade').value)||2,
+    gain_db:parseFloat(document.getElementById('ann-gain').value)||6,
+    max_duration_secs:parseInt(document.getElementById('ann-maxdur').value)||300,
+    pre_show_brightness:parseInt(document.getElementById('ann-prebright').value)||20,
+    normal_brightness:parseInt(document.getElementById('ann-normbright').value)||100,
+    background_playlist:document.getElementById('ann-bgpl').value,
+    pre_show:preShow,
+    daytime:{enabled:document.getElementById('ann-dt-en').checked,start:document.getElementById('ann-dt-start').value,end:document.getElementById('ann-dt-end').value,interval_mins:parseInt(document.getElementById('ann-dt-iv').value)||20},
   };
   const r=await fetch(AJAX+'&action=save_announcements',{method:'POST',body:JSON.stringify(body)});
   const j=await r.json();
-  if(j.ok)alert('Saved.');
+  if(j.ok){Object.assign(annCfg,body);alert('Saved.');}
+}
+async function annUpload(){
+  const fi=document.getElementById('ann-file');
+  if(!fi.files.length)return alert('Select a file first.');
+  const fd=new FormData();
+  fd.append('file',fi.files[0]);
+  fd.append('folder',document.getElementById('ann-dest').value);
+  const r=await fetch(AJAX+'&action=upload_announcement',{method:'POST',body:fd});
+  const j=await r.json();
+  if(j.ok){fi.value='';loadAnnouncements();}else alert('Upload failed.');
+}
+async function annDeleteFile(path){
+  if(!confirm('Delete '+path+'?'))return;
+  await fetch(AJAX+'&action=delete_announcement&path='+encodeURIComponent(path));
+  loadAnnouncements();
 }
 
 /* ── HARDWARE TAB ── */
