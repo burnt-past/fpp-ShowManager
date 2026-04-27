@@ -435,6 +435,16 @@ class ShowScheduler:
             if not fpp_start_playlist(playlist):
                 log.error("Playlist start returned failure for '%s' — aborting show", playlist)
                 return
+            # Wait up to 15 s for FPP to actually enter playing state
+            playing = False
+            for _ in range(15):
+                time.sleep(1)
+                if not is_fpp_idle():
+                    playing = True
+                    log.info("FPP confirmed playing: %s", playlist)
+                    break
+            if not playing:
+                log.warning("FPP still idle 15 s after start — may not have loaded '%s'", playlist)
             # Wait for show to end; 2-hour cap as safety net
             max_wait = 7200
             waited   = 0
