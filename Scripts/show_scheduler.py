@@ -144,25 +144,21 @@ def _fpp(path, method="GET", body=None, timeout=5):
 def fpp_status():
     return _fpp("/api/fppd/status") or {}
 
-def fpp_start_playlist(name, repeat=0):
-    enc = urllib.parse.quote(name)
-    result = _fpp(f"/api/playlist/{enc}/start?repeat={repeat}")
+def fpp_start_playlist(name, repeat=False):
+    enc = urllib.parse.quote(name, safe='')
+    repeat_str = 'true' if repeat else 'false'
+    result = _fpp(f"/api/command/Start%20Playlist?name={enc}&repeat={repeat_str}")
     if result is None:
         log.error("Failed to start playlist '%s' — HTTP/network error", name)
         return False
-    # FPP may return {"Status":"FAILED",...} with HTTP 200
-    if isinstance(result, dict):
-        status = result.get("Status", result.get("status", ""))
-        if str(status).upper() in ("FAILED", "ERROR", "false", "0"):
-            log.error("FPP rejected playlist start '%s': %s", name, result)
-            return False
-        log.info("Started FPP playlist '%s' — FPP response: %s", name, result)
-    else:
-        log.info("Started FPP playlist '%s' — response: %s", name, result)
+    if isinstance(result, str) and 'requirement' in result.lower():
+        log.error("FPP rejected playlist start '%s': %s", name, result)
+        return False
+    log.info("Started FPP playlist '%s' — response: %s", name, result)
     return True
 
 def fpp_stop():
-    _fpp("/api/fppd/stop")
+    _fpp("/api/command/Stop%20Now")
     log.info("FPP stop requested")
 
 def fpp_get_volume():
@@ -477,7 +473,7 @@ class ShowScheduler:
             bg = an_cfg.get("background_playlist", "")
             if bg:
                 log.info("Resuming background music: %s", bg)
-                fpp_start_playlist(bg, repeat=1)
+                fpp_start_playlist(bg, repeat=True)
 
     # ---- announcement runner -----------------------------------------------
 
