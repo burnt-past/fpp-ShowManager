@@ -179,8 +179,12 @@ async function renderStatus(){
     <button class="sm-btn sm" onclick="probeFPP()">Probe FPP</button>
   </div>
   <div id="sm-log-content" style="font-family:monospace;font-size:11px;color:var(--sub);max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(log.lines.join('\n'))||'(empty)'}</div>
-  ${triggerLog.length?`<div style="margin-top:8px;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:4px">Manual / Probe Output</div>
-  <div id="sm-trigger-log" style="font-family:monospace;font-size:11px;color:var(--mint);max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(triggerLog.join('\n'))}</div>`:'<div id="sm-trigger-log" style="display:none"></div>'}
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;margin-bottom:4px">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);flex:1">Manual / Probe Output</div>
+    <button class="sm-btn sm" onclick="navigator.clipboard.writeText(document.getElementById('sm-trigger-log').textContent)">Copy</button>
+    <button class="sm-btn sm" onclick="triggerLog=[];const tl=document.getElementById('sm-trigger-log');if(tl)tl.textContent=''">Clear</button>
+  </div>
+  <div id="sm-trigger-log" style="font-family:monospace;font-size:11px;color:var(--mint);min-height:40px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(triggerLog.join('\n'))}</div>
 </div>`;
   // scroll log to bottom after render
   requestAnimationFrame(()=>{const lc=document.getElementById('sm-log-content');if(lc)lc.scrollTop=lc.scrollHeight;});
@@ -221,11 +225,10 @@ async function restartScheduler(){
 }
 async function probeFPP(){
   const pl=PLAYLISTS[0]||'Show 1';
-  const lc=document.getElementById('sm-log-content');
-  if(lc)lc.textContent='Probing FPP API endpoints for playlist: '+pl+'\n(this will actually attempt to START the playlist for each endpoint)\n\n';
+  _appendTriggerLog('=== Probe FPP: '+pl+' ===');
   const r=await fetch(AJAX+'&action=probe_fpp&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(e=>({error:String(e)}));
-  const out=Object.entries(r).map(([k,v])=>`[${k}]\n  URL:  ${v.url}\n  HTTP: ${v.http}\n  Body: ${v.body??'(null/error)'}\n`).join('\n');
-  if(lc){lc.textContent+=out;lc.scrollTop=lc.scrollHeight;}
+  if(r.error){_appendTriggerLog('[error] '+r.error);return;}
+  Object.entries(r).forEach(([k,v])=>_appendTriggerLog('['+k+']\n  URL:  '+v.url+'\n  HTTP: '+v.http+'\n  Body: '+(v.body??'(null/error)')));
 }
 
 /* ── SCHEDULE DATA ── */
