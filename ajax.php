@@ -76,11 +76,25 @@ switch ($_GET['action'] ?? '') {
         };
 
         $cmdUrl = "http://localhost/api/command/Start%20Playlist";
-        $results['REST /playlist/{name}/start']         = $get("http://localhost/api/playlist/$enc/start") + ['url' => "http://localhost/api/playlist/$enc/start"];
-        $results['cmd GET named: ?name=&repeat=']       = $get("$cmdUrl?name=$enc&repeat=false") + ['url' => "$cmdUrl?name=$enc&repeat=false"];
-        $results['cmd GET args[]: ?args[]=name']        = $get("$cmdUrl?args[]=$enc&args[]=false") + ['url' => "$cmdUrl?args[]=$enc&args[]=false"];
-        $results['cmd POST named body']                 = $post($cmdUrl, ['name' => $playlist, 'repeat' => false]) + ['url' => $cmdUrl.' POST {name,repeat}'];
-        $results['cmd POST args array body']            = $post($cmdUrl, ['args' => [$playlist, 'false']]) + ['url' => $cmdUrl.' POST {args:[]}'];
+        // raw-array POST helper (body is a JSON array, not an object)
+        $postArr = function($url, $arr) use (&$http_response_header) {
+            $payload = json_encode($arr);
+            $ctx = stream_context_create(['http' => [
+                'method'  => 'POST',
+                'header'  => "Content-Type: application/json\r\nContent-Length: " . strlen($payload),
+                'content' => $payload,
+                'timeout' => 4,
+                'ignore_errors' => true,
+            ]]);
+            $body = @file_get_contents($url, false, $ctx);
+            $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
+            return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
+        };
+        $results['GET ?name=&repeat=']              = $get("$cmdUrl?name=$enc&repeat=false") + ['url' => "$cmdUrl?name=$enc&repeat=false"];
+        $results['GET path args /name/repeat']      = $get("$cmdUrl/$enc/false") + ['url' => "$cmdUrl/$enc/false"];
+        $results['POST {name,repeat} object']       = $post($cmdUrl, ['name' => $playlist, 'repeat' => false]) + ['url' => $cmdUrl];
+        $results['POST ["name","repeat"] array']    = $postArr($cmdUrl, [$playlist, 'false', 'false']) + ['url' => $cmdUrl];
+        $results['POST /api/command {cmd,args:[]}'] = $post('http://localhost/api/command', ['command' => 'Start Playlist', 'args' => [$playlist, 'false', 'false']]) + ['url' => 'http://localhost/api/command'];
 
         echo json_encode($results);
         break;
