@@ -108,7 +108,8 @@ async function renderStatus(){
   const today=fmtDate(new Date());
   const now=new Date().toTimeString().slice(0,5);
   const todayShows=(sched.entries||[]).filter(e=>e.date===today&&e.type==='show').sort((a,b)=>a.time.localeCompare(b.time));
-  const upcoming=todayShows.filter(s=>s.time>=now);
+  const nextIdx=todayShows.findIndex(s=>s.time>=now);
+  const upcoming=nextIdx>=0?todayShows.slice(nextIdx):[];
   el.innerHTML=`
 <div class="sm-card glow" style="position:relative;overflow:hidden;margin-bottom:14px">
   <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap">
@@ -137,12 +138,18 @@ async function renderStatus(){
 <div style="display:flex;gap:12px;flex-wrap:wrap">
   <div class="sm-card" style="flex:1;min-width:200px">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">Today's Schedule</div>
-    ${todayShows.length?todayShows.map((s,i)=>`
-    <div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:${i===0?'var(--mintD)':'transparent'}">
-      <span style="font-family:monospace;font-size:14px;color:${i===0?'var(--mint)':'var(--sub)'}">${escH(s.time)}</span>
-      <span style="font-size:14px;font-weight:${i===0?600:400};color:${i===0?'var(--text)':'var(--sub)'};flex:1">${escH(qlabel(s))}</span>
-      ${i===0?'<span class="sm-badge" style="background:var(--mintD);border:1px solid rgba(52,211,153,.3);color:var(--mint)">Next</span>':''}
-    </div>`).join(''):'<div style="font-size:13px;color:var(--mut)">No shows today</div>'}
+    ${todayShows.length?todayShows.map((s,i)=>{
+      const isPast=nextIdx<0||(nextIdx>0&&i<nextIdx-1)||i<nextIdx-1;
+      const isNow=playing&&nextIdx>0&&i===nextIdx-1;
+      const isNext=i===nextIdx;
+      const bg=isNext?'var(--mintD)':isNow?'rgba(245,158,11,.08)':'transparent';
+      const tc=isNext?'var(--mint)':isNow?'var(--amber)':'var(--sub)';
+      return `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:${bg};opacity:${isPast&&!isNow?0.4:1}">
+      <span style="font-family:monospace;font-size:14px;color:${tc}">${escH(s.time)}</span>
+      <span style="font-size:14px;font-weight:${isNext||isNow?600:400};color:${isNext||isNow?'var(--text)':'var(--sub)'};flex:1">${escH(qlabel(s))}</span>
+      ${isNext?'<span class="sm-badge" style="background:var(--mintD);border:1px solid rgba(52,211,153,.3);color:var(--mint)">Next</span>':''}
+      ${isNow?'<span class="sm-badge" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)">Now</span>':''}
+    </div>`;}).join(''):'<div style="font-size:13px;color:var(--mut)">No shows today</div>'}
   </div>
   <div class="sm-card" style="width:240px;flex-shrink:0">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">System</div>

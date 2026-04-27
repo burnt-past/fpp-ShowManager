@@ -33,7 +33,7 @@ import urllib.request
 # Paths
 # ---------------------------------------------------------------------------
 
-HARDWARE_CONFIG  = "/home/fpp/media/config/ShowManager.config"
+HARDWARE_CONFIG  = "/home/fpp/media/config/ShowManagerHardware.config"
 SHOWS_CONFIG     = "/home/fpp/media/config/ShowManagerShows.config"
 SCHEDULE_CONFIG  = "/home/fpp/media/config/ShowManagerSchedule.config"
 ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
@@ -255,9 +255,13 @@ def play_announcement(audio_path, hw_cfg, an_cfg):
     duck_fade    = float(hw_cfg.get("duck_fade_secs", 2.0))
     gain_db      = float(an_cfg.get("gain_db",        6.0))
     max_duration = int(an_cfg.get("max_duration_secs", 300))
-    xr18_ip      = hw_cfg.get("xr18_ip",   "192.168.0.1")
-    ch1          = hw_cfg.get("music_ch1", "01")
-    ch2          = hw_cfg.get("music_ch2", "02")
+    xr18_ip = hw_cfg.get("mixer_ip") or hw_cfg.get("xr18_ip") or "192.168.0.1"
+    fch = hw_cfg.get("fader_channel")
+    if fch is not None:
+        ch1 = ch2 = str(int(fch)).zfill(2)
+    else:
+        ch1 = str(hw_cfg.get("music_ch1", "1")).zfill(2)
+        ch2 = str(hw_cfg.get("music_ch2", "2")).zfill(2)
 
     # Read current fader from bridge state; fall back to FPP-volume-derived value
     try:
@@ -396,40 +400,44 @@ class ShowScheduler:
     # ---- show runner -------------------------------------------------------
 
     def _run_show(self, entry):
-        show_id  = resolve_show_id(entry)
-        show_def = get_show_def(show_id) if show_id else None
-        an_cfg   = self._an()
+        an_cfg = self._an()
 
-        if not show_def:
-            log.error("No show definition for id=%s", show_id)
-            return
+        # Prefer playlist field set directly on the entry (new schema)
+        playlist = entry.get("playlist")
+        if not playlist:
+            playlists = entry.get("playlists", [])
+            if len(playlists) == 1:
+                playlist = playlists[0]
+            elif len(playlists) > 1:
+                key = ",".join(playlists)
+                playlist = next_rotation_show(key, playlists)
 
-        log.info("--- Show starting: %s (%s) ---", show_def["name"], show_def["playlist"])
+        if not playlist:
+            # Legacy: look up show definition by show_id / rotation_ids
+            show_id  = resolve_show_id(entry)
+            show_def = get_show_def(show_id) if show_id else None
+            if not show_def:
+                log.error("No playlist for entry at %s %s", entry.get("date"), entry.get("time"))
+                return
+            playlist = show_def["playlist"]
+
+        log.info("--- Show starting: %s at %s ---", playlist, entry.get("time", ""))
         self._in_show.set()
-
         try:
-            # Dim lighting via external plugin
             trigger_dim(an_cfg)
-
-            # Trigger the show playlist
-            fpp_start_playlist(show_def["playlist"])
-
-            # Wait for show to end (poll FPP, with a generous timeout as safety net)
-            max_wait = show_def.get("duration_mins", 20) * 60 * 3
+            fpp_start_playlist(playlist)
+            # Wait for show to end; 2-hour cap as safety net
+            max_wait = 7200
             waited   = 0
             while waited < max_wait:
                 time.sleep(5)
                 waited += 5
                 if is_fpp_idle():
                     break
-
-            log.info("--- Show ended: %s ---", show_def["name"])
-
+            log.info("--- Show ended: %s ---", playlist)
         finally:
             self._in_show.clear()
-            # Restore lighting
             trigger_dim_restore(an_cfg)
-            # Resume background music
             bg = an_cfg.get("background_playlist", "")
             if bg:
                 log.info("Resuming background music: %s", bg)
