@@ -48,22 +48,39 @@ function expand_rule_for_month($rule, $prefix) {
 switch ($_GET['action'] ?? '') {
 
     case 'probe_fpp':
-        // Test multiple FPP API endpoints so we can see what actually works
         $playlist = $_GET['playlist'] ?? 'Show 1';
         $enc      = rawurlencode($playlist);
         $results  = [];
-        $urls = [
-            "REST start"        => "http://localhost/api/playlist/$enc/start",
-            "REST start+repeat" => "http://localhost/api/playlist/$enc/start?repeat=0",
-            "REST playlists"    => "http://localhost/api/playlist/$enc",
-            "FPPJSON start"     => "http://localhost/fppjson.php?command=startPlaylist&playList=$enc&repeat=0&startItem=0",
-        ];
-        foreach ($urls as $label => $url) {
+
+        // Helper: GET request
+        $get = function($url) use (&$http_response_header) {
             $ctx  = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true]]);
             $body = @file_get_contents($url, false, $ctx);
             $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
-            $results[$label] = ['url' => $url, 'http' => $code, 'body' => $body === false ? null : substr($body, 0, 300)];
-        }
+            return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
+        };
+
+        // Helper: POST JSON
+        $post = function($url, $data) use (&$http_response_header) {
+            $payload = json_encode($data);
+            $ctx  = stream_context_create(['http' => [
+                'method'  => 'POST',
+                'header'  => "Content-Type: application/json\r\nContent-Length: " . strlen($payload),
+                'content' => $payload,
+                'timeout' => 4,
+                'ignore_errors' => true,
+            ]]);
+            $body = @file_get_contents($url, false, $ctx);
+            $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
+            return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
+        };
+
+        $results['REST start (GET)']           = $get("http://localhost/api/playlist/$enc/start") + ['url' => "http://localhost/api/playlist/$enc/start"];
+        $results['command list']               = $get("http://localhost/api/command") + ['url' => 'http://localhost/api/command'];
+        $results['cmd Start Playlist (GET)']   = $get("http://localhost/api/command/Start%20Playlist?args[]=" . urlencode($playlist) . "&args[]=0&args[]=0&args[]=0") + ['url' => ''];
+        $results['cmd Start Playlist (POST)']  = $post("http://localhost/api/command/Start%20Playlist", ['args' => [$playlist, '0', '0', '0']]) + ['url' => 'http://localhost/api/command/Start%20Playlist'];
+        $results['cmd startPlaylist (POST)']   = $post("http://localhost/api/command/startPlaylist",    ['args' => [$playlist, '0', '0', '0']]) + ['url' => 'http://localhost/api/command/startPlaylist'];
+
         echo json_encode($results);
         break;
 
