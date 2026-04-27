@@ -138,6 +138,34 @@ switch ($_GET['action'] ?? '') {
         echo json_encode(['ok' => true]);
         break;
 
+    case 'get_hardware':
+        $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
+        $hw = file_exists($hwFile) ? (json_decode(file_get_contents($hwFile), true) ?? []) : [];
+        echo json_encode($hw);
+        break;
+
+    case 'save_hardware':
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) { http_response_code(400); echo json_encode(['error' => 'invalid']); break; }
+        $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
+        file_put_contents($hwFile, json_encode($body, JSON_PRETTY_PRINT));
+        echo json_encode(['ok' => true]);
+        break;
+
+    case 'get_announcements':
+        $annFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
+        $ann = file_exists($annFile) ? (json_decode(file_get_contents($annFile), true) ?? []) : [];
+        echo json_encode($ann);
+        break;
+
+    case 'save_announcements':
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) { http_response_code(400); echo json_encode(['error' => 'invalid']); break; }
+        $annFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
+        file_put_contents($annFile, json_encode($body, JSON_PRETTY_PRINT));
+        echo json_encode(['ok' => true]);
+        break;
+
     default:
         http_response_code(400);
         echo json_encode(['error' => 'unknown action']);
