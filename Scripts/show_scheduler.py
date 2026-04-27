@@ -147,14 +147,11 @@ def fpp_status():
 def fpp_start_playlist(name, repeat=False):
     enc = urllib.parse.quote(name, safe='')
     repeat_str = 'true' if repeat else 'false'
-    path = f"/api/command/Start%20Playlist?name={enc}&repeat={repeat_str}"
+    path = f"/api/command/Start%20Playlist/{enc}/{repeat_str}"
     log.info("FPP call: %s", path)
     result = _fpp(path)
     if result is None:
         log.error("Failed to start playlist '%s' — HTTP/network error", name)
-        return False
-    if isinstance(result, str) and 'requirement' in result.lower():
-        log.error("FPP rejected playlist start '%s': %s", name, result)
         return False
     log.info("Started FPP playlist '%s' — response: %s", name, result)
     return True
