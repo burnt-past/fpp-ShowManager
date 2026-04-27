@@ -1,12 +1,15 @@
 <?php
-$pluginDir  = __DIR__;
-$pluginJson = "$pluginDir/pluginInfo.json";
-$pluginData = json_decode(file_get_contents($pluginJson), true);
-$pluginBase = $pluginData['name'];
 
-$menuItems = [];
-$menuItems["$pluginBase - Hardware"]      = "$pluginDir/config.php";
-$menuItems["$pluginBase - Shows"]         = "$pluginDir/shows.php";
-$menuItems["$pluginBase - Schedule"]      = "$pluginDir/schedule.php";
-$menuItems["$pluginBase - Announcements"] = "$pluginDir/announcements.php";
+$menuEntries = Array(
+	Array('text' => 'Show Manager', 'type' => 'status', 'page' => 'index.php', 'wrap' => 1),
+);
+
+foreach ($menuEntries as $entry)
+{
+	if ($entry['type'] != $menu)
+		continue;
+
+	printf("<li><a href='plugin.php?plugin=%s&page=%s'>%s</a></li>\n",
+		$plugin, $entry['page'], $entry['text']);
+}
 ?>

@@ -25,7 +25,6 @@ $announce_ch = htmlspecialchars($cfg['announce_ch']  ?? '03');
 $announce_vol = htmlspecialchars($cfg['announce_vol'] ?? '0.75');
 ?>
 
-<h2>Show Manager</h2>
 <p>The bridge syncs FPP master volume to the two music channels on the XR18 via OSC (UDP port 10024).
    Moving either music-channel fader on the XR18 also updates FPP volume.
    The announcement channel is held at its own independent level and is not affected by FPP volume changes.</p>
