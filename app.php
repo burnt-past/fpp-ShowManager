@@ -53,6 +53,10 @@ $plJson = json_encode($playlists);
 .blink{animation:sm-blink .9s step-end infinite}
 </style>
 <div id="sm">
+  <div id="sm-nowplaying" style="padding:6px 16px;background:var(--raise);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;min-height:30px">
+    <span id="sm-np-dot" style="width:6px;height:6px;border-radius:50%;background:var(--mut);flex-shrink:0"></span>
+    <span id="sm-np-text" style="color:var(--sub)">Connecting…</span>
+  </div>
   <div id="sm-tabs">
     <button class="sm-tab active" onclick="smTab('status')">Status</button>
     <button class="sm-tab" onclick="smTab('schedule')">Schedule</button>
@@ -86,7 +90,34 @@ function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
 function getSunday(d){const s=new Date(d);s.setDate(s.getDate()-s.getDay());s.setHours(0,0,0,0);return s;}
 function mkey(y,m){return y+'-'+String(m).padStart(2,'0');}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function qlabel(e){return e.type==='blackout'?'✖ Blackout':e.playlist||(e.playlists||[]).join(' / ')||'(show)';}
+function qlabel(e){
+  if(e.type==='blackout'){
+    const range=(e.start_time||e.end_time)?` ${e.start_time||'00:00'}–${e.end_time||'23:59'}`:'';
+    return '✖ Blackout'+range;
+  }
+  return e.playlist||(e.playlists||[]).join(' / ')||'(show)';
+}
+async function _npTick(){
+  const r=await fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({}));
+  const playing=r.status===1||r.status==='playing';
+  const curPl=r.current_playlist?.name||r.current_song||null;
+  const dot=document.getElementById('sm-np-dot');
+  const txt=document.getElementById('sm-np-text');
+  if(!dot)return;
+  if(playing){
+    dot.style.background='var(--amber)';dot.classList.add('blink');
+    txt.style.color='var(--amber)';txt.textContent='On Air — '+curPl;
+  } else {
+    dot.style.background='var(--mut)';dot.classList.remove('blink');
+    txt.style.color='var(--sub)';txt.textContent='Idle';
+  }
+}
+_npTick();setInterval(_npTick,5000);
+async function clearLog(){
+  await fetch(AJAX+'&action=clear_log');
+  const lc=document.getElementById('sm-log-content');
+  if(lc)lc.textContent='';
+}
 function plOptions(sel){return ['<option value="">— none —</option>',...PLAYLISTS.map(p=>`<option value="${escH(p)}"${p===sel?' selected':''}>${escH(p)}</option>`)].join('');}
 
 /* ── STATUS ── */
@@ -180,7 +211,7 @@ async function renderStatus(){
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);flex:1">Scheduler Log</div>
     <button class="sm-btn sm" onclick="toggleLogPause()" id="log-pause-btn">${logPaused?'Resume':'Pause'}</button>
     <button class="sm-btn sm" onclick="navigator.clipboard.writeText(document.getElementById('sm-log-content').textContent)">Copy</button>
-    <button class="sm-btn sm" onclick="const lc=document.getElementById('sm-log-content');if(lc)lc.textContent=''">Clear</button>
+    <button class="sm-btn sm" onclick="clearLog()">Clear</button>
     <button class="sm-btn sm" onclick="refreshLog()">Refresh</button>
     <button class="sm-btn sm" onclick="probeFPP()">Probe FPP</button>
   </div>
@@ -446,6 +477,7 @@ function openDayModal(ds){
       <div class="sm-modal-body">${rows}
         <div class="sm-hr"></div>
         <button class="sm-btn solid" onclick="closeModal();openAddModal(false,'${ds}')">+ Add Show</button>
+        <button class="sm-btn danger" style="margin-left:8px" onclick="closeModal();openAddModal(true,'${ds}')">+ Blackout</button>
         <button class="sm-btn" style="margin-left:8px" onclick="closeModal();calState.cursor=new Date('${ds}');calSetView('Day')">Day View</button>
       </div>
     </div>
@@ -462,7 +494,10 @@ function openAddModal(blackout=false,ds=''){
       <div class="sm-modal-body">
         <div class="sm-fr"><label>Date</label><input type="date" id="add-date" class="sm-input" value="${escH(ds)}"></div>
         ${!blackout?`<div class="sm-fr"><label>Time</label><input type="time" id="add-time" class="sm-input" value="19:00"></div>
-        <div class="sm-fr"><label>Playlist</label><select id="add-pl" class="sm-select">${plOptions(pl)}</select></div>`:''}
+        <div class="sm-fr"><label>Playlist</label><select id="add-pl" class="sm-select">${plOptions(pl)}</select></div>`:`
+        <div class="sm-fr"><label>Start time</label><input type="time" id="add-bo-start" class="sm-input"></div>
+        <div class="sm-fr"><label>End time</label><input type="time" id="add-bo-end" class="sm-input"></div>
+        <div style="font-size:11px;color:var(--mut);margin-top:-6px">Leave times blank to block the whole day</div>`}
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">
           <button class="sm-btn" onclick="closeModal()">Cancel</button>
           <button class="sm-btn ${blackout?'danger':'solid'}" onclick="saveAddModal(${blackout})">${blackout?'Mark Blackout':'Add Show'}</button>
@@ -474,7 +509,16 @@ function openAddModal(blackout=false,ds=''){
 async function saveAddModal(blackout){
   const date=document.getElementById('add-date').value;
   if(!date)return alert('Pick a date.');
-  const body=blackout?{date,type:'blackout'}:{date,type:'show',time:document.getElementById('add-time').value,playlist:document.getElementById('add-pl').value};
+  let body;
+  if(blackout){
+    body={date,type:'blackout'};
+    const st=document.getElementById('add-bo-start')?.value;
+    const et=document.getElementById('add-bo-end')?.value;
+    if(st)body.start_time=st;
+    if(et)body.end_time=et;
+  } else {
+    body={date,type:'show',time:document.getElementById('add-time').value,playlist:document.getElementById('add-pl').value};
+  }
   await fetch(AJAX+'&action=save_entry',{method:'POST',body:JSON.stringify(body)});
   closeModal();invalidate();calLoad();
 }

@@ -151,6 +151,8 @@ switch ($_GET['action'] ?? '') {
             else $entry['playlists'] = $body['playlists'] ?? [];
         } elseif ($body['type'] === 'blackout') {
             $entry['reason'] = $body['reason'] ?? '';
+            if (!empty($body['start_time'])) $entry['start_time'] = $body['start_time'];
+            if (!empty($body['end_time']))   $entry['end_time']   = $body['end_time'];
         }
         $entries = $schedule['entries'] ?? [];
         $replaced = false;
@@ -218,6 +220,12 @@ switch ($_GET['action'] ?? '') {
         }
         $lines = file($logFile, FILE_IGNORE_NEW_LINES);
         echo json_encode(['lines' => array_slice($lines, -150), 'running' => $running]);
+        break;
+
+    case 'clear_log':
+        $logFile = '/home/fpp/media/logs/showmanager.log';
+        file_put_contents($logFile, '');
+        echo json_encode(['ok' => true]);
         break;
 
     case 'scheduler_restart':

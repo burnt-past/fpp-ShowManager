@@ -358,11 +358,22 @@ def schedule_for_date(date_str):
     entries  = schedule.get("entries", [])
     rules    = schedule.get("rules", [])
 
-    if any(e["date"] == date_str and e.get("type") == "blackout" for e in entries):
+    blackouts = [e for e in entries if e["date"] == date_str and e.get("type") == "blackout"]
+    # Whole-day blackout: any entry with no time range
+    if any(not b.get("start_time") and not b.get("end_time") for b in blackouts):
         return None
 
     shows  = [e for e in entries if e["date"] == date_str and e.get("type") == "show"]
     shows += expand_rules_for_date(rules, date_str)
+    # Filter shows that fall within a timed blackout window
+    if blackouts:
+        def _blacked(t):
+            for b in blackouts:
+                s, e = b.get("start_time", "00:00"), b.get("end_time", "23:59")
+                if s <= t <= e:
+                    return True
+            return False
+        shows = [s for s in shows if not _blacked(s["time"])]
     return sorted(shows, key=lambda e: e["time"])
 
 def resolve_show_id(entry):
