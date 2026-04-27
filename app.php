@@ -93,11 +93,52 @@ function plOptions(sel){return ['<option value="">— none —</option>',...PLAY
 let statusTimer=null;
 let triggerLog=[];
 let logPaused=false;
+
 function loadStatus(){
   clearInterval(statusTimer);
   renderStatus();
-  statusTimer=setInterval(()=>{renderStatus();refreshLog();},8000);
+  statusTimer=setInterval(_tick,3000);
 }
+
+/* helpers that build HTML for each updatable region */
+function _heroHtml(fpp,xr){
+  const playing=fpp.status===1||fpp.status==='playing';
+  const curPl=fpp.current_playlist?.name||fpp.current_song||'Idle';
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <span class="sm-badge" style="background:${playing?'rgba(245,158,11,.12)':'rgba(124,133,162,.12)'};border:1px solid ${playing?'rgba(245,158,11,.3)':'rgba(124,133,162,.3)'};color:${playing?'var(--amber)':'var(--sub)'}">
+      ${playing?'<span class="sm-dot blink" style="width:6px;height:6px;background:var(--amber);border-radius:50%"></span>On Air':'Idle'}
+    </span>
+  </div>
+  <div style="font-size:32px;font-weight:700;letter-spacing:-.03em;color:var(--text);line-height:1">${escH(playing?curPl:'Idle')}</div>
+  <div style="margin-top:6px;font-size:13px;color:var(--sub)">
+    Uptime <span style="font-family:monospace;color:var(--text)">${escH(fpp.uptime||'—')}</span>
+    &nbsp;&nbsp;Volume <span style="font-family:monospace;color:var(--text)">${fpp.volume!=null?fpp.volume+'%':'—'}</span>
+    ${xr.xr18_fader!=null?'&nbsp;&nbsp;XR18 <span style="font-family:monospace;color:var(--mint)">'+xr.xr18_fader.toFixed(2)+'</span>':''}
+  </div>`;
+}
+function _statsHtml(fpp,xr,todayShows,upcoming){
+  return [['FPP Version',fpp.version||'—'],['Instance',fpp.HostName||fpp.hostname||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length],['Volume',fpp.volume!=null?fpp.volume+'%':'—'],['XR18',xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'—']].map(([l,v])=>`<div class="sm-card" style="flex:1;min-width:100px;margin-bottom:0"><div style="font-size:11px;color:var(--sub);font-weight:500">${l}</div><div style="margin-top:6px;font-size:18px;font-family:monospace;font-weight:600;color:var(--mint);word-break:break-all;line-height:1.2">${escH(String(v))}</div></div>`).join('');
+}
+function _schedHtml(todayShows,nextIdx,playing){
+  if(!todayShows.length) return '<div style="font-size:13px;color:var(--mut)">No shows today</div>';
+  return todayShows.map((s,i)=>{
+    const isPast=i<nextIdx-1||(nextIdx<0);
+    const isNow=playing&&nextIdx>0&&i===nextIdx-1;
+    const isNext=i===nextIdx;
+    const bg=isNext?'var(--mintD)':isNow?'rgba(245,158,11,.08)':'transparent';
+    const tc=isNext?'var(--mint)':isNow?'var(--amber)':'var(--sub)';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:${bg};opacity:${isPast&&!isNow?0.4:1}">
+      <span style="font-family:monospace;font-size:14px;color:${tc}">${escH(s.time)}</span>
+      <span style="font-size:14px;font-weight:${isNext||isNow?600:400};color:${isNext||isNow?'var(--text)':'var(--sub)'};flex:1">${escH(qlabel(s))}</span>
+      ${isNext?'<span class="sm-badge" style="background:var(--mintD);border:1px solid rgba(52,211,153,.3);color:var(--mint)">Next</span>':''}
+      ${isNow?'<span class="sm-badge" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)">Now</span>':''}
+    </div>`;
+  }).join('');
+}
+function _sysHtml(fpp,xr,running){
+  return [['FPP Daemon',fpp.fppd==='running','Running','Stopped'],['XR18',xr.xr18_fader!=null,xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'n/a','n/a'],['Scheduler',running,'Running','Stopped']].map(([l,ok,yes,no])=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--high);border-radius:8px;margin-bottom:6px"><span class="sm-dot" style="width:7px;height:7px;background:${ok?'var(--mint)':'var(--red)'}"></span><div><div style="font-size:13px;font-weight:500;color:var(--text)">${l}</div><div style="font-size:11px;color:var(--mut)">${ok?yes:no}</div></div></div>`).join('');
+}
+
 async function renderStatus(){
   const el=document.getElementById('sm-status');
   const [fpp,xr,sched,log]=await Promise.all([
@@ -107,7 +148,6 @@ async function renderStatus(){
     fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>({lines:[],running:false})),
   ]);
   const playing=fpp.status===1||fpp.status==='playing';
-  const curPl=fpp.current_playlist?.name||fpp.current_song||'Idle';
   const today=fmtDate(new Date());
   const now=new Date().toTimeString().slice(0,5);
   const todayShows=(sched.entries||[]).filter(e=>e.date===today&&e.type==='show').sort((a,b)=>a.time.localeCompare(b.time));
@@ -115,29 +155,9 @@ async function renderStatus(){
   const upcoming=nextIdx>=0?todayShows.slice(nextIdx):[];
   el.innerHTML=`
 <div class="sm-card glow" style="position:relative;overflow:hidden;margin-bottom:14px">
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap">
-    <div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="sm-badge" style="background:${playing?'rgba(245,158,11,.12)':'rgba(124,133,162,.12)'};border:1px solid ${playing?'rgba(245,158,11,.3)':'rgba(124,133,162,.3)'};color:${playing?'var(--amber)':'var(--sub)'}">
-          ${playing?'<span class="sm-dot blink" style="width:6px;height:6px;background:var(--amber);border-radius:50%"></span>On Air':'Idle'}
-        </span>
-      </div>
-      <div style="font-size:32px;font-weight:700;letter-spacing:-.03em;color:var(--text);line-height:1">${escH(playing?curPl:'Idle')}</div>
-      <div style="margin-top:6px;font-size:13px;color:var(--sub)">
-        Uptime <span style="font-family:monospace;color:var(--text)">${escH(fpp.uptime||'—')}</span>
-        &nbsp;&nbsp;Volume <span style="font-family:monospace;color:var(--text)">${fpp.volume!=null?fpp.volume+'%':'—'}</span>
-        ${xr.xr18_fader!=null?'&nbsp;&nbsp;XR18 <span style="font-family:monospace;color:var(--mint)">'+xr.xr18_fader.toFixed(2)+'</span>':''}
-      </div>
-    </div>
-  </div>
+  <div id="sm-hero">${_heroHtml(fpp,xr)}</div>
 </div>
-<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
-  ${[['FPP Version',fpp.version||'—'],['Instance',fpp.HostName||fpp.hostname||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length],['Volume',fpp.volume!=null?fpp.volume+'%':'—'],['XR18',xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'—']].map(([l,v])=>`
-  <div class="sm-card" style="flex:1;min-width:100px;margin-bottom:0">
-    <div style="font-size:11px;color:var(--sub);font-weight:500">${l}</div>
-    <div style="margin-top:6px;font-size:18px;font-family:monospace;font-weight:600;color:var(--mint);word-break:break-all;line-height:1.2">${escH(String(v))}</div>
-  </div>`).join('')}
-</div>
+<div id="sm-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">${_statsHtml(fpp,xr,todayShows,upcoming)}</div>
 <div class="sm-card" style="margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <span style="font-size:12px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.08em">Manual Trigger</span>
   <select id="trig-pl" class="sm-select" style="flex:1;min-width:160px">${plOptions('')}</select>
@@ -147,26 +167,11 @@ async function renderStatus(){
 <div style="display:flex;gap:12px;flex-wrap:wrap">
   <div class="sm-card" style="flex:1;min-width:200px">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">Today's Schedule</div>
-    ${todayShows.length?todayShows.map((s,i)=>{
-      const isPast=nextIdx<0||(nextIdx>0&&i<nextIdx-1)||i<nextIdx-1;
-      const isNow=playing&&nextIdx>0&&i===nextIdx-1;
-      const isNext=i===nextIdx;
-      const bg=isNext?'var(--mintD)':isNow?'rgba(245,158,11,.08)':'transparent';
-      const tc=isNext?'var(--mint)':isNow?'var(--amber)':'var(--sub)';
-      return `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:${bg};opacity:${isPast&&!isNow?0.4:1}">
-      <span style="font-family:monospace;font-size:14px;color:${tc}">${escH(s.time)}</span>
-      <span style="font-size:14px;font-weight:${isNext||isNow?600:400};color:${isNext||isNow?'var(--text)':'var(--sub)'};flex:1">${escH(qlabel(s))}</span>
-      ${isNext?'<span class="sm-badge" style="background:var(--mintD);border:1px solid rgba(52,211,153,.3);color:var(--mint)">Next</span>':''}
-      ${isNow?'<span class="sm-badge" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);color:var(--amber)">Now</span>':''}
-    </div>`;}).join(''):'<div style="font-size:13px;color:var(--mut)">No shows today</div>'}
+    <div id="sm-sched">${_schedHtml(todayShows,nextIdx,playing)}</div>
   </div>
   <div class="sm-card" style="width:240px;flex-shrink:0">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">System</div>
-    ${[['FPP Daemon',fpp.fppd==='running','Running','Stopped'],['XR18',xr.xr18_fader!=null,xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'n/a','n/a'],['Scheduler',log.running,'Running','Stopped']].map(([l,ok,yes,no])=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--high);border-radius:8px;margin-bottom:6px">
-      <span class="sm-dot" style="width:7px;height:7px;background:${ok?'var(--mint)':'var(--red)'}"></span>
-      <div><div style="font-size:13px;font-weight:500;color:var(--text)">${l}</div><div style="font-size:11px;color:var(--mut)">${ok?yes:no}</div></div>
-    </div>`).join('')}
+    <div id="sm-sys">${_sysHtml(fpp,xr,log.running)}</div>
     <button class="sm-btn sm" style="width:100%;margin-top:4px" onclick="restartScheduler()">Restart Scheduler</button>
   </div>
 </div>
@@ -175,6 +180,7 @@ async function renderStatus(){
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);flex:1">Scheduler Log</div>
     <button class="sm-btn sm" onclick="toggleLogPause()" id="log-pause-btn">${logPaused?'Resume':'Pause'}</button>
     <button class="sm-btn sm" onclick="navigator.clipboard.writeText(document.getElementById('sm-log-content').textContent)">Copy</button>
+    <button class="sm-btn sm" onclick="const lc=document.getElementById('sm-log-content');if(lc)lc.textContent=''">Clear</button>
     <button class="sm-btn sm" onclick="refreshLog()">Refresh</button>
     <button class="sm-btn sm" onclick="probeFPP()">Probe FPP</button>
   </div>
@@ -186,14 +192,35 @@ async function renderStatus(){
   </div>
   <div id="sm-trigger-log" style="font-family:monospace;font-size:11px;color:var(--mint);min-height:40px;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(triggerLog.join('\n'))}</div>
 </div>`;
-  // scroll log to bottom after render
   requestAnimationFrame(()=>{const lc=document.getElementById('sm-log-content');if(lc)lc.scrollTop=lc.scrollHeight;});
 }
+
+/* lightweight tick: updates only the dynamic regions, never touches the trigger card */
+async function _tick(){
+  if(!document.getElementById('sm-hero'))return;
+  const [fpp,xr,sched,log]=await Promise.all([
+    fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[],rules:[]})),
+    fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>({lines:[],running:false})),
+  ]);
+  const playing=fpp.status===1||fpp.status==='playing';
+  const today=fmtDate(new Date());
+  const now=new Date().toTimeString().slice(0,5);
+  const todayShows=(sched.entries||[]).filter(e=>e.date===today&&e.type==='show').sort((a,b)=>a.time.localeCompare(b.time));
+  const nextIdx=todayShows.findIndex(s=>s.time>=now);
+  const upcoming=nextIdx>=0?todayShows.slice(nextIdx):[];
+  const hero=document.getElementById('sm-hero');if(hero)hero.innerHTML=_heroHtml(fpp,xr);
+  const stats=document.getElementById('sm-stats');if(stats)stats.innerHTML=_statsHtml(fpp,xr,todayShows,upcoming);
+  const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_schedHtml(todayShows,nextIdx,playing);
+  const sysEl=document.getElementById('sm-sys');if(sysEl)sysEl.innerHTML=_sysHtml(fpp,xr,log.running);
+  if(!logPaused){const lc=document.getElementById('sm-log-content');if(lc){lc.textContent=log.lines.join('\n')||'(empty)';lc.scrollTop=lc.scrollHeight;}}
+}
+
 function _appendTriggerLog(msg){
   triggerLog.push(msg);
-  // update the div directly if it exists (avoids waiting for next renderStatus)
   const tl=document.getElementById('sm-trigger-log');
-  if(tl){tl.style.display='';tl.textContent=triggerLog.join('\n');tl.scrollTop=tl.scrollHeight;}
+  if(tl){tl.textContent=triggerLog.join('\n');tl.scrollTop=tl.scrollHeight;}
 }
 async function triggerPlaylist(){
   const pl=document.getElementById('trig-pl').value;

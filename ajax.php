@@ -103,7 +103,7 @@ switch ($_GET['action'] ?? '') {
         $playlist = $_GET['playlist'] ?? '';
         if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
         $enc = rawurlencode($playlist);
-        $url = "http://localhost/api/command/Start%20Playlist?name=$enc&repeat=false";
+        $url = "http://localhost/api/command/Start%20Playlist/$enc/false";
         $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
         $body = @file_get_contents($url, false, $ctx);
         $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
