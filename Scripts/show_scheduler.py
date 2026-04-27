@@ -132,7 +132,7 @@ def _fpp(path, method="GET", body=None, timeout=5):
             try:
                 return json.loads(data)
             except ValueError:
-                log.debug("FPP non-JSON response for %s: %s", path, data[:120])
+                log.info("FPP non-JSON response for %s: %s", path, data[:120])
                 return True
     except urllib.error.HTTPError as e:
         log.warning("FPP API HTTP %d %s %s: %s", e.code, method, path, e.read()[:120])
@@ -147,7 +147,9 @@ def fpp_status():
 def fpp_start_playlist(name, repeat=False):
     enc = urllib.parse.quote(name, safe='')
     repeat_str = 'true' if repeat else 'false'
-    result = _fpp(f"/api/command/Start%20Playlist?name={enc}&repeat={repeat_str}")
+    path = f"/api/command/Start%20Playlist?name={enc}&repeat={repeat_str}"
+    log.info("FPP call: %s", path)
+    result = _fpp(path)
     if result is None:
         log.error("Failed to start playlist '%s' — HTTP/network error", name)
         return False
