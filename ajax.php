@@ -138,6 +138,25 @@ switch ($_GET['action'] ?? '') {
         echo json_encode(['ok' => true]);
         break;
 
+    case 'get_log':
+        $logFile = '/home/fpp/media/logs/showmanager.log';
+        $running = (int)shell_exec('pgrep -fc show_scheduler.py 2>/dev/null') > 0;
+        if (!file_exists($logFile)) {
+            echo json_encode(['lines' => ['(log file not found — scheduler may not have run yet)'], 'running' => $running]);
+            break;
+        }
+        $lines = file($logFile, FILE_IGNORE_NEW_LINES);
+        echo json_encode(['lines' => array_slice($lines, -150), 'running' => $running]);
+        break;
+
+    case 'scheduler_restart':
+        $pluginDir = __DIR__;
+        shell_exec("pkill -f show_scheduler.py 2>/dev/null");
+        sleep(1);
+        shell_exec("python3 " . escapeshellarg("$pluginDir/Scripts/show_scheduler.py") . " >> /home/fpp/media/logs/showmanager.log 2>&1 &");
+        echo json_encode(['ok' => true]);
+        break;
+
     case 'get_hardware':
         $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
         $hw = file_exists($hwFile) ? (json_decode(file_get_contents($hwFile), true) ?? []) : [];

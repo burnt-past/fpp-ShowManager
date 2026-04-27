@@ -94,14 +94,15 @@ let statusTimer=null;
 function loadStatus(){
   clearInterval(statusTimer);
   renderStatus();
-  statusTimer=setInterval(renderStatus,8000);
+  statusTimer=setInterval(()=>{renderStatus();refreshLog();},8000);
 }
 async function renderStatus(){
   const el=document.getElementById('sm-status');
-  const [fpp,xr,sched]=await Promise.all([
+  const [fpp,xr,sched,log]=await Promise.all([
     fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
     fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
     fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[],rules:[]})),
+    fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>({lines:[],running:false})),
   ]);
   const playing=fpp.status===1||fpp.status==='playing';
   const curPl=fpp.current_playlist?.name||fpp.current_song||'Idle';
@@ -153,13 +154,33 @@ async function renderStatus(){
   </div>
   <div class="sm-card" style="width:240px;flex-shrink:0">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">System</div>
-    ${[['FPP Daemon',fpp.fppd==='running','Running','Stopped'],['XR18',xr.xr18_fader!=null,xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'n/a','n/a'],['Scheduler',true,'Active','—']].map(([l,ok,yes,no])=>`
+    ${[['FPP Daemon',fpp.fppd==='running','Running','Stopped'],['XR18',xr.xr18_fader!=null,xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'n/a','n/a'],['Scheduler',log.running,'Running','Stopped']].map(([l,ok,yes,no])=>`
     <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--high);border-radius:8px;margin-bottom:6px">
-      <span class="sm-dot" style="width:7px;height:7px;background:${ok?'var(--mint)':'var(--mut)'}"></span>
+      <span class="sm-dot" style="width:7px;height:7px;background:${ok?'var(--mint)':'var(--red)'}"></span>
       <div><div style="font-size:13px;font-weight:500;color:var(--text)">${l}</div><div style="font-size:11px;color:var(--mut)">${ok?yes:no}</div></div>
     </div>`).join('')}
+    <button class="sm-btn sm" style="width:100%;margin-top:4px" onclick="restartScheduler()">Restart Scheduler</button>
   </div>
+</div>
+<div class="sm-card" style="margin-top:14px">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Scheduler Log</div>
+    <button class="sm-btn sm" onclick="refreshLog()">Refresh</button>
+  </div>
+  <div id="sm-log-content" style="font-family:monospace;font-size:11px;color:var(--sub);max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(log.lines.join('\n'))||'(empty)'}</div>
 </div>`;
+  // scroll log to bottom after render
+  requestAnimationFrame(()=>{const lc=document.getElementById('sm-log-content');if(lc)lc.scrollTop=lc.scrollHeight;});
+}
+async function refreshLog(){
+  const r=await fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>null);
+  if(!r)return;
+  const lc=document.getElementById('sm-log-content');
+  if(lc){lc.textContent=r.lines.join('\n')||'(empty)';lc.scrollTop=lc.scrollHeight;}
+}
+async function restartScheduler(){
+  await fetch(AJAX+'&action=scheduler_restart');
+  setTimeout(refreshLog,2000);
 }
 
 /* ── SCHEDULE DATA ── */
