@@ -91,6 +91,8 @@ function plOptions(sel){return ['<option value="">— none —</option>',...PLAY
 
 /* ── STATUS ── */
 let statusTimer=null;
+let triggerLog=[];
+let logPaused=false;
 function loadStatus(){
   clearInterval(statusTimer);
   renderStatus();
@@ -169,29 +171,45 @@ async function renderStatus(){
   </div>
 </div>
 <div class="sm-card" style="margin-top:14px">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-    <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Scheduler Log</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);flex:1">Scheduler Log</div>
+    <button class="sm-btn sm" onclick="toggleLogPause()" id="log-pause-btn">${logPaused?'Resume':'Pause'}</button>
+    <button class="sm-btn sm" onclick="navigator.clipboard.writeText(document.getElementById('sm-log-content').textContent)">Copy</button>
     <button class="sm-btn sm" onclick="refreshLog()">Refresh</button>
-    <button class="sm-btn sm" onclick="probeFPP()">Probe FPP API</button>
+    <button class="sm-btn sm" onclick="probeFPP()">Probe FPP</button>
   </div>
-  <div id="sm-log-content" style="font-family:monospace;font-size:11px;color:var(--sub);max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(log.lines.join('\n'))||'(empty)'}</div>
+  <div id="sm-log-content" style="font-family:monospace;font-size:11px;color:var(--sub);max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(log.lines.join('\n'))||'(empty)'}</div>
+  ${triggerLog.length?`<div style="margin-top:8px;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:4px">Manual / Probe Output</div>
+  <div id="sm-trigger-log" style="font-family:monospace;font-size:11px;color:var(--mint);max-height:180px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(triggerLog.join('\n'))}</div>`:'<div id="sm-trigger-log" style="display:none"></div>'}
 </div>`;
   // scroll log to bottom after render
   requestAnimationFrame(()=>{const lc=document.getElementById('sm-log-content');if(lc)lc.scrollTop=lc.scrollHeight;});
 }
+function _appendTriggerLog(msg){
+  triggerLog.push(msg);
+  // update the div directly if it exists (avoids waiting for next renderStatus)
+  const tl=document.getElementById('sm-trigger-log');
+  if(tl){tl.style.display='';tl.textContent=triggerLog.join('\n');tl.scrollTop=tl.scrollHeight;}
+}
 async function triggerPlaylist(){
   const pl=document.getElementById('trig-pl').value;
   if(!pl)return alert('Select a playlist.');
-  const r=await fetch(AJAX+'&action=trigger_playlist&playlist='+encodeURIComponent(pl)).then(r=>r.json());
-  const lc=document.getElementById('sm-log-content');
-  if(lc){lc.textContent+='\n[Manual trigger] '+pl+' → HTTP '+r.http+' '+(r.response||'');lc.scrollTop=lc.scrollHeight;}
+  _appendTriggerLog('[Trigger] '+pl+' — sending…');
+  const r=await fetch(AJAX+'&action=trigger_playlist&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(e=>({error:String(e)}));
+  _appendTriggerLog('  URL:  '+r.url+'\n  HTTP: '+r.http+'\n  Body: '+(r.response||'(empty)'));
 }
 async function stopPlaylist(){
-  const r=await fetch(AJAX+'&action=stop_playlist').then(r=>r.json());
-  const lc=document.getElementById('sm-log-content');
-  if(lc){lc.textContent+='\n[Manual stop] HTTP '+r.http+' '+(r.response||'');lc.scrollTop=lc.scrollHeight;}
+  _appendTriggerLog('[Stop] — sending…');
+  const r=await fetch(AJAX+'&action=stop_playlist').then(r=>r.json()).catch(e=>({error:String(e)}));
+  _appendTriggerLog('  HTTP: '+r.http+'  Body: '+(r.response||'(empty)'));
+}
+function toggleLogPause(){
+  logPaused=!logPaused;
+  const btn=document.getElementById('log-pause-btn');
+  if(btn)btn.textContent=logPaused?'Resume':'Pause';
 }
 async function refreshLog(){
+  if(logPaused)return;
   const r=await fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>null);
   if(!r)return;
   const lc=document.getElementById('sm-log-content');

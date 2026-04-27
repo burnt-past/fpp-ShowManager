@@ -75,11 +75,12 @@ switch ($_GET['action'] ?? '') {
             return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
         };
 
-        $results['REST start (GET)']           = $get("http://localhost/api/playlist/$enc/start") + ['url' => "http://localhost/api/playlist/$enc/start"];
-        $results['command list']               = $get("http://localhost/api/command") + ['url' => 'http://localhost/api/command'];
-        $results['cmd Start Playlist (GET)']   = $get("http://localhost/api/command/Start%20Playlist?args[]=" . urlencode($playlist) . "&args[]=0&args[]=0&args[]=0") + ['url' => ''];
-        $results['cmd Start Playlist (POST)']  = $post("http://localhost/api/command/Start%20Playlist", ['args' => [$playlist, '0', '0', '0']]) + ['url' => 'http://localhost/api/command/Start%20Playlist'];
-        $results['cmd startPlaylist (POST)']   = $post("http://localhost/api/command/startPlaylist",    ['args' => [$playlist, '0', '0', '0']]) + ['url' => 'http://localhost/api/command/startPlaylist'];
+        $cmdUrl = "http://localhost/api/command/Start%20Playlist";
+        $results['REST /playlist/{name}/start']         = $get("http://localhost/api/playlist/$enc/start") + ['url' => "http://localhost/api/playlist/$enc/start"];
+        $results['cmd GET named: ?name=&repeat=']       = $get("$cmdUrl?name=$enc&repeat=false") + ['url' => "$cmdUrl?name=$enc&repeat=false"];
+        $results['cmd GET args[]: ?args[]=name']        = $get("$cmdUrl?args[]=$enc&args[]=false") + ['url' => "$cmdUrl?args[]=$enc&args[]=false"];
+        $results['cmd POST named body']                 = $post($cmdUrl, ['name' => $playlist, 'repeat' => false]) + ['url' => $cmdUrl.' POST {name,repeat}'];
+        $results['cmd POST args array body']            = $post($cmdUrl, ['args' => [$playlist, 'false']]) + ['url' => $cmdUrl.' POST {args:[]}'];
 
         echo json_encode($results);
         break;
