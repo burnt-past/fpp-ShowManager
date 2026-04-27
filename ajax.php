@@ -47,6 +47,26 @@ function expand_rule_for_month($rule, $prefix) {
 
 switch ($_GET['action'] ?? '') {
 
+    case 'probe_fpp':
+        // Test multiple FPP API endpoints so we can see what actually works
+        $playlist = $_GET['playlist'] ?? 'Show 1';
+        $enc      = rawurlencode($playlist);
+        $results  = [];
+        $urls = [
+            "REST start"        => "http://localhost/api/playlist/$enc/start",
+            "REST start+repeat" => "http://localhost/api/playlist/$enc/start?repeat=0",
+            "REST playlists"    => "http://localhost/api/playlist/$enc",
+            "FPPJSON start"     => "http://localhost/fppjson.php?command=startPlaylist&playList=$enc&repeat=0&startItem=0",
+        ];
+        foreach ($urls as $label => $url) {
+            $ctx  = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true]]);
+            $body = @file_get_contents($url, false, $ctx);
+            $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
+            $results[$label] = ['url' => $url, 'http' => $code, 'body' => $body === false ? null : substr($body, 0, 300)];
+        }
+        echo json_encode($results);
+        break;
+
     case 'get_status':
         $faderRaw = @file_get_contents('/tmp/xr18_current_fader');
         echo json_encode(['xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null]);

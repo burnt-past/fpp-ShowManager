@@ -166,6 +166,7 @@ async function renderStatus(){
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)">Scheduler Log</div>
     <button class="sm-btn sm" onclick="refreshLog()">Refresh</button>
+    <button class="sm-btn sm" onclick="probeFPP()">Probe FPP API</button>
   </div>
   <div id="sm-log-content" style="font-family:monospace;font-size:11px;color:var(--sub);max-height:320px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(log.lines.join('\n'))||'(empty)'}</div>
 </div>`;
@@ -181,6 +182,14 @@ async function refreshLog(){
 async function restartScheduler(){
   await fetch(AJAX+'&action=scheduler_restart');
   setTimeout(refreshLog,2000);
+}
+async function probeFPP(){
+  const pl=PLAYLISTS[0]||'Show 1';
+  const lc=document.getElementById('sm-log-content');
+  if(lc)lc.textContent='Probing FPP API endpoints for playlist: '+pl+'\n(this will actually attempt to START the playlist for each endpoint)\n\n';
+  const r=await fetch(AJAX+'&action=probe_fpp&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(e=>({error:String(e)}));
+  const out=Object.entries(r).map(([k,v])=>`[${k}]\n  URL:  ${v.url}\n  HTTP: ${v.http}\n  Body: ${v.body??'(null/error)'}\n`).join('\n');
+  if(lc){lc.textContent+=out;lc.scrollTop=lc.scrollHeight;}
 }
 
 /* ── SCHEDULE DATA ── */
