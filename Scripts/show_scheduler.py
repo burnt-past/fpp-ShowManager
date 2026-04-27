@@ -126,7 +126,13 @@ def _fpp(path, method="GET", body=None, timeout=5):
             req.add_header("Content-Type", "application/json")
             req.data = json.dumps(body).encode()
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.loads(r.read())
+            data = r.read().strip()
+            if not data:
+                return True  # HTTP success, empty body (e.g. playlist start)
+            try:
+                return json.loads(data)
+            except ValueError:
+                return True  # HTTP success, non-JSON body
     except Exception as e:
         log.warning("FPP API %s %s: %s", method, path, e)
         return None
@@ -141,6 +147,7 @@ def fpp_start_playlist(name, repeat=0):
         log.info("Started FPP playlist: %s", name)
     else:
         log.error("Failed to start playlist: %s", name)
+    return result is not None
 
 def fpp_stop():
     _fpp("/api/fppd/stop")
@@ -425,7 +432,9 @@ class ShowScheduler:
         self._in_show.set()
         try:
             trigger_dim(an_cfg)
-            fpp_start_playlist(playlist)
+            if not fpp_start_playlist(playlist):
+                log.error("Playlist start returned failure for '%s' — aborting show", playlist)
+                return
             # Wait for show to end; 2-hour cap as safety net
             max_wait = 7200
             waited   = 0
