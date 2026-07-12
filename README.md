@@ -130,8 +130,9 @@ All stored in `/home/fpp/media/config/`:
 
 | File | Contents |
 |---|---|
-| `ShowManager.config` | Hardware: IP, channels, duck level, fade time |
-| `ShowManagerShows.config` | Show definitions (playlists, durations) |
+| `ShowManagerHardware.config` | Hardware: mixer IP, channels, duck/show/idle levels |
+| `ShowManager.config` | Legacy hardware config (read as fallback) |
+| `ShowManagerShows.config` | Legacy show definitions (playlists, durations) |
 | `ShowManagerSchedule.config` | Calendar entries (shows + blackout dates) |
 | `ShowManagerAnnouncements.config` | Announcement and brightness settings |
 | `ShowManagerRotation.config` | Auto-managed rotation index per slot |

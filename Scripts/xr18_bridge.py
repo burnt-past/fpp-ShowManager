@@ -18,7 +18,8 @@ import time
 import urllib.error
 import urllib.request
 
-CONFIG_PATH = "/home/fpp/media/config/ShowManager.config"
+CONFIG_PATH        = "/home/fpp/media/config/ShowManagerHardware.config"
+LEGACY_CONFIG_PATH = "/home/fpp/media/config/ShowManager.config"
 LOG_PATH    = "/home/fpp/media/logs/xr18_bridge.log"
 XR18_PORT   = 10024
 LISTEN_PORT = 10023   # local UDP port; XR18 sends updates back here
@@ -129,10 +130,15 @@ def ch_fader_addr(ch: str) -> str:
 
 class XR18Bridge:
     def __init__(self, cfg: dict):
-        self.xr18_ip     = cfg.get("xr18_ip",      "192.168.0.1")
-        self.music_ch1   = cfg.get("music_ch1",     "01")
-        self.music_ch2   = cfg.get("music_ch2",     "02")
-        self.announce_ch = cfg.get("announce_ch",   "03")
+        # New UI keys (mixer_ip / fader_channel) win; legacy keys are fallback.
+        self.xr18_ip = cfg.get("mixer_ip") or cfg.get("xr18_ip") or "192.168.0.1"
+        fch = cfg.get("fader_channel")
+        if fch is not None:
+            self.music_ch1 = self.music_ch2 = str(int(fch))
+        else:
+            self.music_ch1 = str(cfg.get("music_ch1", "01"))
+            self.music_ch2 = str(cfg.get("music_ch2", "02"))
+        self.announce_ch = str(cfg.get("announce_ch", "03"))
         self.announce_vol = float(cfg.get("announce_vol", "0.75"))
 
         self._music_addrs = {
@@ -264,14 +270,20 @@ class XR18Bridge:
             t.join()
 
 
-if __name__ == "__main__":
-    cfg = {}
+def _load_cfg(path):
     try:
-        with open(CONFIG_PATH) as f:
-            cfg = json.load(f)
+        with open(path) as f:
+            return json.load(f)
     except FileNotFoundError:
-        log.warning("Config not found at %s — using defaults", CONFIG_PATH)
+        return {}
     except Exception as e:
-        log.error("Config load error: %s", e)
+        log.error("Config load error %s: %s", path, e)
+        return {}
+
+if __name__ == "__main__":
+    # Merge legacy config underneath the current one so old installs keep working
+    cfg = {**_load_cfg(LEGACY_CONFIG_PATH), **_load_cfg(CONFIG_PATH)}
+    if not cfg:
+        log.warning("No config found at %s — using defaults", CONFIG_PATH)
 
     XR18Bridge(cfg).run()

@@ -47,58 +47,6 @@ function expand_rule_for_month($rule, $prefix) {
 
 switch ($_GET['action'] ?? '') {
 
-    case 'probe_fpp':
-        $playlist = $_GET['playlist'] ?? 'Show 1';
-        $enc      = rawurlencode($playlist);
-        $results  = [];
-
-        // Helper: GET request
-        $get = function($url) use (&$http_response_header) {
-            $ctx  = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true]]);
-            $body = @file_get_contents($url, false, $ctx);
-            $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
-            return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
-        };
-
-        // Helper: POST JSON
-        $post = function($url, $data) use (&$http_response_header) {
-            $payload = json_encode($data);
-            $ctx  = stream_context_create(['http' => [
-                'method'  => 'POST',
-                'header'  => "Content-Type: application/json\r\nContent-Length: " . strlen($payload),
-                'content' => $payload,
-                'timeout' => 4,
-                'ignore_errors' => true,
-            ]]);
-            $body = @file_get_contents($url, false, $ctx);
-            $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
-            return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
-        };
-
-        $cmdUrl = "http://localhost/api/command/Start%20Playlist";
-        // raw-array POST helper (body is a JSON array, not an object)
-        $postArr = function($url, $arr) use (&$http_response_header) {
-            $payload = json_encode($arr);
-            $ctx = stream_context_create(['http' => [
-                'method'  => 'POST',
-                'header'  => "Content-Type: application/json\r\nContent-Length: " . strlen($payload),
-                'content' => $payload,
-                'timeout' => 4,
-                'ignore_errors' => true,
-            ]]);
-            $body = @file_get_contents($url, false, $ctx);
-            $code = isset($http_response_header) ? (int)explode(' ', $http_response_header[0])[1] : 0;
-            return ['http' => $code, 'body' => $body === false ? null : substr($body, 0, 400)];
-        };
-        $results['GET ?name=&repeat=']              = $get("$cmdUrl?name=$enc&repeat=false") + ['url' => "$cmdUrl?name=$enc&repeat=false"];
-        $results['GET path args /name/repeat']      = $get("$cmdUrl/$enc/false") + ['url' => "$cmdUrl/$enc/false"];
-        $results['POST {name,repeat} object']       = $post($cmdUrl, ['name' => $playlist, 'repeat' => false]) + ['url' => $cmdUrl];
-        $results['POST ["name","repeat"] array']    = $postArr($cmdUrl, [$playlist, 'false', 'false']) + ['url' => $cmdUrl];
-        $results['POST /api/command {cmd,args:[]}'] = $post('http://localhost/api/command', ['command' => 'Start Playlist', 'args' => [$playlist, 'false', 'false']]) + ['url' => 'http://localhost/api/command'];
-
-        echo json_encode($results);
-        break;
-
     case 'trigger_playlist':
         $playlist = $_GET['playlist'] ?? '';
         if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
@@ -111,6 +59,9 @@ switch ($_GET['action'] ?? '') {
         break;
 
     case 'stop_playlist':
+        // Signal the scheduler that this stop was intentional so it
+        // doesn't immediately restart the background playlist.
+        @touch('/tmp/showmanager_manual_stop');
         $url = "http://localhost/api/command/Stop%20Now";
         $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
         $body = @file_get_contents($url, false, $ctx);
@@ -239,6 +190,13 @@ switch ($_GET['action'] ?? '') {
     case 'get_hardware':
         $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
         $hw = file_exists($hwFile) ? (json_decode(file_get_contents($hwFile), true) ?? []) : [];
+        // Surface values from the legacy config so old installs migrate cleanly
+        $legacyFile = $settings['configDirectory'] . "/ShowManager.config";
+        $legacy = file_exists($legacyFile) ? (json_decode(file_get_contents($legacyFile), true) ?? []) : [];
+        if (empty($hw['mixer_ip']) && !empty($legacy['xr18_ip'])) $hw['mixer_ip'] = $legacy['xr18_ip'];
+        foreach (['announce_ch', 'announce_vol'] as $k) {
+            if (!isset($hw[$k]) && isset($legacy[$k])) $hw[$k] = $legacy[$k];
+        }
         echo json_encode($hw);
         break;
 
@@ -247,6 +205,11 @@ switch ($_GET['action'] ?? '') {
         if (!$body) { http_response_code(400); echo json_encode(['error' => 'invalid']); break; }
         $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
         file_put_contents($hwFile, json_encode($body, JSON_PRETTY_PRINT));
+        // The bridge only reads config at startup — restart it to apply
+        $pluginDir = __DIR__;
+        shell_exec("pkill -f xr18_bridge.py 2>/dev/null");
+        sleep(1);
+        shell_exec("python3 " . escapeshellarg("$pluginDir/Scripts/xr18_bridge.py") . " >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &");
         echo json_encode(['ok' => true]);
         break;
 
@@ -299,8 +262,8 @@ switch ($_GET['action'] ?? '') {
         $path = $_GET['path'] ?? '';
         $base = realpath(__DIR__ . '/announcements');
         $target = realpath(__DIR__ . '/announcements/' . ltrim($path, '/'));
-        if ($base && $target && str_starts_with($target, $base . DIRECTORY_SEPARATOR)) {
-            unlink($target); echo json_encode(['ok' => true]);
+        if ($base && $target && str_starts_with($target, $base . DIRECTORY_SEPARATOR) && is_file($target) && unlink($target)) {
+            echo json_encode(['ok' => true]);
         } else { http_response_code(400); echo json_encode(['error' => 'invalid path']); }
         break;
 

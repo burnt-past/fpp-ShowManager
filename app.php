@@ -44,6 +44,7 @@ $plJson = json_encode($playlists);
 .cal-num.today{background:var(--mint);color:#0f1117}
 .cal-chip{font-size:10px;font-weight:500;border-left:2px solid var(--mint);background:rgba(52,211,153,.18);padding:1px 5px;border-radius:0 3px 3px 0;margin-bottom:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .cal-chip.rule{border-left-color:var(--s1);background:rgba(59,130,246,.2)}
+.cal-chip.blk{border-left-color:var(--red);background:var(--redD);color:var(--red)}
 .dv-entry{display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;background:var(--card);border:1px solid var(--border);margin-bottom:8px}
 .rule-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;background:var(--card);border:1px solid var(--border);margin-bottom:8px}
 .dow-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--sub);font-size:11px;font-weight:600;cursor:pointer;margin:2px}
@@ -83,6 +84,7 @@ function smTab(name){
   document.querySelectorAll('.sm-tab').forEach((b,i)=>b.classList.toggle('active',['status','schedule','announcements','hardware'][i]===name));
   document.querySelectorAll('.sm-pane').forEach(p=>p.style.display='none');
   document.getElementById('sm-'+name).style.display='';
+  if(name!=='status'&&statusTimer){clearInterval(statusTimer);statusTimer=null;}
   ({status:loadStatus,schedule:initSchedule,announcements:loadAnnouncements,hardware:loadHardware})[name]?.();
 }
 function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -90,6 +92,8 @@ function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
 function getSunday(d){const s=new Date(d);s.setDate(s.getDate()-s.getDay());s.setHours(0,0,0,0);return s;}
 function mkey(y,m){return y+'-'+String(m).padStart(2,'0');}
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function escJ(s){return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function numOr(v,d){const n=parseFloat(v);return isNaN(n)?d:n;}
 function qlabel(e){
   if(e.type==='blackout'){
     const range=(e.start_time||e.end_time)?` ${e.start_time||'00:00'}–${e.end_time||'23:59'}`:'';
@@ -100,7 +104,7 @@ function qlabel(e){
 async function _npTick(){
   const r=await fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({}));
   const playing=r.status===1||r.status==='playing';
-  const curPl=r.current_playlist?.name||r.current_song||null;
+  const curPl=r.current_playlist?.playlist||r.current_playlist?.name||r.current_song||null;
   const dot=document.getElementById('sm-np-dot');
   const txt=document.getElementById('sm-np-text');
   if(!dot)return;
@@ -131,10 +135,37 @@ function loadStatus(){
   statusTimer=setInterval(_tick,3000);
 }
 
+/* Mirror the scheduler's blackout rules so the UI shows what will actually run */
+function _todayInfo(sched){
+  const today=fmtDate(new Date());
+  const ents=(sched.entries||[]).filter(e=>e.date===today);
+  const blk=ents.filter(e=>e.type==='blackout');
+  const fullBlackout=blk.some(b=>!b.start_time&&!b.end_time);
+  let shows=ents.filter(e=>e.type==='show').sort((a,b)=>a.time.localeCompare(b.time));
+  if(fullBlackout)shows=[];
+  else if(blk.length)shows=shows.filter(s=>!blk.some(b=>(b.start_time||'00:00')<=s.time&&s.time<=(b.end_time||'23:59')));
+  return {shows,fullBlackout};
+}
+async function _fetchStatus(){
+  const [fpp,xr,sched,log]=await Promise.all([
+    fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[],rules:[]})),
+    fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>({lines:[],running:false})),
+  ]);
+  const playing=fpp.status===1||fpp.status==='playing';
+  const curName=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
+  const t=_todayInfo(sched);
+  const now=new Date().toTimeString().slice(0,5);
+  const nextIdx=t.shows.findIndex(s=>s.time>=now);
+  const upcoming=nextIdx>=0?t.shows.slice(nextIdx):[];
+  return {fpp,xr,log,playing,curName,shows:t.shows,fullBlackout:t.fullBlackout,nextIdx,upcoming};
+}
+
 /* helpers that build HTML for each updatable region */
 function _heroHtml(fpp,xr){
   const playing=fpp.status===1||fpp.status==='playing';
-  const curPl=fpp.current_playlist?.name||fpp.current_song||'Idle';
+  const curPl=fpp.current_playlist?.playlist||fpp.current_playlist?.name||fpp.current_song||'Idle';
   return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <span class="sm-badge" style="background:${playing?'rgba(245,158,11,.12)':'rgba(124,133,162,.12)'};border:1px solid ${playing?'rgba(245,158,11,.3)':'rgba(124,133,162,.3)'};color:${playing?'var(--amber)':'var(--sub)'}">
       ${playing?'<span class="sm-dot blink" style="width:6px;height:6px;background:var(--amber);border-radius:50%"></span>On Air':'Idle'}
@@ -150,15 +181,16 @@ function _heroHtml(fpp,xr){
 function _statsHtml(fpp,xr,todayShows,upcoming){
   return [['FPP Version',fpp.version||'—'],['Instance',fpp.HostName||fpp.hostname||'—'],['Shows Today',todayShows.length],['Upcoming',upcoming.length],['Volume',fpp.volume!=null?fpp.volume+'%':'—'],['XR18',xr.xr18_fader!=null?xr.xr18_fader.toFixed(2):'—']].map(([l,v])=>`<div class="sm-card" style="flex:1;min-width:100px;margin-bottom:0"><div style="font-size:11px;color:var(--sub);font-weight:500">${l}</div><div style="margin-top:6px;font-size:18px;font-family:monospace;font-weight:600;color:var(--mint);word-break:break-all;line-height:1.2">${escH(String(v))}</div></div>`).join('');
 }
-function _schedHtml(todayShows,nextIdx,playing){
-  if(!todayShows.length) return '<div style="font-size:13px;color:var(--mut)">No shows today</div>';
-  return todayShows.map((s,i)=>{
-    const isPast=i<nextIdx-1||(nextIdx<0);
-    const isNow=playing&&nextIdx>0&&i===nextIdx-1;
-    const isNext=i===nextIdx;
+function _schedHtml(d){
+  if(d.fullBlackout) return '<div style="font-size:13px;color:var(--red);font-weight:600">⛔ Blackout day — no shows will run</div>';
+  if(!d.shows.length) return '<div style="font-size:13px;color:var(--mut)">No shows today</div>';
+  return d.shows.map((s,i)=>{
+    const isNow=d.playing&&!!s.playlist&&s.playlist===d.curName;
+    const isNext=i===d.nextIdx&&!isNow;
+    const isPast=(d.nextIdx<0||i<d.nextIdx)&&!isNow;
     const bg=isNext?'var(--mintD)':isNow?'rgba(245,158,11,.08)':'transparent';
     const tc=isNext?'var(--mint)':isNow?'var(--amber)':'var(--sub)';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:${bg};opacity:${isPast&&!isNow?0.4:1}">
+    return `<div style="display:flex;align-items:center;gap:12px;padding:8px 10px;border-radius:8px;background:${bg};opacity:${isPast?0.4:1}">
       <span style="font-family:monospace;font-size:14px;color:${tc}">${escH(s.time)}</span>
       <span style="font-size:14px;font-weight:${isNext||isNow?600:400};color:${isNext||isNow?'var(--text)':'var(--sub)'};flex:1">${escH(qlabel(s))}</span>
       ${isNext?'<span class="sm-badge" style="background:var(--mintD);border:1px solid rgba(52,211,153,.3);color:var(--mint)">Next</span>':''}
@@ -172,23 +204,13 @@ function _sysHtml(fpp,xr,running){
 
 async function renderStatus(){
   const el=document.getElementById('sm-status');
-  const [fpp,xr,sched,log]=await Promise.all([
-    fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
-    fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
-    fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[],rules:[]})),
-    fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>({lines:[],running:false})),
-  ]);
-  const playing=fpp.status===1||fpp.status==='playing';
-  const today=fmtDate(new Date());
-  const now=new Date().toTimeString().slice(0,5);
-  const todayShows=(sched.entries||[]).filter(e=>e.date===today&&e.type==='show').sort((a,b)=>a.time.localeCompare(b.time));
-  const nextIdx=todayShows.findIndex(s=>s.time>=now);
-  const upcoming=nextIdx>=0?todayShows.slice(nextIdx):[];
+  const d=await _fetchStatus();
+  const {fpp,xr,log}=d;
   el.innerHTML=`
 <div class="sm-card glow" style="position:relative;overflow:hidden;margin-bottom:14px">
   <div id="sm-hero">${_heroHtml(fpp,xr)}</div>
 </div>
-<div id="sm-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">${_statsHtml(fpp,xr,todayShows,upcoming)}</div>
+<div id="sm-stats" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">${_statsHtml(fpp,xr,d.shows,d.upcoming)}</div>
 <div class="sm-card" style="margin:14px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
   <span style="font-size:12px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.08em">Manual Trigger</span>
   <select id="trig-pl" class="sm-select" style="flex:1;min-width:160px">${plOptions('')}</select>
@@ -198,7 +220,7 @@ async function renderStatus(){
 <div style="display:flex;gap:12px;flex-wrap:wrap">
   <div class="sm-card" style="flex:1;min-width:200px">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">Today's Schedule</div>
-    <div id="sm-sched">${_schedHtml(todayShows,nextIdx,playing)}</div>
+    <div id="sm-sched">${_schedHtml(d)}</div>
   </div>
   <div class="sm-card" style="width:240px;flex-shrink:0">
     <div style="font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin-bottom:10px">System</div>
@@ -213,7 +235,6 @@ async function renderStatus(){
     <button class="sm-btn sm" onclick="navigator.clipboard.writeText(document.getElementById('sm-log-content').textContent)">Copy</button>
     <button class="sm-btn sm" onclick="clearLog()">Clear</button>
     <button class="sm-btn sm" onclick="refreshLog()">Refresh</button>
-    <button class="sm-btn sm" onclick="probeFPP()">Probe FPP</button>
   </div>
   <div id="sm-log-content" style="font-family:monospace;font-size:11px;color:var(--sub);max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;background:var(--high);border-radius:6px;padding:10px;line-height:1.5">${escH(log.lines.join('\n'))||'(empty)'}</div>
   <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;margin-bottom:4px">
@@ -229,21 +250,11 @@ async function renderStatus(){
 /* lightweight tick: updates only the dynamic regions, never touches the trigger card */
 async function _tick(){
   if(!document.getElementById('sm-hero'))return;
-  const [fpp,xr,sched,log]=await Promise.all([
-    fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
-    fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
-    fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[],rules:[]})),
-    fetch(AJAX+'&action=get_log').then(r=>r.json()).catch(()=>({lines:[],running:false})),
-  ]);
-  const playing=fpp.status===1||fpp.status==='playing';
-  const today=fmtDate(new Date());
-  const now=new Date().toTimeString().slice(0,5);
-  const todayShows=(sched.entries||[]).filter(e=>e.date===today&&e.type==='show').sort((a,b)=>a.time.localeCompare(b.time));
-  const nextIdx=todayShows.findIndex(s=>s.time>=now);
-  const upcoming=nextIdx>=0?todayShows.slice(nextIdx):[];
+  const d=await _fetchStatus();
+  const {fpp,xr,log}=d;
   const hero=document.getElementById('sm-hero');if(hero)hero.innerHTML=_heroHtml(fpp,xr);
-  const stats=document.getElementById('sm-stats');if(stats)stats.innerHTML=_statsHtml(fpp,xr,todayShows,upcoming);
-  const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_schedHtml(todayShows,nextIdx,playing);
+  const stats=document.getElementById('sm-stats');if(stats)stats.innerHTML=_statsHtml(fpp,xr,d.shows,d.upcoming);
+  const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_schedHtml(d);
   const sysEl=document.getElementById('sm-sys');if(sysEl)sysEl.innerHTML=_sysHtml(fpp,xr,log.running);
   if(!logPaused){const lc=document.getElementById('sm-log-content');if(lc){lc.textContent=log.lines.join('\n')||'(empty)';lc.scrollTop=lc.scrollHeight;}}
 }
@@ -280,13 +291,6 @@ async function refreshLog(){
 async function restartScheduler(){
   await fetch(AJAX+'&action=scheduler_restart');
   setTimeout(refreshLog,2000);
-}
-async function probeFPP(){
-  const pl=PLAYLISTS[0]||'Show 1';
-  _appendTriggerLog('=== Probe FPP: '+pl+' ===');
-  const r=await fetch(AJAX+'&action=probe_fpp&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(e=>({error:String(e)}));
-  if(r.error){_appendTriggerLog('[error] '+r.error);return;}
-  Object.entries(r).forEach(([k,v])=>_appendTriggerLog('['+k+']\n  URL:  '+v.url+'\n  HTTP: '+v.http+'\n  Body: '+(v.body??'(null/error)')));
 }
 
 /* ── SCHEDULE DATA ── */
@@ -329,13 +333,13 @@ function renderMonthView(){
   for(let d=1;d<=days;d++){
     const ds=mkey(y,m+1)+'-'+String(d).padStart(2,'0');
     const ents=byDate[ds]||[];
-    const isBlk=ents.some(e=>e.type==='blackout');
+    const fullBlk=ents.some(e=>e.type==='blackout'&&!e.start_time&&!e.end_time);
     const isTd=ds===today;
-    html+=`<td class="${isBlk?'blackout':isTd?'today':''}" onclick="openDayModal('${ds}')">`;
+    html+=`<td class="${fullBlk?'blackout':isTd?'today':''}" onclick="openDayModal('${ds}')">`;
     html+=`<div class="cal-num${isTd?' today':''}">${d}</div>`;
-    if(isBlk)html+='<div style="font-size:10px;color:var(--red);font-weight:600">✖ Blackout</div>';
-    else ents.slice(0,3).forEach(e=>html+=`<div class="cal-chip${e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
-    if(ents.length>3)html+=`<div style="font-size:10px;color:var(--mut)">+${ents.length-3} more</div>`;
+    if(fullBlk)html+='<div style="font-size:10px;color:var(--red);font-weight:600">✖ Blackout</div>';
+    else ents.slice(0,3).forEach(e=>html+=`<div class="cal-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
+    if(!fullBlk&&ents.length>3)html+=`<div style="font-size:10px;color:var(--mut)">+${ents.length-3} more</div>`;
     html+='</td>';
     if(++col===7){html+='</tr><tr>';col=0;}
   }
@@ -353,11 +357,11 @@ function renderWeekView(){
     const d=addDays(ws,i),ds=fmtDate(d);
     const isTd=ds===today;
     const ents=byDate[ds]||[];
-    const isBlk=ents.some(e=>e.type==='blackout');
+    const fullBlk=ents.some(e=>e.type==='blackout'&&!e.start_time&&!e.end_time);
     hd+=`<th style="${isTd?'color:var(--mint)':''}">${DAYS[d.getDay()]}<br><span style="font-family:monospace;font-weight:400">${ds.slice(5)}</span></th>`;
-    bd+=`<td class="${isBlk?'blackout':isTd?'today':''}" onclick="openDayModal('${ds}')">`;
-    if(isBlk)bd+='<div style="font-size:10px;color:var(--red);font-weight:600">✖</div>';
-    else ents.slice(0,4).forEach(e=>bd+=`<div class="cal-chip${e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
+    bd+=`<td class="${fullBlk?'blackout':isTd?'today':''}" onclick="openDayModal('${ds}')">`;
+    if(fullBlk)bd+='<div style="font-size:10px;color:var(--red);font-weight:600">✖</div>';
+    else ents.slice(0,4).forEach(e=>bd+=`<div class="cal-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
     bd+='</td>';
   }
   return `<table class="cal-grid"><thead><tr>${hd}</tr></thead><tbody><tr>${bd}</tr></tbody></table>`;
@@ -478,7 +482,7 @@ function openDayModal(ds){
         <div class="sm-hr"></div>
         <button class="sm-btn solid" onclick="closeModal();openAddModal(false,'${ds}')">+ Add Show</button>
         <button class="sm-btn danger" style="margin-left:8px" onclick="closeModal();openAddModal(true,'${ds}')">+ Blackout</button>
-        <button class="sm-btn" style="margin-left:8px" onclick="closeModal();calState.cursor=new Date('${ds}');calSetView('Day')">Day View</button>
+        <button class="sm-btn" style="margin-left:8px" onclick="closeModal();calState.cursor=new Date('${ds}T00:00:00');calSetView('Day')">Day View</button>
       </div>
     </div>
   </div>`);
@@ -602,8 +606,8 @@ function renderAnnouncements(){
     <td style="flex:1"><input type="text" class="sm-input" style="width:100%" value="${escH(p.file||'')}" list="mp3-list" id="pre-file-${i}"></td>
     <td><button class="sm-btn sm danger" onclick="annRemovePre(${i})">×</button></td>
   </tr>`).join('');
-  const mainRows=(files.main||[]).map(f=>`<tr><td>${escH(f)}</td><td style="color:var(--sub)">Main</td><td><button class="sm-btn sm danger" onclick="annDeleteFile('${escH(f)}')">Delete</button></td></tr>`).join('');
-  const dtRows=(files.daytime||[]).map(f=>`<tr><td>${escH(f)}</td><td style="color:var(--sub)">Daytime</td><td><button class="sm-btn sm danger" onclick="annDeleteFile('daytime/${escH(f)}')">Delete</button></td></tr>`).join('');
+  const mainRows=(files.main||[]).map(f=>`<tr><td>${escH(f)}</td><td style="color:var(--sub)">Main</td><td><button class="sm-btn sm danger" onclick="annDeleteFile('${escH(escJ(f))}')">Delete</button></td></tr>`).join('');
+  const dtRows=(files.daytime||[]).map(f=>`<tr><td>${escH(f)}</td><td style="color:var(--sub)">Daytime</td><td><button class="sm-btn sm danger" onclick="annDeleteFile('daytime/${escH(escJ(f))}')">Delete</button></td></tr>`).join('');
   const fileRows=mainRows+dtRows;
   el.innerHTML=`<datalist id="mp3-list">${datalist}</datalist>
   <div style="display:flex;flex-direction:column;gap:14px;max-width:680px">
@@ -664,12 +668,12 @@ async function saveAnnouncements(){
   const preShow=annGetPreRows().filter(r=>r.file);
   preShow.sort((a,b)=>b.mins_before-a.mins_before);
   const body={
-    duck_level:parseFloat(document.getElementById('ann-duck').value)||0.25,
-    duck_fade_secs:parseFloat(document.getElementById('ann-fade').value)||2,
-    gain_db:parseFloat(document.getElementById('ann-gain').value)||6,
-    max_duration_secs:parseInt(document.getElementById('ann-maxdur').value)||300,
-    pre_show_brightness:parseInt(document.getElementById('ann-prebright').value)||20,
-    normal_brightness:parseInt(document.getElementById('ann-normbright').value)||100,
+    duck_level:numOr(document.getElementById('ann-duck').value,0.25),
+    duck_fade_secs:numOr(document.getElementById('ann-fade').value,2),
+    gain_db:numOr(document.getElementById('ann-gain').value,6),
+    max_duration_secs:Math.round(numOr(document.getElementById('ann-maxdur').value,300)),
+    pre_show_brightness:Math.round(numOr(document.getElementById('ann-prebright').value,20)),
+    normal_brightness:Math.round(numOr(document.getElementById('ann-normbright').value,100)),
     background_playlist:document.getElementById('ann-bgpl').value,
     pre_show:preShow,
     daytime:{enabled:document.getElementById('ann-dt-en').checked,start:document.getElementById('ann-dt-start').value,end:document.getElementById('ann-dt-end').value,interval_mins:parseInt(document.getElementById('ann-dt-iv').value)||20},
@@ -707,27 +711,34 @@ function renderHardware(cfg){
   const ch=escH(cfg.fader_channel!=null?String(cfg.fader_channel):'1');
   const lvl=escH(cfg.show_level!=null?String(cfg.show_level):'0.75');
   const idle=escH(cfg.idle_level!=null?String(cfg.idle_level):'0');
+  const ach=escH(cfg.announce_ch!=null?String(parseInt(cfg.announce_ch)):'3');
+  const avol=escH(cfg.announce_vol!=null?String(cfg.announce_vol):'0.75');
   el.innerHTML=`<div class="sm-card" style="max-width:480px">
     <h3 style="margin:0 0 16px;color:var(--text)">XR18 Mixer</h3>
     <div class="sm-fr"><label>Mixer IP address</label><input type="text" id="hw-ip" class="sm-input" value="${ip}" placeholder="192.168.1.x"></div>
-    <div class="sm-fr"><label>Fader channel</label><input type="number" id="hw-ch" class="sm-input" value="${ch}" min="1" max="18"></div>
-    <div class="sm-fr"><label>Show level (0–1)</label><input type="number" id="hw-lvl" class="sm-input" value="${lvl}" min="0" max="1" step="0.01"></div>
-    <div class="sm-fr"><label>Idle level (0–1)</label><input type="number" id="hw-idle" class="sm-input" value="${idle}" min="0" max="1" step="0.01"></div>
+    <div class="sm-fr"><label>Music fader channel</label><input type="number" id="hw-ch" class="sm-input" value="${ch}" min="1" max="18"></div>
+    <div class="sm-fr"><label>Show level (0–1)</label><input type="number" id="hw-lvl" class="sm-input" value="${lvl}" min="0" max="1" step="0.01"><div class="hint">Music faders move here when a show starts</div></div>
+    <div class="sm-fr"><label>Idle level (0–1)</label><input type="number" id="hw-idle" class="sm-input" value="${idle}" min="0" max="1" step="0.01"><div class="hint">Music faders move here after a show ends</div></div>
+    <div class="sm-fr"><label>Announce channel</label><input type="number" id="hw-ach" class="sm-input" value="${ach}" min="1" max="18"></div>
+    <div class="sm-fr"><label>Announce level (0–1)</label><input type="number" id="hw-avol" class="sm-input" value="${avol}" min="0" max="1" step="0.01"></div>
     <div style="display:flex;justify-content:flex-end;margin-top:12px">
       <button class="sm-btn solid" onclick="saveHardware()">Save</button>
     </div>
+    <div class="hint" style="margin-top:8px">Saving restarts the XR18 bridge so changes apply immediately.</div>
   </div>`;
 }
 async function saveHardware(){
   const body={
     mixer_ip:document.getElementById('hw-ip').value,
-    fader_channel:parseInt(document.getElementById('hw-ch').value)||1,
-    show_level:parseFloat(document.getElementById('hw-lvl').value)||0.75,
-    idle_level:parseFloat(document.getElementById('hw-idle').value)||0,
+    fader_channel:Math.round(numOr(document.getElementById('hw-ch').value,1)),
+    show_level:numOr(document.getElementById('hw-lvl').value,0.75),
+    idle_level:numOr(document.getElementById('hw-idle').value,0),
+    announce_ch:Math.round(numOr(document.getElementById('hw-ach').value,3)),
+    announce_vol:numOr(document.getElementById('hw-avol').value,0.75),
   };
   const r=await fetch(AJAX+'&action=save_hardware',{method:'POST',body:JSON.stringify(body)});
   const j=await r.json();
-  if(j.ok)alert('Saved.');
+  if(j.ok)alert('Saved. Bridge restarted.');
 }
 
 /* ── INIT ── */

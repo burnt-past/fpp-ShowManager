@@ -9,9 +9,9 @@ flag/state files:
   /tmp/xr18_current_fader     — bridge writes current fader level here
 
 Config files (all in /home/fpp/media/config/):
-  ShowManager.config    — hardware settings (IP, channels, duck level)
-  ShowManagerShows.config            — show definitions
-  ShowManagerSchedule.config         — calendar entries (shows + blackout dates)
+  ShowManagerHardware.config         — mixer settings (IP, channels, duck/show/idle levels)
+  ShowManagerShows.config            — legacy show definitions
+  ShowManagerSchedule.config         — calendar entries (shows + blackouts)
   ShowManagerAnnouncements.config    — announcement settings
 """
 
@@ -40,6 +40,7 @@ ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
 ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
+MANUAL_STOP_FLAG = "/tmp/showmanager_manual_stop"
 LOG_PATH         = "/home/fpp/media/logs/showmanager.log"
 
 XR18_PORT        = 10024
@@ -119,6 +120,8 @@ def _fade_faders(ip, ch1, ch2, from_lvl, to_lvl, duration_secs, steps=20):
 # ---------------------------------------------------------------------------
 
 def _fpp(path, method="GET", body=None, timeout=5):
+    """Call the FPP API. Returns parsed JSON (dict/list), a string for
+    non-JSON/empty 200 responses, or None on HTTP/network error."""
     url = f"http://localhost{path}"
     try:
         req = urllib.request.Request(url, method=method)
@@ -128,12 +131,11 @@ def _fpp(path, method="GET", body=None, timeout=5):
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = r.read().strip()
             if not data:
-                return True  # HTTP success, empty body
+                return ""
             try:
                 return json.loads(data)
             except ValueError:
-                log.info("FPP non-JSON response for %s: %s", path, data[:120])
-                return True
+                return data.decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         log.warning("FPP API HTTP %d %s %s: %s", e.code, method, path, e.read()[:120])
         return None
@@ -142,16 +144,19 @@ def _fpp(path, method="GET", body=None, timeout=5):
         return None
 
 def fpp_status():
-    return _fpp("/api/fppd/status") or {}
+    st = _fpp("/api/fppd/status")
+    return st if isinstance(st, dict) else {}
 
 def fpp_start_playlist(name, repeat=False):
     enc = urllib.parse.quote(name, safe='')
     repeat_str = 'true' if repeat else 'false'
     path = f"/api/command/Start%20Playlist/{enc}/{repeat_str}"
-    log.info("FPP call: %s", path)
     result = _fpp(path)
     if result is None:
         log.error("Failed to start playlist '%s' — HTTP/network error", name)
+        return False
+    if isinstance(result, str) and result and "starting" not in result.lower():
+        log.error("FPP rejected playlist start '%s': %s", name, result[:120])
         return False
     log.info("Started FPP playlist '%s' — response: %s", name, result)
     return True
@@ -162,19 +167,18 @@ def fpp_stop():
 
 def fpp_get_volume():
     data = _fpp("/api/system/volume")
-    return int(data.get("volume", 75)) if data else 75
+    return int(data.get("volume", 75)) if isinstance(data, dict) else 75
 
 def is_show_running():
     """True only when an FSEQ sequence is actively playing (not background music)."""
     return bool(fpp_status().get("current_sequence", ""))
 
-def is_fpp_idle():
-    st = fpp_status()
-    status_num  = st.get("status", 0)
-    status_name = st.get("status_name", "?")
-    log.info("FPP idle check: status=%s status_name=%s", status_num, status_name)
-    # FPP: status 0 = idle, 1 = playing
-    return status_num == 0
+def fpp_current_playlist():
+    """Name of the playlist FPP is currently playing, or '' when idle."""
+    cur = fpp_status().get("current_playlist") or {}
+    if not isinstance(cur, dict):
+        return ""
+    return str(cur.get("playlist") or cur.get("name") or "")
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +431,27 @@ class ShowScheduler:
                 log.error("Unhandled error in %s: %s", fn.__name__, e)
         return wrapper
 
+    def _set_level(self, hw_cfg, level):
+        """Fade the music faders to a configured level (show_level / idle_level).
+        No-op when the level or mixer IP is not configured."""
+        if level is None:
+            return
+        ip = hw_cfg.get("mixer_ip") or hw_cfg.get("xr18_ip")
+        if not ip:
+            return
+        fch = hw_cfg.get("fader_channel")
+        if fch is not None:
+            ch1 = ch2 = str(int(fch))
+        else:
+            ch1 = str(hw_cfg.get("music_ch1", "1"))
+            ch2 = str(hw_cfg.get("music_ch2", "2"))
+        try:
+            cur = float(open(FADER_STATE_FILE).read().strip())
+        except Exception:
+            cur = fpp_get_volume() / 100.0
+        _fade_faders(ip, ch1, ch2, cur, float(level), 2.0)
+        log.info("Music fader level set to %.2f", float(level))
+
     # ---- show runner -------------------------------------------------------
 
     def _run_show(self, entry):
@@ -452,38 +477,55 @@ class ShowScheduler:
             playlist = show_def["playlist"]
 
         log.info("--- Show starting: %s at %s ---", playlist, entry.get("time", ""))
+        hw_cfg = self._hw()
+        started_at = time.time()
         self._in_show.set()
         try:
             trigger_dim(an_cfg)
+            self._set_level(hw_cfg, hw_cfg.get("show_level"))
             if not fpp_start_playlist(playlist):
                 log.error("Playlist start returned failure for '%s' — aborting show", playlist)
                 return
-            # Wait up to 15 s for FPP to actually enter playing state
-            playing = False
-            for _ in range(15):
+            # Wait up to 30 s for FPP to report our playlist as current.
+            # We track the specific playlist name (not global idle) so
+            # looping background music can't fool end detection.
+            started = False
+            for _ in range(30):
                 time.sleep(1)
-                if not is_fpp_idle():
-                    playing = True
-                    log.info("FPP confirmed playing: %s", playlist)
+                if fpp_current_playlist() == playlist:
+                    started = True
                     break
-            if not playing:
-                log.warning("FPP still idle 15 s after start — may not have loaded '%s'", playlist)
-            # Wait for show to end; 2-hour cap as safety net
+            if not started:
+                log.warning("FPP never reported '%s' as current playlist — aborting wait", playlist)
+                return
+            log.info("FPP confirmed playing: %s", playlist)
+            # Wait for the show playlist to end; 2-hour cap as safety net
             max_wait = 7200
             waited   = 0
             while waited < max_wait:
                 time.sleep(5)
                 waited += 5
-                if is_fpp_idle():
+                if fpp_current_playlist() != playlist:
                     break
             log.info("--- Show ended: %s ---", playlist)
         finally:
             self._in_show.clear()
             trigger_dim_restore(an_cfg)
+            # Only honor a stop flag set during this show (stale flags are discarded)
+            manual_stop = False
+            if os.path.exists(MANUAL_STOP_FLAG):
+                try:
+                    manual_stop = os.path.getmtime(MANUAL_STOP_FLAG) >= started_at
+                    os.remove(MANUAL_STOP_FLAG)
+                except OSError:
+                    pass
             bg = an_cfg.get("background_playlist", "")
-            if bg:
+            if bg and not manual_stop:
                 log.info("Resuming background music: %s", bg)
                 fpp_start_playlist(bg, repeat=True)
+            elif bg:
+                log.info("Manual stop requested — not resuming background music")
+            self._set_level(hw_cfg, hw_cfg.get("idle_level"))
 
     # ---- announcement runner -----------------------------------------------
 
