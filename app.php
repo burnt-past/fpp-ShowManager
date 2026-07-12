@@ -251,7 +251,7 @@ async function _npTick(){
     const t=new Date(ov.disabled_until);
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }else{
-    label.textContent=playing?'ON AIR':'IDLE';
+    label.textContent=playing?'SHOWTIME':'IDLE';
     sub.textContent=playing?curPl:(npNext?'Next show '+npNext:'');
   }
   const host=r.HostName||r.hostname;
@@ -324,7 +324,7 @@ function _heroHtml(fpp,xr){
       <div>
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
           <span style="width:11px;height:11px;border-radius:50%;background:${playing?'var(--amber)':'var(--mut)'};${playing?'animation:sm-pulse 1.6s ease-in-out infinite':''}"></span>
-          <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'ON AIR':'IDLE'}</span>
+          <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'SHOWTIME':'IDLE'}</span>
         </div>
         <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">${escH(playing?curPl:'Idle')}</div>
         <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">uptime ${escH(fpp.uptime||'—')}</div>

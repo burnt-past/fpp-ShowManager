@@ -170,7 +170,7 @@ function render(){
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }else if(state.playing){
     dot.style.background='var(--amber)';dot.style.boxShadow='0 0 20px var(--amber)';dot.style.animation='k-pulse 1.6s ease-in-out infinite';
-    st.style.color='var(--amber)';st.textContent='ON AIR';
+    st.style.color='var(--amber)';st.textContent='SHOWTIME';
     sub.textContent=state.cur;
   }else{
     dot.style.background='var(--mut)';dot.style.boxShadow='none';dot.style.animation='none';
