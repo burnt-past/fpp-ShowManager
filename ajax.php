@@ -74,6 +74,36 @@ switch ($_GET['action'] ?? '') {
         echo json_encode(['xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null]);
         break;
 
+    case 'get_override':
+        $ovFile = $settings['configDirectory'] . "/ShowManagerOverrides.config";
+        $ov = file_exists($ovFile) ? (json_decode(file_get_contents($ovFile), true) ?? []) : [];
+        $du = $ov['disabled_until'] ?? null;
+        if ($du && strtotime($du) <= time()) {   // expired — clean up
+            $du = null;
+            file_put_contents($ovFile, json_encode([]));
+        }
+        echo json_encode(['disabled_until' => $du]);
+        break;
+
+    case 'set_disabled':
+        $ovFile = $settings['configDirectory'] . "/ShowManagerOverrides.config";
+        $mode = $_GET['mode'] ?? '';
+        if ($mode === 'off') {
+            file_put_contents($ovFile, json_encode([]));
+            echo json_encode(['ok' => true, 'disabled_until' => null]);
+            break;
+        }
+        if ($mode === '1h')          $until = date('c', time() + 3600);
+        elseif ($mode === 'tonight') $until = date('c', strtotime('tomorrow 04:00'));
+        else { http_response_code(400); echo json_encode(['error' => 'bad mode']); break; }
+        file_put_contents($ovFile, json_encode(['disabled_until' => $until], JSON_PRETTY_PRINT));
+        // Stop anything playing, and keep the scheduler from resuming bg music
+        @touch('/tmp/showmanager_manual_stop');
+        $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+        @file_get_contents("http://localhost/api/command/Stop%20Now", false, $ctx);
+        echo json_encode(['ok' => true, 'disabled_until' => $until]);
+        break;
+
     case 'get_month':
         $year   = (int)($_GET['year']  ?? date('Y'));
         $month  = (int)($_GET['month'] ?? date('n'));

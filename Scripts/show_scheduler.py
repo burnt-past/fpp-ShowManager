@@ -38,6 +38,7 @@ SHOWS_CONFIG     = "/home/fpp/media/config/ShowManagerShows.config"
 SCHEDULE_CONFIG  = "/home/fpp/media/config/ShowManagerSchedule.config"
 ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
 ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
+OVERRIDES_CONFIG = "/home/fpp/media/config/ShowManagerOverrides.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
 MANUAL_STOP_FLAG = "/tmp/showmanager_manual_stop"
@@ -353,6 +354,17 @@ def expand_rules_for_date(rules, date_str):
     return shows
 
 
+def system_disabled():
+    """True while a kiosk/UI 'disable system until…' override is active."""
+    due = load_json(OVERRIDES_CONFIG).get("disabled_until")
+    if not due:
+        return False
+    try:
+        return datetime.datetime.now() < datetime.datetime.fromisoformat(due)
+    except ValueError:
+        return False
+
+
 def schedule_for_date(date_str):
     """
     Return sorted list of show entries for date_str, or None on blackout days.
@@ -553,6 +565,9 @@ class ShowScheduler:
                     log.info("New day: %s", today)
                     last_day = today
 
+                if system_disabled():
+                    continue
+
                 todays_shows = schedule_for_date(today)
                 if todays_shows is None:
                     continue  # blackout day
@@ -608,7 +623,7 @@ class ShowScheduler:
                     continue
                 if (time.time() - self._last_daytime_announce) < interval:
                     continue
-                if self._in_show.is_set() or is_show_running():
+                if self._in_show.is_set() or is_show_running() or system_disabled():
                     continue
 
                 # Check nothing is too close to a scheduled show

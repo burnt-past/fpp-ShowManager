@@ -52,10 +52,13 @@ $plJson = json_encode($playlists);
 /* now playing strip */
 #sm-nowplaying{display:flex;align-items:center;gap:12px;padding:13px 20px;border-radius:14px;margin-bottom:14px;border:1px solid var(--brdHi);background:linear-gradient(100deg,rgba(255,255,255,.04),var(--card))}
 #sm-nowplaying.on{background:linear-gradient(100deg,var(--amberBg),var(--card));border-color:var(--amberBrd);box-shadow:0 10px 34px -18px var(--amber)}
+#sm-nowplaying.off{background:linear-gradient(100deg,var(--redBg),var(--card));border-color:var(--redBrd)}
 #sm-np-dot{width:11px;height:11px;border-radius:50%;background:var(--mut);flex:none}
 #sm-nowplaying.on #sm-np-dot{background:var(--amber);animation:sm-pulse 1.6s ease-in-out infinite}
+#sm-nowplaying.off #sm-np-dot{background:var(--red)}
 #sm-np-label{font-weight:800;letter-spacing:.04em;font-size:14px;color:var(--sub)}
 #sm-nowplaying.on #sm-np-label{color:var(--amber)}
+#sm-nowplaying.off #sm-np-label{color:var(--red)}
 #sm-np-sub{color:var(--text);font-weight:600;font-size:14px}
 /* tabs */
 #sm-tabs{display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px}
@@ -122,7 +125,8 @@ $plJson = json_encode($playlists);
     <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px">
       <span style="font-size:18px;font-weight:800;letter-spacing:-.01em">ShowManager</span>
       <span style="font-size:12px;color:var(--mut);font-family:var(--mono)">FPP plugin<span id="sm-host"></span></span>
-      <button id="sm-theme-btn" onclick="smToggleTheme()" style="margin-left:auto">☾ Dark</button>
+      <a href="plugin.php?plugin=<?= basename(__DIR__) ?>&page=kiosk.php&nopage=1" target="_blank" style="margin-left:auto;text-decoration:none"><button id="sm-kiosk-btn" style="appearance:none;border:1px solid var(--border);background:transparent;color:var(--sub);font-size:12.5px;font-weight:600;padding:6px 12px;border-radius:8px">⛶ Kiosk</button></a>
+      <button id="sm-theme-btn" onclick="smToggleTheme()">☾ Dark</button>
     </div>
     <div id="sm-garland"></div>
     <div id="sm-nowplaying">
@@ -229,14 +233,27 @@ function smTab(name){
 /* ── NOW PLAYING STRIP ── */
 let npNext='';
 async function _npTick(){
-  const r=await fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({}));
+  const [r,ov]=await Promise.all([
+    fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_override').then(r=>r.json()).catch(()=>({})),
+  ]);
   const playing=r.status===1||r.status==='playing';
   const curPl=r.current_playlist?.playlist||r.current_playlist?.name||r.current_song||'';
+  const disabled=!!ov.disabled_until;
   const np=document.getElementById('sm-nowplaying');
   if(!np)return;
-  np.classList.toggle('on',playing);
-  document.getElementById('sm-np-label').textContent=playing?'ON AIR':'IDLE';
-  document.getElementById('sm-np-sub').textContent=playing?curPl:(npNext?'Next show '+npNext:'');
+  np.classList.toggle('off',disabled);
+  np.classList.toggle('on',playing&&!disabled);
+  const label=document.getElementById('sm-np-label');
+  const sub=document.getElementById('sm-np-sub');
+  if(disabled){
+    label.textContent='DISABLED';
+    const t=new Date(ov.disabled_until);
+    sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  }else{
+    label.textContent=playing?'ON AIR':'IDLE';
+    sub.textContent=playing?curPl:(npNext?'Next show '+npNext:'');
+  }
   const host=r.HostName||r.hostname;
   if(host)document.getElementById('sm-host').textContent=' · '+host;
 }
