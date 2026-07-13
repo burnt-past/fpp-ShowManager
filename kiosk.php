@@ -322,22 +322,47 @@ async function kVol(delta){
    ?garland=Model Name. Falls back to the default twinkle when the show is dark
    or the 3D viewer plugin isn't installed. */
 (async function(){
+  // Diagnostics: always logs to the console as [garland]; add &garlanddebug=1
+  // to the kiosk URL for an on-screen readout.
+  const dbgOn=new URLSearchParams(location.search).has('garlanddebug');
+  let dbgEl=null;
+  const dbg={stage:'init',frames:0,writes:0,feed:'—',model:'—'};
+  function glog(stage,detail){
+    dbg.stage=stage;
+    console.info('[garland]',stage,detail??'');
+    if(dbgOn){
+      if(!dbgEl){
+        dbgEl=document.createElement('div');
+        dbgEl.style.cssText='position:fixed;left:10px;bottom:10px;z-index:200;background:rgba(0,0,0,.75);color:#7fb0ff;font:12px/1.6 monospace;padding:8px 12px;border-radius:8px;border:1px solid #2a4a82;white-space:pre';
+        document.body.appendChild(dbgEl);
+      }
+      dbgEl.textContent='garland: '+dbg.stage+(detail?' — '+detail:'')
+        +'\nmodel:   '+dbg.model
+        +'\nfeed:    '+dbg.feed
+        +'\nframes:  '+dbg.frames+'   bulb writes: '+dbg.writes;
+    }
+  }
+  if(dbgOn)setInterval(()=>glog(dbg.stage),1000);
+
   const bulbs=[...document.querySelectorAll('#k-garland .gbulb')];
   const NB=bulbs.length;
-  if(!NB)return;
+  if(!NB)return glog('no garland bulbs in DOM');
   const defaults=bulbs.map(b=>b.style.cssText);
   let meta,geo;
   try{
     const mres=await fetch('/3dviewer/data/models.json');
-    if(!mres.ok)return;
+    if(!mres.ok)return glog('models.json HTTP '+mres.status,'is fpp-plugin-3DViewer installed? (/3dviewer/)');
     meta=await mres.json();
-    const buf=await (await fetch('/3dviewer/data/geometry.bin')).arrayBuffer();
+    const gres=await fetch('/3dviewer/data/geometry.bin');
+    if(!gres.ok)return glog('geometry.bin HTTP '+gres.status);
+    const buf=await gres.arrayBuffer();
     const dv=new DataView(buf);
     const magic=String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3));
-    if(magic!=='F3DG')return;
+    if(magic!=='F3DG')return glog('bad geometry magic',magic);
     const n=dv.getUint32(8,true);
     geo=new Float32Array(buf,16,n*3);
-  }catch(e){return;}
+    glog('geometry loaded',n+' px, '+(meta.models||[]).length+' models, previewHeight '+meta.previewHeight);
+  }catch(e){return glog('data load failed',String(e));}
 
   // ── pick the source string ──
   const models=meta.models||[];
@@ -367,9 +392,11 @@ async function kVol(delta){
       if(!model||s.w>spanOf(model).w)model=m;
     }
   }
-  if(!model)return;
+  if(!model)return glog('no usable model found');
+  dbg.model=model.name+' ('+model.count+' px)';
   const span=spanOf(model);
   const sw=span.w||1;
+  glog('model picked',dbg.model+', x-span '+Math.round(sw));
 
   // ── key → bulb map (same key scheme as the viewer's feed.js) ──
   const keyToBulb=new Map();
@@ -441,7 +468,7 @@ async function kVol(delta){
           }
           if(x>=0){
             const bi=keyToBulb.get((x<<12)|(yy&0xfff));
-            if(bi!==undefined){const o=bi*3;cols[o]=r;cols[o+1]=g;cols[o+2]=b;dirty=true;}
+            if(bi!==undefined){const o=bi*3;cols[o]=r;cols[o+1]=g;cols[o+2]=b;dirty=true;dbg.writes++;}
           }
           li=le+1;
         }
@@ -452,9 +479,12 @@ async function kVol(delta){
 
   let opened=false,errs=0;
   const es=new EventSource('/api/http-virtual-display/');
-  es.onopen=()=>{opened=true;errs=0;};
-  es.onerror=()=>{if(!opened&&++errs>=3)es.close();};
-  es.onmessage=ev=>{pending=ev.data;};
+  es.onopen=()=>{opened=true;errs=0;dbg.feed='connected';glog('feed connected');};
+  es.onerror=()=>{
+    dbg.feed=opened?'reconnecting…':'error '+(errs+1);
+    if(!opened&&++errs>=3){es.close();glog('feed unreachable','/api/http-virtual-display/ — is HTTP Virtual Display enabled in FPP outputs?');}
+  };
+  es.onmessage=ev=>{pending=ev.data;dbg.frames++;};
   // Drain only the latest payload ~15×/s — plenty for 24 bulbs, cheap on tablets
   setInterval(()=>{
     if(pending==null)return;
