@@ -74,6 +74,15 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     </div>
   </div>
 
+  <!-- Live 3D preview (fpp-plugin-3DViewer) — auto-hidden when the plugin isn't installed -->
+  <div class="card" id="k-3d-card" style="display:none;padding:12px 12px 10px;margin-bottom:16px;text-align:left">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 6px">
+      <div class="klabel">Live 3D Preview</div>
+      <button class="btn" id="k-3d-tgl" style="min-height:36px;padding:6px 14px;font-size:13px">Hide</button>
+    </div>
+    <iframe id="k-3d" style="width:100%;height:46vh;min-height:260px;border:none;border-radius:12px;background:#05070c;display:block"></iframe>
+  </div>
+
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-bottom:22px;text-align:left">
     <div class="card">
       <div class="klabel" style="margin-bottom:8px">Today's Schedule</div>
@@ -263,6 +272,37 @@ async function kVol(delta){
   });
   btn.addEventListener('pointerup',cancel);
   btn.addEventListener('pointerleave',cancel);
+})();
+
+/* 3D viewer embed — shown only when fpp-plugin-3DViewer is installed */
+(async function(){
+  const card=document.getElementById('k-3d-card');
+  const frame=document.getElementById('k-3d');
+  const tgl=document.getElementById('k-3d-tgl');
+  let ok=false;
+  try{ok=(await fetch('/3dviewer/index.html',{method:'HEAD'})).ok;}catch(e){}
+  if(!ok)return;
+  card.style.display='';
+  let shown=true;try{shown=localStorage.getItem('k3d')!=='off';}catch(e){}
+  // The viewer ships dev chrome (HUD, control panel, hints). We're same-origin,
+  // so hide it from outside — no changes needed inside the viewer.
+  frame.addEventListener('load',()=>{
+    try{
+      const d=frame.contentDocument;
+      const st=d.createElement('style');
+      st.textContent='#hud,#panel,.hint{display:none !important}';
+      d.head.appendChild(st);
+    }catch(e){}
+  });
+  function apply(){
+    frame.style.display=shown?'block':'none';
+    tgl.textContent=shown?'Hide':'Show';
+    // Unload when hidden so the tablet GPU and the color feed go idle
+    if(shown){if(frame.getAttribute('src')!=='/3dviewer/')frame.src='/3dviewer/';}
+    else frame.src='about:blank';
+  }
+  tgl.onclick=()=>{shown=!shown;try{localStorage.setItem('k3d',shown?'on':'off');}catch(e){}apply();};
+  apply();
 })();
 
 poll();
