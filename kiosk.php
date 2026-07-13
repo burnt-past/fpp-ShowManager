@@ -48,7 +48,9 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
   #k-main{flex-direction:column}
   #k-3d-card{min-height:300px}
 }
-.card{background:linear-gradient(160deg,rgba(255,255,255,.04),transparent),var(--card);border:1px solid var(--brdHi);border-radius:18px;padding:20px 22px}
+.card{background:linear-gradient(160deg,rgba(255,255,255,.04),transparent),var(--card);border:1px solid var(--liveBrd,var(--brdHi));border-radius:18px;padding:20px 22px;transition:border-color .6s}
+#k-state{transition:color .5s}
+#k-dot{transition:background .5s,box-shadow .5s}
 .klabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700}
 .btn{background:var(--raise);border:1px solid var(--border);color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px}
 #toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:flex;flex-direction:column;gap:10px}
@@ -198,8 +200,8 @@ function render(){
     const t=new Date(state.disabledUntil);
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }else if(state.playing){
-    dot.style.background='var(--amber)';dot.style.boxShadow='0 0 20px var(--amber)';dot.style.animation='k-pulse 1.6s ease-in-out infinite';
-    st.style.color='var(--amber)';st.textContent='SHOW RUNNING';
+    dot.style.background='var(--live1,var(--amber))';dot.style.boxShadow='0 0 20px var(--live1,var(--amber))';dot.style.animation='k-pulse 1.6s ease-in-out infinite';
+    st.style.color='var(--live1,var(--amber))';st.textContent='SHOW RUNNING';
     sub.textContent=state.seq&&state.seq!==state.cur?(state.seq+(state.cur?' · '+state.cur:'')):state.cur;
   }else{
     dot.style.background='var(--mut)';dot.style.boxShadow='none';dot.style.animation='none';
@@ -464,10 +466,17 @@ async function kVol(delta){
       for(let b=0;b<NB;b++){
         const idxs=buckets[b];
         if(!idxs.length)continue;
-        let r=0,g=0,bl=0;
-        for(let j=0;j<idxs.length;j++){const o=idxs[j]*3;r+=f[o];g+=f[o+1];bl+=f[o+2];}
-        const o=b*3;
-        cols[o]=r/idxs.length|0;cols[o+1]=g/idxs.length|0;cols[o+2]=bl/idxs.length|0;
+        // Average only LIT pixels so dark neighbors don't dilute the color;
+        // fall back to the plain average when the whole bucket is near-black.
+        let r=0,g=0,bl=0,nl=0,ra=0,ga=0,ba=0;
+        for(let j=0;j<idxs.length;j++){
+          const o=idxs[j]*3,R=f[o],G=f[o+1],B=f[o+2];
+          ra+=R;ga+=G;ba+=B;
+          if(R>16||G>16||B>16){r+=R;g+=G;bl+=B;nl++;}
+        }
+        const o=b*3,n=idxs.length;
+        if(nl){cols[o]=r/nl|0;cols[o+1]=g/nl|0;cols[o+2]=bl/nl|0;}
+        else{cols[o]=ra/n|0;cols[o+1]=ga/n|0;cols[o+2]=ba/n|0;}
         dbg.writes++;
       }
       paint();
@@ -554,14 +563,75 @@ async function kVol(delta){
   for(let i=0;i<B64.length;i++)INV[B64.charCodeAt(i)]=i;
   const up6=v=>(v<<2)|(v>>4);
 
+  // ── live theme: derive a 3-color palette from the bulbs and drive the whole
+  // interface with it (card borders, state color, ambient wash). Buttons keep
+  // their fixed colors — green=start / red=stop are safety affordances. ──
+  const rootEl=document.documentElement;
+  const sm=[[246,181,63],[91,194,245],[47,211,196]];   // smoothed live1..3
+  function hueOf(r,g,b){
+    const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+    if(!d)return 0;
+    let h;
+    if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;
+    return ((h*60)+360)%360;
+  }
+  function hueDist(a,b){const d=Math.abs(a-b)%360;return d>180?360-d:d;}
+  function updateTheme(src){
+    // candidates: reasonably bright bulbs, scored by saturation×brightness
+    const cand=[];
+    for(let i=0;i<NB;i++){
+      const r=src[i*3],g=src[i*3+1],b=src[i*3+2];
+      const mx=Math.max(r,g,b);
+      if(mx<40)continue;
+      const sat=mx?(mx-Math.min(r,g,b))/mx:0;
+      cand.push({r,g,b,h:hueOf(r,g,b),score:sat*mx});
+    }
+    if(!cand.length)return;
+    cand.sort((a,b)=>b.score-a.score);
+    const p1=cand[0];
+    let p2=p1,d2=-1;
+    for(const c of cand){const d=hueDist(c.h,p1.h)*Math.sqrt(c.score);if(d>d2){d2=d;p2=c;}}
+    let p3=p1,d3=-1;
+    for(const c of cand){const d=Math.min(hueDist(c.h,p1.h),hueDist(c.h,p2.h))*Math.sqrt(c.score);if(d>d3){d3=d;p3=c;}}
+    [p1,p2,p3].forEach((p,k)=>{
+      sm[k][0]+=(p.r-sm[k][0])*0.12;
+      sm[k][1]+=(p.g-sm[k][1])*0.12;
+      sm[k][2]+=(p.b-sm[k][2])*0.12;
+    });
+    const c1=`${sm[0][0]|0},${sm[0][1]|0},${sm[0][2]|0}`;
+    const c2=`${sm[1][0]|0},${sm[1][1]|0},${sm[1][2]|0}`;
+    const c3=`${sm[2][0]|0},${sm[2][1]|0},${sm[2][2]|0}`;
+    rootEl.style.setProperty('--live1',`rgb(${c1})`);
+    rootEl.style.setProperty('--live2',`rgb(${c2})`);
+    rootEl.style.setProperty('--live3',`rgb(${c3})`);
+    rootEl.style.setProperty('--liveBrd',`rgba(${c1},.38)`);
+    if(tint)tint.style.background=
+      `radial-gradient(58% 46% at 50% -4%,rgba(${c1},.26),transparent 70%),`+
+      `radial-gradient(42% 36% at 6% 20%,rgba(${c2},.18),transparent 70%),`+
+      `radial-gradient(42% 36% at 94% 16%,rgba(${c3},.18),transparent 70%),`+
+      `radial-gradient(48% 42% at 78% 96%,rgba(${c2},.14),transparent 72%)`;
+  }
+
+  // Real shows run LEDs well below full value (they'd be blinding at night),
+  // but a monitor needs the full range — so normalize for display: auto-gain
+  // against a slowly-decaying rolling peak, then a gamma lift for midtones.
+  const disp=new Uint8Array(NB*3);
+  let rollingPeak=255;
   function paint(){
     dirty=false;
-    let lit=false,ar=0,ag=0,ab=0;
+    let framePeak=0;
+    for(let i=0;i<NB*3;i++)if(cols[i]>framePeak)framePeak=cols[i];
+    rollingPeak=Math.max(framePeak,rollingPeak*0.97,48);
+    const gain=Math.min(255/rollingPeak,6);
+    for(let i=0;i<NB*3;i++){
+      const v=Math.min(255,cols[i]*gain);
+      disp[i]=Math.round(255*Math.pow(v/255,0.75));
+    }
+    let lit=false;
     for(let i=0;i<NB;i++){
-      const r=cols[i*3],g=cols[i*3+1],b=cols[i*3+2];
-      ar+=r;ag+=g;ab+=b;
+      const r=disp[i*3],g=disp[i*3+1],b=disp[i*3+2];
       const el=bulbs[i];
-      if(r|g|b){
+      if(cols[i*3]|cols[i*3+1]|cols[i*3+2]){
         lit=true;
         const c=`rgb(${r},${g},${b})`;
         el.style.background=`radial-gradient(circle at 34% 26%,rgba(255,255,255,.6),${c} 70%)`;
@@ -575,15 +645,16 @@ async function kVol(delta){
     }
     if(lit){
       lastLit=Date.now();liveLook=true;
-      if(tint)tint.style.background=`radial-gradient(70% 55% at 50% 0%,rgba(${ar/NB|0},${ag/NB|0},${ab/NB|0},.20),transparent 70%)`;
+      updateTheme(disp);
     }
   }
-  // Show dark for a while → hand the garland back to its default twinkle
+  // Show dark for a while → hand everything back to the default theme
   setInterval(()=>{
     if(liveLook&&Date.now()-lastLit>5000){
       liveLook=false;
       bulbs.forEach((b,i)=>b.style.cssText=defaults[i]);
       if(tint)tint.style.background='none';
+      ['--live1','--live2','--live3','--liveBrd'].forEach(v=>rootEl.style.removeProperty(v));
     }
   },2000);
 
