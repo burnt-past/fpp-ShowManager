@@ -56,12 +56,29 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
 .kvbtn{width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s,background .6s}
 #k-start{width:100%;border:none;background:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk));font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px;transition:background .6s,color .6s}
 #k-stop{width:100%;position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--live2Brd,var(--redBrd));font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px;transition:border-color .6s,background .6s}
-/* Frosted glass where supported; the opaque look above is the fallback */
+/* Liquid glass where supported — near-clear fill, heavy blur/saturation, and
+   edge highlights do the work. The opaque look above is the fallback. */
 @supports ((backdrop-filter:blur(4px)) or (-webkit-backdrop-filter:blur(4px))){
-  .card{background:linear-gradient(160deg,rgba(255,255,255,.05),transparent),rgba(15,31,46,.52);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25)}
-  .btn,.kvbtn,#k-stop{background:rgba(22,41,59,.45);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
-  #k-start{background:var(--live1A,rgba(47,211,196,.30));border:1.5px solid var(--live1,var(--mint));color:#fff;-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
-  .toast{background:rgba(29,54,72,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+  .card{
+    background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.02) 45%,rgba(255,255,255,.06));
+    border:1px solid var(--liveBrd,rgba(255,255,255,.18));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(255,255,255,.05),0 10px 34px rgba(0,0,0,.28);
+    -webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);
+  }
+  .btn,.kvbtn,#k-stop{
+    background:rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
+    -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);
+  }
+  .btn{border-color:var(--liveBrd,rgba(255,255,255,.16))}
+  .kvbtn{border-color:var(--liveBrd,rgba(255,255,255,.20))}
+  #k-start{
+    background:var(--live1A,rgba(47,211,196,.26));
+    border:1.5px solid var(--live1,var(--mint));color:#fff;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+    -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);
+  }
+  .toast{background:rgba(255,255,255,.10);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5)}
 }
 #toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:flex;flex-direction:column;gap:10px}
 .toast{display:flex;align-items:center;gap:10px;padding:14px 17px;border-radius:11px;background:var(--high);border:1px solid var(--brdHi);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:240px;animation:k-slide .25s ease;font-size:15px;font-weight:500}
