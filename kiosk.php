@@ -53,6 +53,16 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
 #k-dot{transition:background .5s,box-shadow .5s}
 .klabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700}
 .btn{background:var(--raise);border:1px solid var(--liveBrd,var(--border));color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px;transition:border-color .6s,background .6s,color .6s}
+.kvbtn{width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s,background .6s}
+#k-start{width:100%;border:none;background:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk));font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px;transition:background .6s,color .6s}
+#k-stop{width:100%;position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--live2Brd,var(--redBrd));font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px;transition:border-color .6s,background .6s}
+/* Frosted glass where supported; the opaque look above is the fallback */
+@supports ((backdrop-filter:blur(4px)) or (-webkit-backdrop-filter:blur(4px))){
+  .card{background:linear-gradient(160deg,rgba(255,255,255,.05),transparent),rgba(15,31,46,.52);-webkit-backdrop-filter:blur(16px) saturate(1.25);backdrop-filter:blur(16px) saturate(1.25)}
+  .btn,.kvbtn,#k-stop{background:rgba(22,41,59,.45);-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
+  #k-start{background:var(--live1A,rgba(47,211,196,.30));border:1.5px solid var(--live1,var(--mint));color:#fff;-webkit-backdrop-filter:blur(14px) saturate(1.2);backdrop-filter:blur(14px) saturate(1.2)}
+  .toast{background:rgba(29,54,72,.55);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+}
 #toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:flex;flex-direction:column;gap:10px}
 .toast{display:flex;align-items:center;gap:10px;padding:14px 17px;border-radius:11px;background:var(--high);border:1px solid var(--brdHi);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:240px;animation:k-slide .25s ease;font-size:15px;font-weight:500}
 .toast .dot{width:8px;height:8px;border-radius:50%;flex:none}
@@ -68,22 +78,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     <span class="klabel" style="font-size:13px;letter-spacing:.14em" id="k-title">Show Kiosk</span>
     <span style="font-family:var(--mono);font-size:15px;color:var(--sub)" id="k-clock"></span>
   </div>
-  <div id="k-garland" style="position:relative;height:40px;margin:4px -2px 0;flex:none"></div>
-
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:10px 0 12px;flex:none">
-    <div style="display:flex;align-items:center;gap:14px">
-      <span id="k-dot" style="width:18px;height:18px;border-radius:50%;background:var(--mut);flex:none"></span>
-      <span id="k-state" style="font-size:clamp(36px,8vh,84px);font-weight:900;letter-spacing:-.02em;line-height:.95;color:var(--sub)">…</span>
-    </div>
-    <div id="k-sub" style="font-size:clamp(18px,3.4vh,30px);font-weight:700"></div>
-    <div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;justify-content:center">
-      <button onclick="kStart()" style="border:none;background:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk));font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px;transition:background .6s,color .6s">▶ Start show</button>
-      <button id="k-stop" style="position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--live2Brd,var(--redBrd));font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px;transition:border-color .6s">
-        <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--live2,var(--red));transition:width .05s linear"></span></span>
-        <span style="position:relative">Hold to stop</span>
-      </button>
-    </div>
-  </div>
+  <div id="k-garland" style="position:relative;height:40px;margin:4px -2px 10px;flex:none"></div>
 
   <div id="k-main">
     <!-- Live 3D preview (fpp-plugin-3DViewer) — auto-hidden when the plugin isn't installed -->
@@ -95,6 +90,13 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
       <iframe id="k-3d" style="flex:1;min-height:0;width:100%;border:none;border-radius:10px;background:#05070c;display:block"></iframe>
     </div>
     <div id="k-side">
+      <div class="card" style="flex:none;padding:16px 18px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="k-dot" style="width:14px;height:14px;border-radius:50%;background:var(--mut);flex:none"></span>
+          <span id="k-state" style="font-size:clamp(22px,3.8vh,34px);font-weight:900;letter-spacing:-.01em;line-height:1;color:var(--sub)">…</span>
+        </div>
+        <div id="k-sub" style="font-size:clamp(14px,2.2vh,19px);font-weight:700;margin-top:8px"></div>
+      </div>
       <div class="card" style="flex:1;min-height:0;overflow:auto">
         <div class="klabel" style="margin-bottom:6px">Today's Schedule</div>
         <div id="k-sched"><div style="color:var(--mut);font-size:15px;padding:10px 0">Loading…</div></div>
@@ -102,11 +104,18 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
       <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;flex:none">
         <div class="klabel" style="align-self:flex-start">Temporary Volume</div>
         <div style="display:flex;align-items:center;gap:16px">
-          <button onclick="kVol(-5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s">−</button>
+          <button class="kvbtn" onclick="kVol(-5)">−</button>
           <div id="k-vol" style="font-size:36px;font-weight:800;font-family:var(--mono);min-width:110px;color:var(--live1,var(--amber));transition:color .6s">—</div>
-          <button onclick="kVol(5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s">+</button>
+          <button class="kvbtn" onclick="kVol(5)">+</button>
         </div>
         <div style="font-size:12px;color:var(--sub)">Temporary — reverts at the next show</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;flex:none">
+        <button id="k-start" onclick="kStart()">▶ Start show</button>
+        <button id="k-stop">
+          <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--live2,var(--red));transition:width .05s linear"></span></span>
+          <span style="position:relative">Hold to stop</span>
+        </button>
       </div>
     </div>
   </div>
@@ -606,6 +615,7 @@ async function kVol(delta){
     rootEl.style.setProperty('--live3',`rgb(${c3})`);
     rootEl.style.setProperty('--liveBrd',`rgba(${c1},.38)`);
     rootEl.style.setProperty('--live2Brd',`rgba(${c2},.55)`);
+    rootEl.style.setProperty('--live1A',`rgba(${c1},.30)`);
     // readable label color on a live1-filled button
     const lum=.2126*sm[0][0]+.7152*sm[0][1]+.0722*sm[0][2];
     rootEl.style.setProperty('--liveInk',lum>150?'#06210f':'#ffffff');
@@ -658,7 +668,7 @@ async function kVol(delta){
       liveLook=false;
       bulbs.forEach((b,i)=>b.style.cssText=defaults[i]);
       if(tint)tint.style.background='none';
-      ['--live1','--live2','--live3','--liveBrd','--live2Brd','--liveInk'].forEach(v=>rootEl.style.removeProperty(v));
+      ['--live1','--live2','--live3','--liveBrd','--live2Brd','--liveInk','--live1A'].forEach(v=>rootEl.style.removeProperty(v));
     }
   },2000);
 
