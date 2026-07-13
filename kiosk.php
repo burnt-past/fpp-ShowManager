@@ -364,8 +364,13 @@ async function kVol(delta){
     glog('geometry loaded',n+' px, '+(meta.models||[]).length+' models, previewHeight '+meta.previewHeight);
   }catch(e){return glog('data load failed',String(e));}
 
-  // ── pick the source string ──
+  // ── candidate models & per-pixel feed keys (same scheme as feed.js) ──
   const models=meta.models||[];
+  const nAll=geo.length/3;
+  const keyArr=new Int32Array(nAll);
+  for(let i=0;i<nAll;i++){
+    keyArr[i]=(Math.round(geo[i*3])<<12)|((meta.previewHeight-Math.round(geo[i*3+1]))&0xfff);
+  }
   function spanOf(m){
     let minx=1e12,maxx=-1e12,miny=1e12,maxy=-1e12;
     for(let i=m.start;i<m.start+m.count;i++){
@@ -375,46 +380,179 @@ async function kVol(delta){
     }
     return {minx,maxx,w:maxx-minx,h:maxy-miny};
   }
+
+  // ── shared paint state ──
+  const cols=new Uint8Array(NB*3);
+  let pending=null,dirty=false,lastLit=0,liveLook=false;
+  const tint=document.getElementById('k-livetint');
   const want=new URLSearchParams(location.search).get('garland');
-  let model=want?models.find(m=>m.name.toLowerCase()===want.toLowerCase()):null;
-  if(!model){
-    let best=-1;
+
+  function pickStatic(){
+    if(want){
+      const m=models.find(x=>x.name.toLowerCase()===want.toLowerCase());
+      if(!m)glog('model not found',want);
+      return m||null;
+    }
+    let best=null,bestScore=-1;
     for(const m of models){
       if(m.count<NB||m.count>1500)continue;
       const s=spanOf(m);
-      if(s.w<s.h*2)continue;                       // want something horizontal
+      if(s.w<s.h*2)continue;                        // want something horizontal
       const kw=/string|bulb|light|roof|outline|eave|garland|icicle/i.test(m.name)?3:1;
       const score=s.w*kw;
-      if(score>best){best=score;model=m;}
+      if(score>bestScore){bestScore=score;best=m;}
     }
-    if(!model)for(const m of models){               // fallback: widest of all
+    if(!best)for(const m of models){
       const s=spanOf(m);
-      if(!model||s.w>spanOf(model).w)model=m;
+      if(!best||s.w>spanOf(best).w)best=m;
     }
+    return best;
   }
-  if(!model)return glog('no usable model found');
-  dbg.model=model.name+' ('+model.count+' px)';
-  const span=spanOf(model);
-  const sw=span.w||1;
-  glog('model picked',dbg.model+', x-span '+Math.round(sw));
-
-  // ── key → bulb map (same key scheme as the viewer's feed.js) ──
-  const keyToBulb=new Map();
-  for(let i=model.start;i<model.start+model.count;i++){
-    const x=Math.round(geo[i*3]),y=Math.round(geo[i*3+1]);
-    const k=(x<<12)|((meta.previewHeight-y)&0xfff);
-    const b=Math.min(NB-1,Math.max(0,Math.floor((geo[i*3]-span.minx)/sw*NB)));
-    keyToBulb.set(k,b);
+  function bucketsFor(m){
+    const span=spanOf(m),sw=span.w||1;
+    const buckets=Array.from({length:NB},()=>[]);
+    for(let i=m.start;i<m.start+m.count;i++){
+      const b=Math.min(NB-1,Math.max(0,Math.floor((geo[i*3]-span.minx)/sw*NB)));
+      buckets[b].push(i);
+    }
+    return buckets;
   }
 
-  // ── SSE decode (FPP's custom base64 + RGB666, colors only for our keys) ──
+  // ── Mode A: the 3D viewer plugin's binary feed (index-keyed, sees every
+  // model incl. props absent from the virtualdisplaymap). Preferred. ──
+  async function tryModeA(){
+    let resp;
+    try{resp=await fetch('/fpp3dviewer/',{cache:'no-store'});}catch(e){return false;}
+    if(!resp.ok||!resp.body)return false;
+    const m=pickStatic();
+    if(!m){try{resp.body.cancel();}catch(e){}return false;}
+    const buckets=bucketsFor(m);
+    const need=(m.start+m.count)*3;
+    dbg.model=m.name+' ('+m.count+' px, mode A)';
+    dbg.feed='connected (A)';
+    glog('model locked',dbg.model);
+    let latest=null;
+    (async()=>{
+      const reader=resp.body.getReader();
+      let buf=new Uint8Array(0);
+      try{
+        while(true){
+          const {done,value}=await reader.read();
+          if(done)break;
+          const merged=new Uint8Array(buf.length+value.length);
+          merged.set(buf,0);merged.set(value,buf.length);
+          buf=merged;
+          let off=0;
+          while(buf.length-off>=4){
+            const len=(buf[off]<<24)|(buf[off+1]<<16)|(buf[off+2]<<8)|buf[off+3];
+            if(buf.length-off-4<len)break;
+            latest=buf.slice(off+4,off+4+len);
+            dbg.frames++;
+            off+=4+len;
+          }
+          buf=off>0?buf.slice(off):buf;
+        }
+      }catch(e){}
+      dbg.feed='disconnected (A)';
+      glog('mode A stream ended');
+    })();
+    setInterval(()=>{
+      const f=latest;
+      if(!f)return;
+      latest=null;
+      if(f.length<need)return;                      // partial/mismatched frame
+      for(let b=0;b<NB;b++){
+        const idxs=buckets[b];
+        if(!idxs.length)continue;
+        let r=0,g=0,bl=0;
+        for(let j=0;j<idxs.length;j++){const o=idxs[j]*3;r+=f[o];g+=f[o+1];bl+=f[o+2];}
+        const o=b*3;
+        cols[o]=r/idxs.length|0;cols[o+1]=g/idxs.length|0;cols[o+2]=bl/idxs.length|0;
+        dbg.writes++;
+      }
+      paint();
+    },66);
+    return true;
+  }
+
+  // ── Mode B: FPP's 2D SSE feed. The source model is chosen EMPIRICALLY —
+  // models absent from the virtualdisplaymap (e.g. rgbeffects imports) never
+  // appear in this feed, so we watch it and only consider models whose pixels
+  // actually light. ──
+  let keyToBulb=null;             // set once a source model is locked in
+  const seen=new Set();           // feed keys observed while calibrating
+
+  function lockIn(m,cov){
+    const span=spanOf(m),sw=span.w||1;
+    keyToBulb=new Map();
+    for(let i=m.start;i<m.start+m.count;i++){
+      const b=Math.min(NB-1,Math.max(0,Math.floor((geo[i*3]-span.minx)/sw*NB)));
+      keyToBulb.set(keyArr[i],b);
+    }
+    dbg.model=m.name+' ('+m.count+' px'+(cov!=null?', '+Math.round(cov*100)+'% live':'')+')';
+    glog('model locked',dbg.model+', x-span '+Math.round(sw));
+  }
+  function coverage(m){
+    let hit=0;
+    for(let i=m.start;i<m.start+m.count;i++)if(seen.has(keyArr[i]))hit++;
+    return hit/m.count;
+  }
+  function startModeB(){
+    if(want){
+      const m=models.find(x=>x.name.toLowerCase()===want.toLowerCase());
+      if(!m)return glog('model not found',want);
+      lockIn(m,null);
+    }else{
+      glog('calibrating','watching the feed for lit models (needs a sequence playing)');
+      const chooser=setInterval(()=>{
+        if(keyToBulb){clearInterval(chooser);return;}
+        if(seen.size<50)return;
+        let best=null,bestScore=-1,bestCov=0;
+        for(const m of models){
+          if(m.count<NB||m.count>1500)continue;
+          const cov=coverage(m);
+          if(cov<0.3)continue;                      // must actually be in the feed
+          const s=spanOf(m);
+          if(s.w<s.h*2)continue;
+          const kw=/string|bulb|light|roof|outline|eave|garland|icicle/i.test(m.name)?3:1;
+          const score=s.w*kw*cov;
+          if(score>bestScore){bestScore=score;best=m;bestCov=cov;}
+        }
+        if(!best){                                  // relax shape: widest covered model
+          for(const m of models){
+            if(m.count<8||m.count>3000)continue;
+            const cov=coverage(m);
+            if(cov<0.3)continue;
+            const score=spanOf(m).w*cov;
+            if(score>bestScore){bestScore=score;best=m;bestCov=cov;}
+          }
+        }
+        if(best){clearInterval(chooser);lockIn(best,bestCov);seen.clear();}
+      },2000);
+    }
+
+    let opened=false,errs=0;
+    const es=new EventSource('/api/http-virtual-display/');
+    es.onopen=()=>{opened=true;errs=0;dbg.feed='connected (B)';glog('feed connected');};
+    es.onerror=()=>{
+      dbg.feed=opened?'reconnecting…':'error '+(errs+1);
+      if(!opened&&++errs>=3){es.close();glog('feed unreachable','/api/http-virtual-display/ — is HTTP Virtual Display enabled in FPP outputs?');}
+    };
+    es.onmessage=ev=>{pending=ev.data;dbg.frames++;};
+    // Drain only the latest payload ~15×/s — plenty for 24 bulbs
+    setInterval(()=>{
+      if(pending==null)return;
+      const p=pending;pending=null;
+      parse(p);
+      if(dirty)paint();
+    },66);
+  }
+
+  // ── SSE decode (FPP's custom base64 + RGB666) ──
   const INV=new Int16Array(128).fill(-1);
   const B64="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
   for(let i=0;i<B64.length;i++)INV[B64.charCodeAt(i)]=i;
   const up6=v=>(v<<2)|(v>>4);
-  const cols=new Uint8Array(NB*3);
-  let pending=null,dirty=false,lastLit=0,liveLook=false;
-  const tint=document.getElementById('k-livetint');
 
   function paint(){
     dirty=false;
@@ -467,8 +605,13 @@ async function kVol(delta){
             yy=(INV[p.charCodeAt(li+2)]<<6)|INV[p.charCodeAt(li+3)];
           }
           if(x>=0){
-            const bi=keyToBulb.get((x<<12)|(yy&0xfff));
-            if(bi!==undefined){const o=bi*3;cols[o]=r;cols[o+1]=g;cols[o+2]=b;dirty=true;dbg.writes++;}
+            const k=(x<<12)|(yy&0xfff);
+            if(keyToBulb){
+              const bi=keyToBulb.get(k);
+              if(bi!==undefined){const o=bi*3;cols[o]=r;cols[o+1]=g;cols[o+2]=b;dirty=true;dbg.writes++;}
+            }else{
+              seen.add(k);
+            }
           }
           li=le+1;
         }
@@ -477,21 +620,10 @@ async function kVol(delta){
     }
   }
 
-  let opened=false,errs=0;
-  const es=new EventSource('/api/http-virtual-display/');
-  es.onopen=()=>{opened=true;errs=0;dbg.feed='connected';glog('feed connected');};
-  es.onerror=()=>{
-    dbg.feed=opened?'reconnecting…':'error '+(errs+1);
-    if(!opened&&++errs>=3){es.close();glog('feed unreachable','/api/http-virtual-display/ — is HTTP Virtual Display enabled in FPP outputs?');}
-  };
-  es.onmessage=ev=>{pending=ev.data;dbg.frames++;};
-  // Drain only the latest payload ~15×/s — plenty for 24 bulbs, cheap on tablets
-  setInterval(()=>{
-    if(pending==null)return;
-    const p=pending;pending=null;
-    parse(p);
-    if(dirty)paint();
-  },66);
+  if(!(await tryModeA())){
+    glog('mode A unavailable — using 2D SSE feed');
+    startModeB();
+  }
 })();
 
 poll();
