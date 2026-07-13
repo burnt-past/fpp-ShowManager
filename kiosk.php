@@ -39,7 +39,15 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
 .bg.img{opacity:.66;background:url(data:image/jpeg;base64,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) center/cover no-repeat;filter:blur(20px) saturate(1.3);transform:scale(1.07)}
 .bg.scrim{background:linear-gradient(180deg,rgba(7,16,25,.42),rgba(7,16,25,.84))}
 .bg.bloom{background:radial-gradient(52% 42% at 50% -4%,rgba(246,181,63,.24),transparent 70%),radial-gradient(40% 34% at 5% 18%,rgba(91,194,245,.20),transparent 70%),radial-gradient(40% 34% at 96% 14%,rgba(124,208,255,.18),transparent 70%),radial-gradient(46% 42% at 78% 92%,rgba(56,190,232,.16),transparent 72%)}
-.wrap{position:relative;z-index:1;width:100%;min-height:100vh;display:flex;flex-direction:column;padding:20px 24px 24px}
+.wrap{position:relative;z-index:1;width:100%;height:100vh;display:flex;flex-direction:column;padding:14px 22px 16px}
+#k-main{flex:1;min-height:0;display:flex;gap:12px;margin-bottom:12px;text-align:left}
+#k-side{flex:1;min-width:280px;display:flex;flex-direction:column;gap:12px;min-height:0}
+#k-3d-card{flex:2;display:none;flex-direction:column;padding:10px 12px 12px;min-width:0}
+@media (max-width:900px),(max-height:560px){
+  .wrap{height:auto;min-height:100vh}
+  #k-main{flex-direction:column}
+  #k-3d-card{min-height:300px}
+}
 .card{background:linear-gradient(160deg,rgba(255,255,255,.04),transparent),var(--card);border:1px solid var(--brdHi);border-radius:18px;padding:20px 22px}
 .klabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700}
 .btn{background:var(--raise);border:1px solid var(--border);color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px}
@@ -57,49 +65,50 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     <span class="klabel" style="font-size:13px;letter-spacing:.14em" id="k-title">Show Kiosk</span>
     <span style="font-family:var(--mono);font-size:15px;color:var(--sub)" id="k-clock"></span>
   </div>
-  <div id="k-garland" style="position:relative;height:52px;margin:8px -2px 0"></div>
+  <div id="k-garland" style="position:relative;height:40px;margin:4px -2px 0;flex:none"></div>
 
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;padding:22px 0 12px">
-    <div style="display:flex;align-items:center;gap:16px">
-      <span id="k-dot" style="width:22px;height:22px;border-radius:50%;background:var(--mut);flex:none"></span>
-      <span id="k-state" style="font-size:clamp(48px,7vw,104px);font-weight:900;letter-spacing:-.02em;line-height:.95;color:var(--sub)">…</span>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:10px 0 12px;flex:none">
+    <div style="display:flex;align-items:center;gap:14px">
+      <span id="k-dot" style="width:18px;height:18px;border-radius:50%;background:var(--mut);flex:none"></span>
+      <span id="k-state" style="font-size:clamp(36px,8vh,84px);font-weight:900;letter-spacing:-.02em;line-height:.95;color:var(--sub)">…</span>
     </div>
-    <div id="k-sub" style="font-size:clamp(24px,3vw,40px);font-weight:700"></div>
-    <div style="display:flex;gap:16px;margin-top:22px;flex-wrap:wrap;justify-content:center">
-      <button onclick="kStart()" style="border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:22px;padding:22px 46px;border-radius:16px;min-height:64px">▶ Start show</button>
-      <button id="k-stop" style="position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--redBrd);font-weight:800;font-size:22px;padding:22px 46px;border-radius:16px;min-height:64px">
+    <div id="k-sub" style="font-size:clamp(18px,3.4vh,30px);font-weight:700"></div>
+    <div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;justify-content:center">
+      <button onclick="kStart()" style="border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px">▶ Start show</button>
+      <button id="k-stop" style="position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--redBrd);font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px">
         <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--red);transition:width .05s linear"></span></span>
         <span style="position:relative">Hold to stop</span>
       </button>
     </div>
   </div>
 
-  <!-- Live 3D preview (fpp-plugin-3DViewer) — auto-hidden when the plugin isn't installed -->
-  <div class="card" id="k-3d-card" style="display:none;padding:12px 12px 10px;margin-bottom:16px;text-align:left">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding:0 6px">
-      <div class="klabel">Live 3D Preview</div>
-      <button class="btn" id="k-3d-tgl" style="min-height:36px;padding:6px 14px;font-size:13px">Hide</button>
-    </div>
-    <iframe id="k-3d" style="width:100%;height:46vh;min-height:260px;border:none;border-radius:12px;background:#05070c;display:block"></iframe>
-  </div>
-
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-bottom:22px;text-align:left">
-    <div class="card">
-      <div class="klabel" style="margin-bottom:8px">Today's Schedule</div>
-      <div id="k-sched"><div style="color:var(--mut);font-size:15px;padding:10px 0">Loading…</div></div>
-    </div>
-    <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px">
-      <div class="klabel" style="align-self:flex-start">Temporary Volume</div>
-      <div style="display:flex;align-items:center;gap:18px">
-        <button onclick="kVol(-5)" style="width:60px;height:60px;border-radius:16px;font-size:30px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)">−</button>
-        <div id="k-vol" style="font-size:42px;font-weight:800;font-family:var(--mono);min-width:130px;color:var(--amber)">—</div>
-        <button onclick="kVol(5)" style="width:60px;height:60px;border-radius:16px;font-size:30px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)">+</button>
+  <div id="k-main">
+    <!-- Live 3D preview (fpp-plugin-3DViewer) — auto-hidden when the plugin isn't installed -->
+    <div class="card" id="k-3d-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
+        <div class="klabel">Live 3D Preview</div>
+        <button class="btn" id="k-3d-tgl" style="min-height:34px;padding:5px 14px;font-size:13px">Hide</button>
       </div>
-      <div style="font-size:13px;color:var(--sub)">Temporary — reverts to the configured level at the next show</div>
+      <iframe id="k-3d" style="flex:1;min-height:0;width:100%;border:none;border-radius:10px;background:#05070c;display:block"></iframe>
+    </div>
+    <div id="k-side">
+      <div class="card" style="flex:1;min-height:0;overflow:auto">
+        <div class="klabel" style="margin-bottom:6px">Today's Schedule</div>
+        <div id="k-sched"><div style="color:var(--mut);font-size:15px;padding:10px 0">Loading…</div></div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;flex:none">
+        <div class="klabel" style="align-self:flex-start">Temporary Volume</div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <button onclick="kVol(-5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)">−</button>
+          <div id="k-vol" style="font-size:36px;font-weight:800;font-family:var(--mono);min-width:110px;color:var(--amber)">—</div>
+          <button onclick="kVol(5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)">+</button>
+        </div>
+        <div style="font-size:12px;color:var(--sub)">Temporary — reverts at the next show</div>
+      </div>
     </div>
   </div>
 
-  <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--border);margin-top:auto">
+  <div style="display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border);flex:none">
     <span style="font-size:13px;color:var(--sub);margin-right:4px">Disable system:</span>
     <button class="btn" onclick="kDisable('1h')">1 hour</button>
     <button class="btn" onclick="kDisable('tonight')">Tonight</button>
@@ -282,7 +291,7 @@ async function kVol(delta){
   let ok=false;
   try{ok=(await fetch('/3dviewer/index.html',{method:'HEAD'})).ok;}catch(e){}
   if(!ok)return;
-  card.style.display='';
+  card.style.display='flex';
   let shown=true;try{shown=localStorage.getItem('k3d')!=='off';}catch(e){}
   // The viewer ships dev chrome (HUD, control panel, hints). We're same-origin,
   // so hide it from outside — no changes needed inside the viewer.
@@ -296,6 +305,7 @@ async function kVol(delta){
   });
   function apply(){
     frame.style.display=shown?'block':'none';
+    card.style.flex=shown?'2':'0 0 auto';   // collapsed card yields its space to the side column
     tgl.textContent=shown?'Hide':'Show';
     // Unload when hidden so the tablet GPU and the color feed go idle
     if(shown){if(frame.getAttribute('src')!=='/3dviewer/')frame.src='/3dviewer/';}
