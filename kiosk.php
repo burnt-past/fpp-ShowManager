@@ -133,17 +133,26 @@ function tickClock(){
 }
 tickClock();setInterval(tickClock,1000);
 
-/* data poll */
-async function poll(){
-  const [fpp,sched,ov]=await Promise.all([
-    fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
+/* data polling — fast lane for playback state (1s, same cadence as FPP's
+   own UI), slow lane for schedule + disable override (5s) */
+let volTouched=0;
+function _cleanName(s){s=String(s||'').split('/').pop();return s.replace(/\.[^.]+$/,'');}
+async function pollFast(){
+  const fpp=await fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({}));
+  state.playing=fpp.status===1||fpp.status==='playing';
+  state.cur=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
+  state.seq=_cleanName(fpp.current_sequence||fpp.current_song||'');
+  if(Date.now()-volTouched>2000)state.vol=fpp.volume!=null?fpp.volume:null;
+  state.host=fpp.HostName||fpp.hostname||'';
+  const now=new Date().toTimeString().slice(0,5);
+  state.nextIdx=state.shows.findIndex(s=>s.time>=now);
+  render();
+}
+async function pollSlow(){
+  const [sched,ov]=await Promise.all([
     fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[]})),
     fetch(AJAX+'&action=get_override').then(r=>r.json()).catch(()=>({})),
   ]);
-  state.playing=fpp.status===1||fpp.status==='playing';
-  state.cur=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
-  state.vol=fpp.volume!=null?fpp.volume:null;
-  state.host=fpp.HostName||fpp.hostname||'';
   state.disabledUntil=ov.disabled_until||null;
   const today=fmtDate(new Date());
   const ents=(sched.entries||[]).filter(e=>e.date===today);
@@ -157,6 +166,7 @@ async function poll(){
   state.nextIdx=shows.findIndex(s=>s.time>=now);
   render();
 }
+async function poll(){await Promise.all([pollSlow(),pollFast()]);}
 
 function render(){
   const dot=document.getElementById('k-dot');
@@ -170,8 +180,8 @@ function render(){
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }else if(state.playing){
     dot.style.background='var(--amber)';dot.style.boxShadow='0 0 20px var(--amber)';dot.style.animation='k-pulse 1.6s ease-in-out infinite';
-    st.style.color='var(--amber)';st.textContent='SHOWTIME';
-    sub.textContent=state.cur;
+    st.style.color='var(--amber)';st.textContent='SHOW RUNNING';
+    sub.textContent=state.seq&&state.seq!==state.cur?(state.seq+(state.cur?' · '+state.cur:'')):state.cur;
   }else{
     dot.style.background='var(--mut)';dot.style.boxShadow='none';dot.style.animation='none';
     st.style.color='var(--sub)';st.textContent='IDLE';
@@ -231,6 +241,7 @@ async function kVol(delta){
   if(state.vol==null)return;
   const v=Math.max(0,Math.min(100,state.vol+delta));
   state.vol=v;
+  volTouched=Date.now();
   document.getElementById('k-vol').textContent=v+'%';
   await fetch('/api/system/volume',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({volume:v})}).catch(()=>{});
 }
@@ -254,7 +265,9 @@ async function kVol(delta){
   btn.addEventListener('pointerleave',cancel);
 })();
 
-poll();setInterval(poll,3000);
+poll();
+setInterval(pollFast,1000);
+setInterval(pollSlow,5000);
 </script>
 </body>
 </html>

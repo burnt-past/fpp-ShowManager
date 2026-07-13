@@ -232,13 +232,18 @@ function smTab(name){
 
 /* ── NOW PLAYING STRIP ── */
 let npNext='';
+function _cleanName(s){s=String(s||'').split('/').pop();return s.replace(/\.[^.]+$/,'');}
+function _nowTrack(fpp){
+  const pl=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
+  const seq=_cleanName(fpp.current_sequence||fpp.current_song||'');
+  return seq&&seq!==pl?(seq+(pl?' · '+pl:'')):(pl||seq);
+}
 async function _npTick(){
   const [r,ov]=await Promise.all([
     fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
     fetch(AJAX+'&action=get_override').then(r=>r.json()).catch(()=>({})),
   ]);
   const playing=r.status===1||r.status==='playing';
-  const curPl=r.current_playlist?.playlist||r.current_playlist?.name||r.current_song||'';
   const disabled=!!ov.disabled_until;
   const np=document.getElementById('sm-nowplaying');
   if(!np)return;
@@ -251,8 +256,8 @@ async function _npTick(){
     const t=new Date(ov.disabled_until);
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }else{
-    label.textContent=playing?'SHOWTIME':'IDLE';
-    sub.textContent=playing?curPl:(npNext?'Next show '+npNext:'');
+    label.textContent=playing?'SHOW RUNNING':'IDLE';
+    sub.textContent=playing?_nowTrack(r):(npNext?'Next show '+npNext:'');
   }
   const host=r.HostName||r.hostname;
   if(host)document.getElementById('sm-host').textContent=' · '+host;
@@ -324,10 +329,10 @@ function _heroHtml(fpp,xr){
       <div>
         <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
           <span style="width:11px;height:11px;border-radius:50%;background:${playing?'var(--amber)':'var(--mut)'};${playing?'animation:sm-pulse 1.6s ease-in-out infinite':''}"></span>
-          <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'SHOWTIME':'IDLE'}</span>
+          <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'SHOW RUNNING':'IDLE'}</span>
         </div>
         <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">${escH(playing?curPl:'Idle')}</div>
-        <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">uptime ${escH(fpp.uptime||'—')}</div>
+        <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">${playing&&_cleanName(fpp.current_sequence||fpp.current_song||'')?'♪ '+escH(_cleanName(fpp.current_sequence||fpp.current_song||''))+' &nbsp;·&nbsp; ':''}uptime ${escH(fpp.uptime||'—')}</div>
       </div>
     </div>
     <div style="display:flex;gap:30px">
