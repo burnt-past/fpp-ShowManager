@@ -60,6 +60,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
 <div class="bg img"></div>
 <div class="bg scrim"></div>
 <div class="bg bloom"></div>
+<div class="bg" id="k-livetint"></div>
 <div class="wrap">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
     <span class="klabel" style="font-size:13px;letter-spacing:.14em" id="k-title">Show Kiosk</span>
@@ -140,7 +141,7 @@ function toast(msg,kind){
     const f=i/(N-1),x=+(f*1000).toFixed(1);
     if(i===0)gp='M'+x+','+baseY;else{const mx=((prev+x)/2).toFixed(1);gp+=' Q'+mx+','+(baseY+sag)+' '+x+','+baseY;}
     prev=x;const c=cols[i%cols.length];
-    bulbs+=`<span style="position:absolute;left:${(f*100).toFixed(3)}%;top:${baseY}px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center"><span style="width:3px;height:5px;background:#33412f;border-radius:0 0 1px 1px"></span><span style="width:11px;height:15px;border-radius:50% 50% 48% 48% / 60% 60% 42% 42%;background:radial-gradient(circle at 34% 26%,rgba(255,255,255,.6),${c} 70%);box-shadow:0 0 6px ${c},0 0 14px ${c};animation:k-glow 2s ease-in-out infinite;animation-delay:${(i*0.11).toFixed(2)}s"></span></span>`;
+    bulbs+=`<span style="position:absolute;left:${(f*100).toFixed(3)}%;top:${baseY}px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center"><span style="width:3px;height:5px;background:#33412f;border-radius:0 0 1px 1px"></span><span class="gbulb" style="width:11px;height:15px;border-radius:50% 50% 48% 48% / 60% 60% 42% 42%;background:radial-gradient(circle at 34% 26%,rgba(255,255,255,.6),${c} 70%);box-shadow:0 0 6px ${c},0 0 14px ${c};animation:k-glow 2s ease-in-out infinite;animation-delay:${(i*0.11).toFixed(2)}s"></span></span>`;
   }
   el.innerHTML=`<svg viewBox="0 0 1000 52" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible"><path d="${gp}" fill="none" stroke="#33412f" stroke-width="2.2" stroke-linecap="round"></path></svg>`+bulbs;
 })();
@@ -313,6 +314,154 @@ async function kVol(delta){
   }
   tgl.onclick=()=>{shown=!shown;try{localStorage.setItem('k3d',shown?'on':'off');}catch(e){}apply();};
   apply();
+})();
+
+/* Live garland — mirrors a real string from the show onto the page's garland
+   using the same-origin 2D virtual-display SSE feed plus the 3D viewer's baked
+   geometry. Auto-picks the widest string-like model; override with
+   ?garland=Model Name. Falls back to the default twinkle when the show is dark
+   or the 3D viewer plugin isn't installed. */
+(async function(){
+  const bulbs=[...document.querySelectorAll('#k-garland .gbulb')];
+  const NB=bulbs.length;
+  if(!NB)return;
+  const defaults=bulbs.map(b=>b.style.cssText);
+  let meta,geo;
+  try{
+    const mres=await fetch('/3dviewer/data/models.json');
+    if(!mres.ok)return;
+    meta=await mres.json();
+    const buf=await (await fetch('/3dviewer/data/geometry.bin')).arrayBuffer();
+    const dv=new DataView(buf);
+    const magic=String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2),dv.getUint8(3));
+    if(magic!=='F3DG')return;
+    const n=dv.getUint32(8,true);
+    geo=new Float32Array(buf,16,n*3);
+  }catch(e){return;}
+
+  // ── pick the source string ──
+  const models=meta.models||[];
+  function spanOf(m){
+    let minx=1e12,maxx=-1e12,miny=1e12,maxy=-1e12;
+    for(let i=m.start;i<m.start+m.count;i++){
+      const x=geo[i*3],y=geo[i*3+1];
+      if(x<minx)minx=x;if(x>maxx)maxx=x;
+      if(y<miny)miny=y;if(y>maxy)maxy=y;
+    }
+    return {minx,maxx,w:maxx-minx,h:maxy-miny};
+  }
+  const want=new URLSearchParams(location.search).get('garland');
+  let model=want?models.find(m=>m.name.toLowerCase()===want.toLowerCase()):null;
+  if(!model){
+    let best=-1;
+    for(const m of models){
+      if(m.count<NB||m.count>1500)continue;
+      const s=spanOf(m);
+      if(s.w<s.h*2)continue;                       // want something horizontal
+      const kw=/string|bulb|light|roof|outline|eave|garland|icicle/i.test(m.name)?3:1;
+      const score=s.w*kw;
+      if(score>best){best=score;model=m;}
+    }
+    if(!model)for(const m of models){               // fallback: widest of all
+      const s=spanOf(m);
+      if(!model||s.w>spanOf(model).w)model=m;
+    }
+  }
+  if(!model)return;
+  const span=spanOf(model);
+  const sw=span.w||1;
+
+  // ── key → bulb map (same key scheme as the viewer's feed.js) ──
+  const keyToBulb=new Map();
+  for(let i=model.start;i<model.start+model.count;i++){
+    const x=Math.round(geo[i*3]),y=Math.round(geo[i*3+1]);
+    const k=(x<<12)|((meta.previewHeight-y)&0xfff);
+    const b=Math.min(NB-1,Math.max(0,Math.floor((geo[i*3]-span.minx)/sw*NB)));
+    keyToBulb.set(k,b);
+  }
+
+  // ── SSE decode (FPP's custom base64 + RGB666, colors only for our keys) ──
+  const INV=new Int16Array(128).fill(-1);
+  const B64="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
+  for(let i=0;i<B64.length;i++)INV[B64.charCodeAt(i)]=i;
+  const up6=v=>(v<<2)|(v>>4);
+  const cols=new Uint8Array(NB*3);
+  let pending=null,dirty=false,lastLit=0,liveLook=false;
+  const tint=document.getElementById('k-livetint');
+
+  function paint(){
+    dirty=false;
+    let lit=false,ar=0,ag=0,ab=0;
+    for(let i=0;i<NB;i++){
+      const r=cols[i*3],g=cols[i*3+1],b=cols[i*3+2];
+      ar+=r;ag+=g;ab+=b;
+      const el=bulbs[i];
+      if(r|g|b){
+        lit=true;
+        const c=`rgb(${r},${g},${b})`;
+        el.style.background=`radial-gradient(circle at 34% 26%,rgba(255,255,255,.6),${c} 70%)`;
+        el.style.boxShadow=`0 0 6px ${c},0 0 14px ${c}`;
+        el.style.animation='none';
+      }else{
+        el.style.background='#10161f';
+        el.style.boxShadow='none';
+        el.style.animation='none';
+      }
+    }
+    if(lit){
+      lastLit=Date.now();liveLook=true;
+      if(tint)tint.style.background=`radial-gradient(70% 55% at 50% 0%,rgba(${ar/NB|0},${ag/NB|0},${ab/NB|0},.20),transparent 70%)`;
+    }
+  }
+  // Show dark for a while → hand the garland back to its default twinkle
+  setInterval(()=>{
+    if(liveLook&&Date.now()-lastLit>5000){
+      liveLook=false;
+      bulbs.forEach((b,i)=>b.style.cssText=defaults[i]);
+      if(tint)tint.style.background='none';
+    }
+  },2000);
+
+  function parse(p){
+    let gi=0;const len=p.length;
+    while(gi<len){
+      let ge=p.indexOf('|',gi);if(ge===-1)ge=len;
+      if(ge-gi>=5&&p.charCodeAt(gi+3)===58){
+        const r=up6(INV[p.charCodeAt(gi)]),g=up6(INV[p.charCodeAt(gi+1)]),b=up6(INV[p.charCodeAt(gi+2)]);
+        let li=gi+4;
+        while(li<ge){
+          let le=p.indexOf(';',li);if(le===-1||le>ge)le=ge;
+          const t=le-li;let x=-1,yy=-1;
+          if(t===6){
+            x=(INV[p.charCodeAt(li)]<<12)|(INV[p.charCodeAt(li+1)]<<6)|INV[p.charCodeAt(li+2)];
+            yy=(INV[p.charCodeAt(li+3)]<<12)|(INV[p.charCodeAt(li+4)]<<6)|INV[p.charCodeAt(li+5)];
+          }else if(t===4){
+            x=(INV[p.charCodeAt(li)]<<6)|INV[p.charCodeAt(li+1)];
+            yy=(INV[p.charCodeAt(li+2)]<<6)|INV[p.charCodeAt(li+3)];
+          }
+          if(x>=0){
+            const bi=keyToBulb.get((x<<12)|(yy&0xfff));
+            if(bi!==undefined){const o=bi*3;cols[o]=r;cols[o+1]=g;cols[o+2]=b;dirty=true;}
+          }
+          li=le+1;
+        }
+      }
+      gi=ge+1;
+    }
+  }
+
+  let opened=false,errs=0;
+  const es=new EventSource('/api/http-virtual-display/');
+  es.onopen=()=>{opened=true;errs=0;};
+  es.onerror=()=>{if(!opened&&++errs>=3)es.close();};
+  es.onmessage=ev=>{pending=ev.data;};
+  // Drain only the latest payload ~15×/s — plenty for 24 bulbs, cheap on tablets
+  setInterval(()=>{
+    if(pending==null)return;
+    const p=pending;pending=null;
+    parse(p);
+    if(dirty)paint();
+  },66);
 })();
 
 poll();
