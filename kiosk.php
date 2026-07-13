@@ -52,7 +52,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
 #k-state{transition:color .5s}
 #k-dot{transition:background .5s,box-shadow .5s}
 .klabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700}
-.btn{background:var(--raise);border:1px solid var(--border);color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px}
+.btn{background:var(--raise);border:1px solid var(--liveBrd,var(--border));color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px;transition:border-color .6s,background .6s,color .6s}
 #toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:flex;flex-direction:column;gap:10px}
 .toast{display:flex;align-items:center;gap:10px;padding:14px 17px;border-radius:11px;background:var(--high);border:1px solid var(--brdHi);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:240px;animation:k-slide .25s ease;font-size:15px;font-weight:500}
 .toast .dot{width:8px;height:8px;border-radius:50%;flex:none}
@@ -77,9 +77,9 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     </div>
     <div id="k-sub" style="font-size:clamp(18px,3.4vh,30px);font-weight:700"></div>
     <div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;justify-content:center">
-      <button onclick="kStart()" style="border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px">▶ Start show</button>
-      <button id="k-stop" style="position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--redBrd);font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px">
-        <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--red);transition:width .05s linear"></span></span>
+      <button onclick="kStart()" style="border:none;background:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk));font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px;transition:background .6s,color .6s">▶ Start show</button>
+      <button id="k-stop" style="position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--live2Brd,var(--redBrd));font-weight:800;font-size:20px;padding:15px 38px;border-radius:14px;min-height:56px;transition:border-color .6s">
+        <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--live2,var(--red));transition:width .05s linear"></span></span>
         <span style="position:relative">Hold to stop</span>
       </button>
     </div>
@@ -102,9 +102,9 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
       <div class="card" style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;flex:none">
         <div class="klabel" style="align-self:flex-start">Temporary Volume</div>
         <div style="display:flex;align-items:center;gap:16px">
-          <button onclick="kVol(-5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)">−</button>
-          <div id="k-vol" style="font-size:36px;font-weight:800;font-family:var(--mono);min-width:110px;color:var(--amber)">—</div>
-          <button onclick="kVol(5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)">+</button>
+          <button onclick="kVol(-5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s">−</button>
+          <div id="k-vol" style="font-size:36px;font-weight:800;font-family:var(--mono);min-width:110px;color:var(--live1,var(--amber));transition:color .6s">—</div>
+          <button onclick="kVol(5)" style="width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s">+</button>
         </div>
         <div style="font-size:12px;color:var(--sub)">Temporary — reverts at the next show</div>
       </div>
@@ -115,7 +115,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     <span style="font-size:13px;color:var(--sub);margin-right:4px">Disable system:</span>
     <button class="btn" onclick="kDisable('1h')">1 hour</button>
     <button class="btn" onclick="kDisable('tonight')">Tonight</button>
-    <button class="btn" id="k-enable" style="display:none;background:var(--mint);border-color:var(--mint);color:var(--mintInk)" onclick="kEnable()">Re-enable now</button>
+    <button class="btn" id="k-enable" style="display:none;background:var(--live1,var(--mint));border-color:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk))" onclick="kEnable()">Re-enable now</button>
   </div>
 </div>
 <div id="toasts"></div>
@@ -605,6 +605,10 @@ async function kVol(delta){
     rootEl.style.setProperty('--live2',`rgb(${c2})`);
     rootEl.style.setProperty('--live3',`rgb(${c3})`);
     rootEl.style.setProperty('--liveBrd',`rgba(${c1},.38)`);
+    rootEl.style.setProperty('--live2Brd',`rgba(${c2},.55)`);
+    // readable label color on a live1-filled button
+    const lum=.2126*sm[0][0]+.7152*sm[0][1]+.0722*sm[0][2];
+    rootEl.style.setProperty('--liveInk',lum>150?'#06210f':'#ffffff');
     if(tint)tint.style.background=
       `radial-gradient(58% 46% at 50% -4%,rgba(${c1},.26),transparent 70%),`+
       `radial-gradient(42% 36% at 6% 20%,rgba(${c2},.18),transparent 70%),`+
@@ -654,7 +658,7 @@ async function kVol(delta){
       liveLook=false;
       bulbs.forEach((b,i)=>b.style.cssText=defaults[i]);
       if(tint)tint.style.background='none';
-      ['--live1','--live2','--live3','--liveBrd'].forEach(v=>rootEl.style.removeProperty(v));
+      ['--live1','--live2','--live3','--liveBrd','--live2Brd','--liveInk'].forEach(v=>rootEl.style.removeProperty(v));
     }
   },2000);
 
