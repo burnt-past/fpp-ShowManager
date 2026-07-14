@@ -39,9 +39,11 @@ SCHEDULE_CONFIG  = "/home/fpp/media/config/ShowManagerSchedule.config"
 ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
 ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
 OVERRIDES_CONFIG = "/home/fpp/media/config/ShowManagerOverrides.config"
+BACKGROUND_CONFIG = "/home/fpp/media/config/ShowManagerBackground.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
 MANUAL_STOP_FLAG = "/tmp/showmanager_manual_stop"
+BG_STATUS_FILE   = "/tmp/showmanager_bg_status.json"
 LOG_PATH         = "/home/fpp/media/logs/showmanager.log"
 
 XR18_PORT        = 10024
@@ -229,6 +231,71 @@ def fpp_current_playlist():
     if not isinstance(cur, dict):
         return ""
     return str(cur.get("playlist") or cur.get("name") or "")
+
+
+# ---------------------------------------------------------------------------
+# FPP overlay effects (.eseq) — layer lighting on top of whatever is playing.
+# Started/stopped via the command API (path-args form, proven on this box).
+# ---------------------------------------------------------------------------
+
+def fpp_list_effects():
+    """Available effect (.eseq) names, or [] on error."""
+    data = _fpp("/api/effects")
+    if isinstance(data, list):
+        return [str(e) for e in data]
+    return []
+
+def fpp_start_effect(name, start_channel=1, loop=True, background=True):
+    enc = urllib.parse.quote(name, safe='')
+    loop_s = 'true' if loop else 'false'
+    bg_s   = 'true' if background else 'false'
+    path = f"/api/command/Effect%20Start/{enc}/{start_channel}/{loop_s}/{bg_s}"
+    result = _fpp(path)
+    if result is None:
+        log.error("Failed to start effect '%s' — HTTP/network error", name)
+        return False
+    log.info("Started background effect '%s' — response: %s", name, result)
+    return True
+
+def fpp_stop_effect(name):
+    enc = urllib.parse.quote(name, safe='')
+    _fpp(f"/api/command/Effect%20Stop/{enc}")
+    log.info("Stopped background effect '%s'", name)
+
+
+# ---------------------------------------------------------------------------
+# Time-window + blackout helpers (shared by the background loop)
+# ---------------------------------------------------------------------------
+
+def in_window(now, start_str, end_str):
+    """True if now (datetime) is within a daily [start,end) window. Handles
+    windows that wrap past midnight. start==end means 'always on'."""
+    try:
+        s = datetime.time.fromisoformat(start_str)
+        e = datetime.time.fromisoformat(end_str)
+    except (ValueError, TypeError):
+        return False
+    t = now.time()
+    if s == e:
+        return True            # 24h window
+    if s < e:
+        return s <= t < e
+    return t >= s or t < e     # wraps midnight
+
+def is_blacked_out(date_str, now):
+    """True if the display should be dark right now — a whole-day blackout,
+    or a timed blackout window covering this moment."""
+    schedule = load_json(SCHEDULE_CONFIG, {"entries": []})
+    hhmm = now.strftime("%H:%M")
+    for e in schedule.get("entries", []):
+        if e.get("date") != date_str or e.get("type") != "blackout":
+            continue
+        st, en = e.get("start_time"), e.get("end_time")
+        if not st and not en:
+            return True                       # whole-day blackout
+        if (st or "00:00") <= hhmm <= (en or "23:59"):
+            return True                       # timed blackout window
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -470,11 +537,24 @@ class ShowScheduler:
         self._fired    = set()       # "date|time|tag" keys already triggered today
         self._in_show  = threading.Event()
         self._last_daytime_announce = 0.0
+        self._bg_effect = None       # name of the background effect we started
+        self._bg_lock   = threading.Lock()
 
     # ---- helpers -----------------------------------------------------------
 
     def _hw(self):  return load_json(HARDWARE_CONFIG)
     def _an(self):  return load_json(ANNOUNCE_CONFIG)
+    def _bg(self):
+        """Background config, with backward-compat: an old announcements
+        'background_playlist' becomes an always-on music window."""
+        cfg = load_json(BACKGROUND_CONFIG)
+        if cfg:
+            return cfg
+        legacy = self._an().get("background_playlist", "")
+        if legacy:
+            return {"music": {"enabled": True, "playlist": legacy,
+                              "start": "00:00", "end": "00:00"}}
+        return {}
 
     def _fire_once(self, key, fn, *args):
         """Run fn(*args) in a daemon thread, but only once per key per day."""
@@ -539,7 +619,12 @@ class ShowScheduler:
 
         log.info("--- Show starting: %s at %s ---", playlist, entry.get("time", ""))
         hw_cfg = self._hw()
-        started_at = time.time()
+        # A scheduled show resumes normal operation — clear any lingering
+        # manual-stop suppression so background returns after the show.
+        try:
+            os.remove(MANUAL_STOP_FLAG)
+        except OSError:
+            pass
         self._in_show.set()
         try:
             trigger_dim(an_cfg)
@@ -572,21 +657,76 @@ class ShowScheduler:
         finally:
             self._in_show.clear()
             trigger_dim_restore(an_cfg)
-            # Only honor a stop flag set during this show (stale flags are discarded)
-            manual_stop = False
-            if os.path.exists(MANUAL_STOP_FLAG):
-                try:
-                    manual_stop = os.path.getmtime(MANUAL_STOP_FLAG) >= started_at
-                    os.remove(MANUAL_STOP_FLAG)
-                except OSError:
-                    pass
-            bg = an_cfg.get("background_playlist", "")
-            if bg and not manual_stop:
-                log.info("Resuming background music: %s", bg)
-                fpp_start_playlist(bg, repeat=True)
-            elif bg:
-                log.info("Manual stop requested — not resuming background music")
             self._set_level(hw_cfg, hw_cfg.get("idle_level"))
+            # Hand back to scheduled background immediately (no silent gap). If a
+            # Stop was pressed during the show, MANUAL_STOP_FLAG is now set and
+            # _apply_background keeps things quiet until the next show.
+            self._apply_background()
+
+    # ---- background music + effects ----------------------------------------
+
+    def _apply_background(self):
+        """Bring FPP into the right background state for right now: loop the
+        background-music playlist during its window (only when idle — never
+        over a show), and run the background overlay effect during its window
+        (suppressed during shows, which own their own lighting). Respects the
+        system-disable override and blackouts. Idempotent — safe to call from
+        the loop and from show end."""
+        with self._bg_lock:
+            cfg = self._bg()
+            now = datetime.datetime.now()
+            today = now.date().isoformat()
+            blocked = (system_disabled() or is_blacked_out(today, now)
+                       or os.path.exists(MANUAL_STOP_FLAG))
+            show = self._in_show.is_set() or is_show_running()
+            music  = cfg.get("music", {})
+            effect = cfg.get("effect", {})
+            status = {"music": None, "effect": None,
+                      "music_enabled": bool(music.get("enabled")),
+                      "effect_enabled": bool(effect.get("enabled"))}
+
+            # --- background music: only when FPP is idle (no show) ---
+            pl = music.get("playlist", "")
+            want_music = bool(
+                music.get("enabled") and pl and not blocked and not show
+                and in_window(now, music.get("start", "00:00"), music.get("end", "00:00"))
+            )
+            cur = fpp_current_playlist()
+            if want_music:
+                if cur != pl:
+                    log.info("Background music → %s", pl)
+                    fpp_start_playlist(pl, repeat=True)
+                status["music"] = pl
+            elif not show and pl and cur == pl:
+                # Stop only OUR looping music (never interrupt a show)
+                log.info("Background music window closed — stopping %s", pl)
+                fpp_stop()
+
+            # --- background effect: overlay, suppressed during shows ---
+            eff = effect.get("effect", "")
+            want_effect = bool(
+                effect.get("enabled") and eff and not blocked and not show
+                and in_window(now, effect.get("start", "00:00"), effect.get("end", "00:00"))
+            )
+            if want_effect:
+                if self._bg_effect != eff:
+                    if self._bg_effect:
+                        fpp_stop_effect(self._bg_effect)
+                    fpp_start_effect(eff)
+                    self._bg_effect = eff
+                status["effect"] = eff
+            elif self._bg_effect:
+                fpp_stop_effect(self._bg_effect)
+                self._bg_effect = None
+
+            save_json(BG_STATUS_FILE, status)
+
+    def _background_loop(self):
+        while not self._stop.wait(45):
+            try:
+                self._apply_background()
+            except Exception as e:
+                log.error("Background loop error: %s", e)
 
     # ---- announcement runner -----------------------------------------------
 
@@ -721,9 +861,10 @@ class ShowScheduler:
         log.info("XR18 Show Scheduler starting")
         ensure_fpp_scheduler_enabled()
         threads = [
-            threading.Thread(target=self._schedule_loop, daemon=True, name="schedule"),
-            threading.Thread(target=self._daytime_loop,  daemon=True, name="daytime"),
-            threading.Thread(target=self._watchdog_loop, daemon=True, name="watchdog"),
+            threading.Thread(target=self._schedule_loop,   daemon=True, name="schedule"),
+            threading.Thread(target=self._daytime_loop,    daemon=True, name="daytime"),
+            threading.Thread(target=self._background_loop, daemon=True, name="background"),
+            threading.Thread(target=self._watchdog_loop,   daemon=True, name="watchdog"),
         ]
         for t in threads:
             t.start()

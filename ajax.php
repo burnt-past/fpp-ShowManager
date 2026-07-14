@@ -50,6 +50,8 @@ switch ($_GET['action'] ?? '') {
     case 'trigger_playlist':
         $playlist = $_GET['playlist'] ?? '';
         if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
+        // Manual start clears any lingering stop suppression
+        @unlink('/tmp/showmanager_manual_stop');
         $enc = rawurlencode($playlist);
         $url = "http://localhost/api/command/Start%20Playlist/$enc/false";
         $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
@@ -71,7 +73,12 @@ switch ($_GET['action'] ?? '') {
 
     case 'get_status':
         $faderRaw = @file_get_contents('/tmp/xr18_current_fader');
-        echo json_encode(['xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null]);
+        $bgRaw = @file_get_contents('/tmp/showmanager_bg_status.json');
+        $bg = $bgRaw !== false ? (json_decode($bgRaw, true) ?: null) : null;
+        echo json_encode([
+            'xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null,
+            'background' => $bg,
+        ]);
         break;
 
     case 'get_override':
@@ -90,6 +97,7 @@ switch ($_GET['action'] ?? '') {
         $mode = $_GET['mode'] ?? '';
         if ($mode === 'off') {
             file_put_contents($ovFile, json_encode([]));
+            @unlink('/tmp/showmanager_manual_stop');   // re-enable clears stop suppression
             echo json_encode(['ok' => true, 'disabled_until' => null]);
             break;
         }
@@ -240,6 +248,36 @@ switch ($_GET['action'] ?? '') {
         shell_exec("pkill -f xr18_bridge.py 2>/dev/null");
         sleep(1);
         shell_exec("python3 " . escapeshellarg("$pluginDir/Scripts/xr18_bridge.py") . " >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &");
+        echo json_encode(['ok' => true]);
+        break;
+
+    case 'get_background':
+        $bgFile  = $settings['configDirectory'] . "/ShowManagerBackground.config";
+        $bg = file_exists($bgFile) ? (json_decode(file_get_contents($bgFile), true) ?? []) : [];
+        // Backward-compat: seed the music playlist from the old announcements key
+        if (empty($bg['music']['playlist'])) {
+            $annFile = $settings['configDirectory'] . "/ShowManagerAnnouncements.config";
+            $ann = file_exists($annFile) ? (json_decode(file_get_contents($annFile), true) ?? []) : [];
+            if (!empty($ann['background_playlist'])) {
+                $bg['music'] = ($bg['music'] ?? []) + [
+                    'playlist' => $ann['background_playlist'],
+                    'start' => '00:00', 'end' => '00:00', 'enabled' => false,
+                ];
+            }
+        }
+        // Available overlay effects on the box
+        $effRaw = @file_get_contents('http://localhost/api/effects');
+        $bg['_effects'] = $effRaw !== false ? (json_decode($effRaw, true) ?: []) : [];
+        echo json_encode($bg);
+        break;
+
+    case 'save_background':
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) { http_response_code(400); echo json_encode(['error' => 'invalid']); break; }
+        unset($body['_effects']);
+        $bgFile = $settings['configDirectory'] . "/ShowManagerBackground.config";
+        file_put_contents($bgFile, json_encode($body, JSON_PRETTY_PRINT));
+        @unlink('/tmp/showmanager_manual_stop');   // re-engaging clears stop suppression
         echo json_encode(['ok' => true]);
         break;
 

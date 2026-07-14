@@ -115,11 +115,13 @@ $plJson = json_encode($playlists);
     <div id="sm-tabs">
       <button class="sm-tab active" onclick="smTab('status')">Status</button>
       <button class="sm-tab" onclick="smTab('schedule')">Schedule</button>
+      <button class="sm-tab" onclick="smTab('background')">Background</button>
       <button class="sm-tab" onclick="smTab('announcements')">Announcements</button>
       <button class="sm-tab" onclick="smTab('hardware')">Hardware</button>
     </div>
     <div id="sm-status" class="sm-pane"></div>
     <div id="sm-schedule" class="sm-pane" style="display:none"></div>
+    <div id="sm-background" class="sm-pane" style="display:none"></div>
     <div id="sm-announcements" class="sm-pane" style="display:none"></div>
     <div id="sm-hardware" class="sm-pane" style="display:none"></div>
   </div>
@@ -180,11 +182,11 @@ function _runConfirm(){closeModal();const cb=_confirmCb;_confirmCb=null;if(cb)cb
 
 /* ── TABS ── */
 function smTab(name){
-  document.querySelectorAll('.sm-tab').forEach((b,i)=>b.classList.toggle('active',['status','schedule','announcements','hardware'][i]===name));
+  document.querySelectorAll('.sm-tab').forEach((b,i)=>b.classList.toggle('active',['status','schedule','background','announcements','hardware'][i]===name));
   document.querySelectorAll('.sm-pane').forEach(p=>p.style.display='none');
   document.getElementById('sm-'+name).style.display='';
   if(name!=='status'&&statusTimer){clearInterval(statusTimer);statusTimer=null;}
-  ({status:loadStatus,schedule:initSchedule,announcements:loadAnnouncements,hardware:loadHardware})[name]?.();
+  ({status:loadStatus,schedule:initSchedule,background:loadBackground,announcements:loadAnnouncements,hardware:loadHardware})[name]?.();
 }
 
 /* ── NOW PLAYING STRIP ── */
@@ -338,15 +340,21 @@ function _schedHtml(d){
   }).join('');
 }
 function _sysHtml(fpp,xr,running){
-  return [
-    ['FPP Daemon',fpp.fppd==='running',fpp.fppd==='running'?'running':'stopped'],
-    ['XR18 Mixer',xr.xr18_fader!=null,xr.xr18_fader!=null?('fader '+xr.xr18_fader.toFixed(2)):'n/a'],
-    ['Scheduler',running,running?'active':'stopped'],
-  ].map(([l,ok,txt])=>`
+  // state: 'ok' green · 'idle' amber · 'bad' red
+  const rows=[
+    ['FPP Daemon',fpp.fppd==='running'?'ok':'bad',fpp.fppd==='running'?'running':'stopped'],
+    ['XR18 Mixer',xr.xr18_fader!=null?'ok':'bad',xr.xr18_fader!=null?('fader '+xr.xr18_fader.toFixed(2)):'n/a'],
+    ['Scheduler',running?'ok':'bad',running?'active':'stopped'],
+  ];
+  const bg=xr.background||null;
+  if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music?('▶ '+bg.music):'idle']);
+  if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect?('▶ '+bg.effect):'idle']);
+  const col={ok:'var(--mint)',idle:'var(--amber)',bad:'var(--red)'};
+  return rows.map(([l,st,txt])=>`
   <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
-    <span class="sm-dot" style="background:${ok?'var(--mint)':'var(--red)'};box-shadow:0 0 8px ${ok?'var(--mint)':'var(--red)'}"></span>
+    <span class="sm-dot" style="background:${col[st]};box-shadow:0 0 8px ${col[st]}"></span>
     <span style="font-size:14px">${l}</span>
-    <span style="margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--sub)">${escH(txt)}</span>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;max-width:150px;white-space:nowrap">${escH(txt)}</span>
   </div>`).join('');
 }
 
@@ -862,10 +870,6 @@ function renderAnnouncements(){
       </div>
     </div>
     <div class="sm-card">
-      <div class="sm-ct" style="margin-bottom:14px">Background Music</div>
-      <label class="sm-lbl">Playlist to resume after shows<select id="ann-bgpl" class="sm-select">${plOptions(cfg.background_playlist||'')}</select></label>
-    </div>
-    <div class="sm-card">
       <div class="sm-ct">Pre-Show Announcements</div>
       <p style="font-size:12px;color:var(--sub);margin:0 0 4px">Each row fires one announcement N minutes before show time.</p>
       ${preRows}
@@ -900,7 +904,6 @@ async function saveAnnouncements(){
     max_duration_secs:Math.round(numOr(document.getElementById('ann-maxdur').value,300)),
     pre_show_brightness:Math.round(numOr(document.getElementById('ann-prebright').value,20)),
     normal_brightness:Math.round(numOr(document.getElementById('ann-normbright').value,100)),
-    background_playlist:document.getElementById('ann-bgpl').value,
     pre_show:preShow,
     daytime:dtEn?{
       enabled:dtEn.checked,
@@ -931,6 +934,68 @@ function annDeleteFile(path){
     toast('File deleted','mut');
     loadAnnouncements();
   });
+}
+
+/* ── BACKGROUND TAB ── */
+let bgCfg={};
+async function loadBackground(){
+  const r=await fetch(AJAX+'&action=get_background');
+  bgCfg=await r.json();
+  renderBackground();
+}
+function effOptions(list,sel){
+  return ['<option value="">— none —</option>',...(list||[]).map(e=>`<option value="${escH(e)}"${e===sel?' selected':''}>${escH(e)}</option>`)].join('');
+}
+function renderBackground(){
+  const el=document.getElementById('sm-background');
+  const m=bgCfg.music||{},e=bgCfg.effect||{};
+  const effects=bgCfg._effects||[];
+  el.innerHTML=`
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start;max-width:760px">
+    <div class="sm-card">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-m-en" ${m.enabled?'checked':''} style="width:auto">Background Music</label>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Loops a playlist during its window when no show is running.</p>
+      <label class="sm-lbl" style="margin-bottom:10px">Playlist<select id="bg-m-pl" class="sm-select">${plOptions(m.playlist||'')}</select></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label class="sm-lbl">Window start<input type="time" id="bg-m-start" class="sm-input" value="${escH(m.start||'16:00')}"></label>
+        <label class="sm-lbl">Window end<input type="time" id="bg-m-end" class="sm-input" value="${escH(m.end||'23:00')}"></label>
+      </div>
+      <div class="sm-hint" style="margin-top:8px">Same start &amp; end = all day.</div>
+    </div>
+    <div class="sm-card">
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-e-en" ${e.enabled?'checked':''} style="width:auto">Background Effect</label>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Loops an FPP overlay effect (lighting) during its window. Suppressed while a show runs.</p>
+      <label class="sm-lbl" style="margin-bottom:10px">Effect${effects.length?'':' <span style="color:var(--mut)">(none found in FPP)</span>'}<select id="bg-e-fx" class="sm-select">${effOptions(effects,e.effect||'')}</select></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label class="sm-lbl">Window start<input type="time" id="bg-e-start" class="sm-input" value="${escH(e.start||'17:00')}"></label>
+        <label class="sm-lbl">Window end<input type="time" id="bg-e-end" class="sm-input" value="${escH(e.end||'22:00')}"></label>
+      </div>
+      <div class="sm-hint" style="margin-top:8px">Effects are .eseq files in FPP's Effects library.</div>
+    </div>
+    <div style="grid-column:1/-1;display:flex;justify-content:flex-end">
+      <button class="sm-btn solid" onclick="saveBackground()">Save Settings</button>
+    </div>
+  </div>`;
+}
+async function saveBackground(){
+  const body={
+    music:{
+      enabled:document.getElementById('bg-m-en').checked,
+      playlist:document.getElementById('bg-m-pl').value,
+      start:document.getElementById('bg-m-start').value||'00:00',
+      end:document.getElementById('bg-m-end').value||'00:00',
+    },
+    effect:{
+      enabled:document.getElementById('bg-e-en').checked,
+      effect:document.getElementById('bg-e-fx').value,
+      start:document.getElementById('bg-e-start').value||'00:00',
+      end:document.getElementById('bg-e-end').value||'00:00',
+    },
+  };
+  const r=await fetch(AJAX+'&action=save_background',{method:'POST',body:JSON.stringify(body)});
+  const j=await r.json();
+  if(j.ok){Object.assign(bgCfg,body);toast('Background settings saved','ok');}
+  else toast('Save failed','err');
 }
 
 /* ── HARDWARE TAB ── */
