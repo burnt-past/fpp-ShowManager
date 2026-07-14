@@ -350,11 +350,30 @@ async function kVol(delta){
     card.style.flex=shown?'2':'0 0 auto';   // collapsed card yields its space to the side column
     tgl.textContent=shown?'Hide':'Show';
     // Unload when hidden so the tablet GPU and the color feed go idle
-    if(shown){if(frame.getAttribute('src')!=='/3dviewer/')frame.src='/3dviewer/';}
+    if(shown){if(!(frame.getAttribute('src')||'').startsWith('/3dviewer/'))frame.src='/3dviewer/';}
     else frame.src='about:blank';
   }
   tgl.onclick=()=>{shown=!shown;try{localStorage.setItem('k3d',shown?'on':'off');}catch(e){}apply();};
   apply();
+
+  function reload3d(why){
+    console.info('[kiosk] reloading 3D viewer:',why);
+    frame.src='/3dviewer/?r='+ (frame.dataset.r=((+frame.dataset.r||0)+1));
+  }
+  // Watchdog: the viewer's Mode A client has no auto-reconnect, so a single
+  // stream hiccup freezes it on the last frame. We're same-origin — read its
+  // (hidden) HUD status and reload when the feed stays dead.
+  let errStreak=0;
+  setInterval(()=>{
+    if(!shown)return;
+    let st='';
+    try{st=frame.contentDocument?.getElementById('status')?.textContent||'';}catch(e){return;}
+    if(st==='error')errStreak++;else errStreak=0;
+    if(errStreak>=2){errStreak=0;reload3d('feed error');}
+  },10000);
+  // Periodic hygiene reload — long-running WebGL on cheap tablets can wedge
+  // (context loss, memory creep); a fresh start every 30 min is invisible.
+  setInterval(()=>{if(shown)reload3d('periodic refresh');},30*60*1000);
 })();
 
 /* Live garland — mirrors a real string from the show onto the page's garland
@@ -473,29 +492,46 @@ async function kVol(delta){
     dbg.feed='connected (A)';
     glog('model locked',dbg.model);
     let latest=null;
+    // Pump with auto-reconnect — a fetch stream (unlike EventSource) never
+    // retries by itself, so a single hiccup would otherwise freeze the
+    // garland on its last colors until the page reloads.
     (async()=>{
-      const reader=resp.body.getReader();
-      let buf=new Uint8Array(0);
-      try{
-        while(true){
-          const {done,value}=await reader.read();
-          if(done)break;
-          const merged=new Uint8Array(buf.length+value.length);
-          merged.set(buf,0);merged.set(value,buf.length);
-          buf=merged;
-          let off=0;
-          while(buf.length-off>=4){
-            const len=(buf[off]<<24)|(buf[off+1]<<16)|(buf[off+2]<<8)|buf[off+3];
-            if(buf.length-off-4<len)break;
-            latest=buf.slice(off+4,off+4+len);
-            dbg.frames++;
-            off+=4+len;
-          }
-          buf=off>0?buf.slice(off):buf;
+      let r=resp;
+      while(true){
+        if(!r){
+          try{r=await fetch('/fpp3dviewer/',{cache:'no-store'});}catch(e){r=null;}
+          if(!r||!r.ok||!r.body){r=null;await new Promise(w=>setTimeout(w,5000));continue;}
+          dbg.feed='connected (A)';glog('mode A reconnected');
         }
-      }catch(e){}
-      dbg.feed='disconnected (A)';
-      glog('mode A stream ended');
+        const reader=r.body.getReader();
+        let buf=new Uint8Array(0);
+        try{
+          while(true){
+            const {done,value}=await reader.read();
+            if(done)break;
+            const merged=new Uint8Array(buf.length+value.length);
+            merged.set(buf,0);merged.set(value,buf.length);
+            buf=merged;
+            let off=0;
+            while(buf.length-off>=4){
+              const len=(buf[off]<<24)|(buf[off+1]<<16)|(buf[off+2]<<8)|buf[off+3];
+              if(buf.length-off-4<len)break;
+              latest=buf.slice(off+4,off+4+len);
+              dbg.frames++;
+              off+=4+len;
+            }
+            buf=off>0?buf.slice(off):buf;
+            if(buf.length>4*1024*1024){                // desync guard
+              try{reader.cancel();}catch(e){}
+              break;
+            }
+          }
+        }catch(e){}
+        r=null;
+        dbg.feed='reconnecting (A)…';
+        glog('mode A stream ended — reconnecting in 5s');
+        await new Promise(w=>setTimeout(w,5000));
+      }
     })();
     setInterval(()=>{
       const f=latest;
