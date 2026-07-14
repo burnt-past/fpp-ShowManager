@@ -166,6 +166,55 @@ def fpp_stop():
     _fpp("/api/command/Stop%20Now")
     log.info("FPP stop requested")
 
+def fpp_put_setting(name, value):
+    """FPP's settings API takes the value as a raw request body, not JSON."""
+    try:
+        req = urllib.request.Request(
+            f"http://localhost/api/settings/{name}",
+            data=str(value).encode(), method="PUT",
+        )
+        urllib.request.urlopen(req, timeout=5)
+        return True
+    except Exception as e:
+        log.warning("Failed to set FPP setting %s: %s", name, e)
+        return False
+
+def ensure_fpp_scheduler_enabled():
+    """Clear FPP's permanent 'FPP Scheduler is disabled' warning.
+
+    The warning is added once at fppd startup when DisableScheduler=1 and is
+    never removed at runtime. This plugin replaces the native scheduler, so as
+    long as FPP's own schedule is EMPTY it is safe to leave the native
+    scheduler enabled — it has nothing to run. Re-enable it here; the warning
+    then disappears at the next fppd restart.
+    """
+    cur = _fpp("/api/settings/DisableScheduler")
+    if isinstance(cur, dict):
+        val = str(cur.get("value", cur.get("DisableScheduler", "0")))
+    else:
+        val = str(cur or "0").strip().strip('"')
+    if val != "1":
+        return
+
+    sched = _fpp("/api/schedule")
+    entries = sched if isinstance(sched, list) else []
+    active = [e for e in entries if e.get("enabled", 1)]
+    if active:
+        log.warning(
+            "FPP's native scheduler is disabled but its schedule still has %d "
+            "enabled entr%s — leaving it disabled to avoid double-scheduling. "
+            "Delete them in FPP's Scheduler page to clear the warning.",
+            len(active), "y" if len(active) == 1 else "ies",
+        )
+        return
+
+    if fpp_put_setting("DisableScheduler", "0"):
+        log.info(
+            "Re-enabled FPP's native scheduler (its schedule is empty, so it "
+            "will do nothing). The 'FPP Scheduler is disabled' warning clears "
+            "at the next FPPD restart."
+        )
+
 def fpp_get_volume():
     data = _fpp("/api/system/volume")
     return int(data.get("volume", 75)) if isinstance(data, dict) else 75
@@ -670,6 +719,7 @@ class ShowScheduler:
 
     def run(self):
         log.info("XR18 Show Scheduler starting")
+        ensure_fpp_scheduler_enabled()
         threads = [
             threading.Thread(target=self._schedule_loop, daemon=True, name="schedule"),
             threading.Thread(target=self._daytime_loop,  daemon=True, name="daytime"),
