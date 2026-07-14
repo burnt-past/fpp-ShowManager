@@ -801,13 +801,29 @@ function renderAnnouncements(){
   const files=cfg._files||{main:[],daytime:[]};
   const preShow=cfg.pre_show||[{mins_before:5,file:''}];
   const daytime=cfg.daytime||{};
-  const allMp3s=[...(files.main||[]),...(files.daytime||[])];
-  const datalist=allMp3s.map(f=>`<option value="${escH(f)}">`).join('');
+  const sysAudio=cfg._sysAudio||[];
+  // Grouped audio picker: plugin announcement folders by name, plus audio
+  // found elsewhere on the box (FPP music/upload) as absolute paths — the
+  // scheduler accepts both forms.
+  function fileOpts(sel){
+    let out='<option value="">— select audio —</option>';
+    const known=[];
+    const grp=(label,items)=>items.length?`<optgroup label="${label}">${items.join('')}</optgroup>`:'';
+    out+=grp('Announcements',(files.main||[]).map(f=>{known.push(f);
+      return `<option value="${escH(f)}"${sel===f?' selected':''}>${escH(f)}</option>`;}));
+    out+=grp('Announcements / daytime',(files.daytime||[]).map(f=>{const v='daytime/'+f;known.push(v);
+      return `<option value="${escH(v)}"${sel===v?' selected':''}>${escH(f)}</option>`;}));
+    out+=grp('FPP media',sysAudio.map(o=>{known.push(o.path);
+      return `<option value="${escH(o.path)}"${sel===o.path?' selected':''}>${escH(o.label)}</option>`;}));
+    if(sel&&!known.includes(sel))
+      out+=`<option value="${escH(sel)}" selected>${escH(sel)} (missing)</option>`;
+    return out;
+  }
   const preRows=preShow.map((p,i)=>`
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
       <input type="number" class="sm-input" style="width:74px;flex:none" value="${p.mins_before||5}" min="1" max="120" id="pre-off-${i}">
       <span style="font-size:12px;color:var(--mut);flex:none">min</span>
-      <input type="text" class="sm-input" value="${escH(p.file||'')}" list="mp3-list" id="pre-file-${i}" placeholder="audio file…">
+      <select class="sm-select" id="pre-file-${i}">${fileOpts(p.file||'')}</select>
       <button class="sm-btn ghost sm" style="flex:none;font-size:15px;padding:3px 9px" onclick="annRemovePre(${i})">×</button>
     </div>`).join('');
   const fileRows=[...(files.main||[]).map(f=>({f,folder:'main',path:f})),...(files.daytime||[]).map(f=>({f,folder:'daytime',path:'daytime/'+f}))]
@@ -828,8 +844,7 @@ function renderAnnouncements(){
       <div style="font-size:13px;color:var(--sub)">Disabled — no daytime announcements scheduled.</div>
       <button class="sm-btn" style="margin-top:4px" onclick="annEnableDaytime(true)">Enable</button>
     </div>`;
-  el.innerHTML=`<datalist id="mp3-list">${datalist}</datalist>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">
     <div class="sm-card">
       <div class="sm-ct" style="margin-bottom:14px">Ducking</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">

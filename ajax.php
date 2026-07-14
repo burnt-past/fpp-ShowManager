@@ -254,6 +254,15 @@ switch ($_GET['action'] ?? '') {
         $mainFiles = array_map('basename', glob($announceDir . '/*.{mp3,wav,ogg}', GLOB_BRACE) ?: []);
         $dtFiles   = array_map('basename', glob($announceDir . '/daytime/*.{mp3,wav,ogg}', GLOB_BRACE) ?: []);
         $ann['_files'] = ['main' => $mainFiles, 'daytime' => $dtFiles];
+        // Audio elsewhere on the box (e.g. dropped into FPP's music/upload
+        // folders) — offered as absolute paths, which the scheduler accepts.
+        $sysAudio = [];
+        foreach (['/home/fpp/media/music', '/home/fpp/media/upload'] as $dir) {
+            foreach (glob("$dir/*.{mp3,wav,ogg,m4a,flac,aac}", GLOB_BRACE) ?: [] as $f) {
+                $sysAudio[] = ['label' => basename($dir) . '/' . basename($f), 'path' => $f];
+            }
+        }
+        $ann['_sysAudio'] = $sysAudio;
         echo json_encode($ann);
         break;
 
