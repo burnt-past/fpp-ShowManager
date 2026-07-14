@@ -22,6 +22,7 @@ $plJson = json_encode($playlists);
   --font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
   --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
   position:relative;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);min-height:600px;
+  color-scheme:dark;
 }
 #sm.sm-light{
   --bg:#eef4fb;--base:#e3ebf5;--card:#ffffff;--raise:#f3f7fc;--high:#e9f0f8;
@@ -33,6 +34,7 @@ $plJson = json_encode($playlists);
   --redBg:rgba(225,29,90,.10);--redBrd:rgba(225,29,90,.35);
   --s1Bg:rgba(33,131,214,.12);--s1Brd:rgba(33,131,214,.3);
   --bloomOp:.5;--bgImgOp:.18;--scrim1:rgba(238,244,251,.6);--scrim2:rgba(238,244,251,.9);
+  color-scheme:light;
 }
 #sm *{box-sizing:border-box}
 #sm button{font-family:var(--font);cursor:pointer}
@@ -76,6 +78,10 @@ $plJson = json_encode($playlists);
 .sm-btn.sm{padding:5px 10px;font-size:12px;border-radius:7px}
 /* inputs */
 .sm-input,.sm-select{width:100%;background:var(--raise);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:13px;outline:none}
+/* beat FPP's own input/select rules — the plugin renders inside FPP's page */
+#sm input,#sm select,#sm textarea{color:var(--text);opacity:1}
+#sm input::placeholder{color:var(--mut)}
+#sm option{background:var(--card);color:var(--text)}
 .sm-select{appearance:none;font-family:var(--font);font-size:14px}
 .sm-input:focus,.sm-select:focus{border-color:var(--mint)}
 .sm-lbl{display:block;font-size:12px;color:var(--sub)}

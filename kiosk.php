@@ -17,6 +17,7 @@ $plJson = json_encode($playlists);
 <title>Show Kiosk</title>
 <style>
 :root{
+  color-scheme:dark;
   --bg:#071019;--card:#0f1f2e;--raise:#16293b;--high:#1d3648;
   --border:rgba(255,255,255,.08);--brdHi:rgba(120,200,255,.26);
   --text:#e8f1fb;--sub:#8aa2ba;--mut:#516678;
@@ -32,6 +33,7 @@ $plJson = json_encode($playlists);
 html,body{margin:0;height:100%}
 body{background:var(--bg);color:var(--text);font-family:var(--font);overflow-x:hidden}
 button{font-family:var(--font);cursor:pointer;appearance:none}
+option{background:var(--card);color:var(--text)}
 @keyframes k-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
 @keyframes k-glow{0%,100%{filter:brightness(.62)}50%{filter:brightness(1.3)}}
 @keyframes k-slide{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
