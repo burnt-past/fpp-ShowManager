@@ -48,37 +48,35 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
   #k-main{flex-direction:column}
   #k-3d-card{min-height:300px}
 }
-.card{background:linear-gradient(160deg,rgba(255,255,255,.04),transparent),var(--card);border:1px solid var(--liveBrd,var(--brdHi));border-radius:18px;padding:20px 22px;transition:border-color .6s}
+.card{background:var(--card);border:1px solid var(--liveBrd,var(--brdHi));border-radius:18px;padding:20px 22px;transition:border-color .6s}
 #k-state{transition:color .5s}
 #k-dot{transition:background .5s,box-shadow .5s}
 .klabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700}
-.btn{background:var(--raise);border:1px solid var(--liveBrd,var(--border));color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px;transition:border-color .6s,background .6s,color .6s}
-.kvbtn{width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--liveBrd,var(--brdHi));color:var(--text);transition:border-color .6s,background .6s}
-#k-start{width:100%;border:none;background:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk));font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px;transition:background .6s,color .6s}
-#k-stop{width:100%;position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--live2Brd,var(--redBrd));font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px;transition:border-color .6s,background .6s}
-/* Liquid glass where supported — near-clear fill, heavy blur/saturation, and
-   edge highlights do the work. The opaque look above is the fallback. */
+.btn{background:var(--raise);border:1px solid var(--border);color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px}
+.kvbtn{width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)}
+#k-start{width:100%;border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
+#k-stop{width:100%;position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--redBrd);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
+/* Liquid glass where supported — flat near-clear fills, blur does the work.
+   The opaque look above is the fallback. */
 @supports ((backdrop-filter:blur(4px)) or (-webkit-backdrop-filter:blur(4px))){
   .card{
-    background:linear-gradient(135deg,rgba(255,255,255,.10),rgba(255,255,255,.02) 45%,rgba(255,255,255,.06));
-    border:1px solid var(--liveBrd,rgba(255,255,255,.18));
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.22),inset 0 -1px 0 rgba(255,255,255,.05),0 10px 34px rgba(0,0,0,.28);
-    -webkit-backdrop-filter:blur(24px) saturate(1.6);backdrop-filter:blur(24px) saturate(1.6);
+    background:rgba(255,255,255,.07);
+    border:1px solid var(--liveBrd,rgba(255,255,255,.14));
+    box-shadow:0 8px 28px rgba(0,0,0,.25);
+    -webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5);
   }
   .btn,.kvbtn,#k-stop{
     background:rgba(255,255,255,.08);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
-    -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);
+    -webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);
   }
-  .btn{border-color:var(--liveBrd,rgba(255,255,255,.16))}
-  .kvbtn{border-color:var(--liveBrd,rgba(255,255,255,.20))}
+  .btn{border-color:rgba(255,255,255,.16)}
+  .kvbtn{border-color:rgba(255,255,255,.20)}
   #k-start{
-    background:var(--live1A,rgba(47,211,196,.26));
-    border:1.5px solid var(--live1,var(--mint));color:#fff;
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
-    -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);
+    background:rgba(47,211,196,.30);
+    border:1.5px solid var(--mint);color:#fff;
+    -webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);
   }
-  .toast{background:rgba(255,255,255,.10);-webkit-backdrop-filter:blur(20px) saturate(1.5);backdrop-filter:blur(20px) saturate(1.5)}
+  .toast{background:rgba(255,255,255,.10);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4)}
 }
 #toasts{position:fixed;right:18px;bottom:18px;z-index:100;display:flex;flex-direction:column;gap:10px}
 .toast{display:flex;align-items:center;gap:10px;padding:14px 17px;border-radius:11px;background:var(--high);border:1px solid var(--brdHi);color:var(--text);box-shadow:0 8px 24px rgba(0,0,0,.35);min-width:240px;animation:k-slide .25s ease;font-size:15px;font-weight:500}
@@ -130,7 +128,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
       <div style="display:flex;flex-direction:column;gap:10px;flex:none">
         <button id="k-start" onclick="kStart()">▶ Start show</button>
         <button id="k-stop">
-          <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--live2,var(--red));transition:width .05s linear"></span></span>
+          <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--red);transition:width .05s linear"></span></span>
           <span style="position:relative">Hold to stop</span>
         </button>
       </div>
@@ -141,7 +139,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     <span style="font-size:13px;color:var(--sub);margin-right:4px">Disable system:</span>
     <button class="btn" onclick="kDisable('1h')">1 hour</button>
     <button class="btn" onclick="kDisable('tonight')">Tonight</button>
-    <button class="btn" id="k-enable" style="display:none;background:var(--live1,var(--mint));border-color:var(--live1,var(--mint));color:var(--liveInk,var(--mintInk))" onclick="kEnable()">Re-enable now</button>
+    <button class="btn" id="k-enable" style="display:none;background:var(--mint);border-color:var(--mint);color:var(--mintInk)" onclick="kEnable()">Re-enable now</button>
   </div>
 </div>
 <div id="toasts"></div>
@@ -631,11 +629,6 @@ async function kVol(delta){
     rootEl.style.setProperty('--live2',`rgb(${c2})`);
     rootEl.style.setProperty('--live3',`rgb(${c3})`);
     rootEl.style.setProperty('--liveBrd',`rgba(${c1},.38)`);
-    rootEl.style.setProperty('--live2Brd',`rgba(${c2},.55)`);
-    rootEl.style.setProperty('--live1A',`rgba(${c1},.30)`);
-    // readable label color on a live1-filled button
-    const lum=.2126*sm[0][0]+.7152*sm[0][1]+.0722*sm[0][2];
-    rootEl.style.setProperty('--liveInk',lum>150?'#06210f':'#ffffff');
     if(tint)tint.style.background=
       `radial-gradient(58% 46% at 50% -4%,rgba(${c1},.26),transparent 70%),`+
       `radial-gradient(42% 36% at 6% 20%,rgba(${c2},.18),transparent 70%),`+
@@ -685,7 +678,7 @@ async function kVol(delta){
       liveLook=false;
       bulbs.forEach((b,i)=>b.style.cssText=defaults[i]);
       if(tint)tint.style.background='none';
-      ['--live1','--live2','--live3','--liveBrd','--live2Brd','--liveInk','--live1A'].forEach(v=>rootEl.style.removeProperty(v));
+      ['--live1','--live2','--live3','--liveBrd'].forEach(v=>rootEl.style.removeProperty(v));
     }
   },2000);
 
