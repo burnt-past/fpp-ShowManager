@@ -55,6 +55,8 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
 .btn{background:var(--raise);border:1px solid var(--border);color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px}
 .kvbtn{width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)}
 #k-start{width:100%;border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
+#k-start:disabled{opacity:.4;filter:grayscale(.7);cursor:default}
+.ksel{width:100%;appearance:none;background:var(--raise);border:1px solid var(--brdHi);color:var(--text);font-family:var(--font);font-weight:600;font-size:15px;padding:12px 40px 12px 14px;border-radius:12px;min-height:48px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%238aa2ba' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
 #k-stop{width:100%;position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--redBrd);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
 /* Liquid glass where supported — flat near-clear fills, blur does the work.
    The opaque look above is the fallback. */
@@ -65,7 +67,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
     box-shadow:0 8px 28px rgba(0,0,0,.25);
     -webkit-backdrop-filter:blur(24px) saturate(1.5);backdrop-filter:blur(24px) saturate(1.5);
   }
-  .btn,.kvbtn,#k-stop{
+  .btn,.kvbtn,#k-stop,.ksel{
     background:rgba(255,255,255,.08);
     -webkit-backdrop-filter:blur(18px) saturate(1.4);backdrop-filter:blur(18px) saturate(1.4);
   }
@@ -126,6 +128,7 @@ button{font-family:var(--font);cursor:pointer;appearance:none}
         <div style="font-size:12px;color:var(--sub)">Temporary — reverts at the next show</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;flex:none">
+        <select id="k-pl" class="ksel" onchange="kPickShow()"></select>
         <button id="k-start" onclick="kStart()">▶ Start show</button>
         <button id="k-stop">
           <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--red);transition:width .05s linear"></span></span>
@@ -233,6 +236,14 @@ function render(){
     sub.textContent=state.nextIdx>=0?('Next show '+state.shows[state.nextIdx].time):'No more shows today';
   }
   document.getElementById('k-enable').style.display=state.disabledUntil?'':'none';
+  // Start is greyed out while a show is already running
+  document.getElementById('k-start').disabled=state.playing&&!state.disabledUntil;
+  // keep the picker on the next scheduled show until the user chooses one
+  const sel=document.getElementById('k-pl');
+  if(sel&&!userPicked){
+    const np=_nextPlaylist();
+    if(np&&sel.value!==np&&PLAYLISTS.includes(np))sel.value=np;
+  }
   const vol=document.getElementById('k-vol');
   vol.textContent=state.vol!=null?state.vol+'%':'—';
   const nowIdx=state.playing?(state.nextIdx<0?state.shows.length-1:state.nextIdx-1):-1;
@@ -259,8 +270,10 @@ function _nextPlaylist(){
   }
   return PLAYLISTS[0]||'';
 }
+let userPicked=false;
+function kPickShow(){userPicked=true;}
 async function kStart(){
-  const pl=_nextPlaylist();
+  const pl=document.getElementById('k-pl').value||_nextPlaylist();
   if(!pl)return toast('No playlists available','err');
   if(state.disabledUntil)await fetch(AJAX+'&action=set_disabled&mode=off');
   const r=await fetch(AJAX+'&action=trigger_playlist&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(()=>({}));
@@ -722,6 +735,12 @@ async function kVol(delta){
     glog('mode A unavailable — using 2D SSE feed');
     startModeB();
   }
+})();
+
+/* show picker options */
+(function(){
+  const sel=document.getElementById('k-pl');
+  if(sel)sel.innerHTML=PLAYLISTS.map(p=>`<option value="${escH(p)}">${escH(p)}</option>`).join('');
 })();
 
 poll();
