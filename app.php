@@ -943,13 +943,22 @@ async function loadBackground(){
   bgCfg=await r.json();
   renderBackground();
 }
-function effOptions(list,sel){
-  return ['<option value="">— none —</option>',...(list||[]).map(e=>`<option value="${escH(e)}"${e===sel?' selected':''}>${escH(e)}</option>`)].join('');
+function effOptions(effects,sequences,selType,selName){
+  const opt=(kind,name)=>{
+    const v=kind+'|'+name;
+    const on=(kind===selType&&name===selName);
+    return `<option value="${escH(v)}"${on?' selected':''}>${escH(name)}</option>`;
+  };
+  let out='<option value="">— none —</option>';
+  if((effects||[]).length)   out+=`<optgroup label="Effects (.eseq)">${effects.map(e=>opt('eseq',e)).join('')}</optgroup>`;
+  if((sequences||[]).length) out+=`<optgroup label="Sequences (.fseq)">${sequences.map(s=>opt('fseq',s)).join('')}</optgroup>`;
+  return out;
 }
 function renderBackground(){
   const el=document.getElementById('sm-background');
   const m=bgCfg.music||{},e=bgCfg.effect||{};
-  const effects=bgCfg._effects||[];
+  const effects=bgCfg._effects||[],sequences=bgCfg._sequences||[];
+  const hasFx=effects.length||sequences.length;
   el.innerHTML=`
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start;max-width:760px">
     <div class="sm-card">
@@ -964,13 +973,13 @@ function renderBackground(){
     </div>
     <div class="sm-card">
       <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-e-en" ${e.enabled?'checked':''} style="width:auto">Background Effect</label>
-      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Loops an FPP overlay effect (lighting) during its window. Suppressed while a show runs.</p>
-      <label class="sm-lbl" style="margin-bottom:10px">Effect${effects.length?'':' <span style="color:var(--mut)">(none found in FPP)</span>'}<select id="bg-e-fx" class="sm-select">${effOptions(effects,e.effect||'')}</select></label>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Loops a lighting overlay during its window, layered on top. Suppressed while a show runs; keeps running through blackouts.</p>
+      <label class="sm-lbl" style="margin-bottom:10px">Effect or sequence${hasFx?'':' <span style="color:var(--mut)">(none found in FPP)</span>'}<select id="bg-e-fx" class="sm-select">${effOptions(effects,sequences,e.type||'eseq',e.effect||'')}</select></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label class="sm-lbl">Window start<input type="time" id="bg-e-start" class="sm-input" value="${escH(e.start||'17:00')}"></label>
         <label class="sm-lbl">Window end<input type="time" id="bg-e-end" class="sm-input" value="${escH(e.end||'22:00')}"></label>
       </div>
-      <div class="sm-hint" style="margin-top:8px">Effects are .eseq files in FPP's Effects library.</div>
+      <div class="sm-hint" style="margin-top:8px">.eseq effects or .fseq sequences from FPP.</div>
     </div>
     <div style="grid-column:1/-1;display:flex;justify-content:flex-end">
       <button class="sm-btn solid" onclick="saveBackground()">Save Settings</button>
@@ -985,12 +994,18 @@ async function saveBackground(){
       start:document.getElementById('bg-m-start').value||'00:00',
       end:document.getElementById('bg-m-end').value||'00:00',
     },
-    effect:{
-      enabled:document.getElementById('bg-e-en').checked,
-      effect:document.getElementById('bg-e-fx').value,
-      start:document.getElementById('bg-e-start').value||'00:00',
-      end:document.getElementById('bg-e-end').value||'00:00',
-    },
+    effect:(()=>{
+      const v=document.getElementById('bg-e-fx').value;
+      const i=v.indexOf('|');
+      const type=i>=0?v.slice(0,i):'eseq';
+      const name=i>=0?v.slice(i+1):'';
+      return {
+        enabled:document.getElementById('bg-e-en').checked,
+        effect:name, type:type,
+        start:document.getElementById('bg-e-start').value||'00:00',
+        end:document.getElementById('bg-e-end').value||'00:00',
+      };
+    })(),
   };
   const r=await fetch(AJAX+'&action=save_background',{method:'POST',body:JSON.stringify(body)});
   const j=await r.json();

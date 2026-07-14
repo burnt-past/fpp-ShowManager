@@ -238,29 +238,29 @@ def fpp_current_playlist():
 # Started/stopped via the command API (path-args form, proven on this box).
 # ---------------------------------------------------------------------------
 
-def fpp_list_effects():
-    """Available effect (.eseq) names, or [] on error."""
-    data = _fpp("/api/effects")
-    if isinstance(data, list):
-        return [str(e) for e in data]
-    return []
-
-def fpp_start_effect(name, start_channel=1, loop=True, background=True):
+def fpp_start_effect(name, kind="eseq", start_channel=1, loop=True, background=True):
+    """Start a looping background overlay. kind='eseq' uses an effect file;
+    kind='fseq' overlays a full sequence (command names confirmed against
+    FPP's own effects.php)."""
     enc = urllib.parse.quote(name, safe='')
     loop_s = 'true' if loop else 'false'
     bg_s   = 'true' if background else 'false'
-    path = f"/api/command/Effect%20Start/{enc}/{start_channel}/{loop_s}/{bg_s}"
+    if kind == "fseq":
+        path = f"/api/command/FSEQ%20Effect%20Start/{enc}/{loop_s}/{bg_s}"
+    else:
+        path = f"/api/command/Effect%20Start/{enc}/{start_channel}/{loop_s}/{bg_s}"
     result = _fpp(path)
     if result is None:
-        log.error("Failed to start effect '%s' — HTTP/network error", name)
+        log.error("Failed to start background %s '%s' — HTTP/network error", kind, name)
         return False
-    log.info("Started background effect '%s' — response: %s", name, result)
+    log.info("Started background %s '%s' — response: %s", kind, name, result)
     return True
 
-def fpp_stop_effect(name):
+def fpp_stop_effect(name, kind="eseq"):
     enc = urllib.parse.quote(name, safe='')
-    _fpp(f"/api/command/Effect%20Stop/{enc}")
-    log.info("Stopped background effect '%s'", name)
+    cmd = "FSEQ%20Effect%20Stop" if kind == "fseq" else "Effect%20Stop"
+    _fpp(f"/api/command/{cmd}/{enc}")
+    log.info("Stopped background %s '%s'", kind, name)
 
 
 # ---------------------------------------------------------------------------
@@ -537,7 +537,7 @@ class ShowScheduler:
         self._fired    = set()       # "date|time|tag" keys already triggered today
         self._in_show  = threading.Event()
         self._last_daytime_announce = 0.0
-        self._bg_effect = None       # name of the background effect we started
+        self._bg_effect = None       # (kind, name) of the effect we started, or None
         self._bg_lock   = threading.Lock()
 
     # ---- helpers -----------------------------------------------------------
@@ -666,18 +666,24 @@ class ShowScheduler:
     # ---- background music + effects ----------------------------------------
 
     def _apply_background(self):
-        """Bring FPP into the right background state for right now: loop the
-        background-music playlist during its window (only when idle — never
-        over a show), and run the background overlay effect during its window
-        (suppressed during shows, which own their own lighting). Respects the
-        system-disable override and blackouts. Idempotent — safe to call from
-        the loop and from show end."""
+        """Bring FPP into the right background state for right now.
+
+        Background MUSIC (audio) loops during its window only when FPP is idle
+        (never over a show), and is silenced during blackouts — blackouts are
+        the venue's quiet hours, which suppress audio and shows.
+
+        Background EFFECT (lighting) loops as an overlay during its own window,
+        suppressed only while a show runs (shows own their lighting). It is NOT
+        suppressed by blackouts — the lights stay on during quiet hours.
+
+        Both are suppressed by the system-disable override and a manual stop.
+        Idempotent — safe to call from the loop and from show end."""
         with self._bg_lock:
             cfg = self._bg()
             now = datetime.datetime.now()
             today = now.date().isoformat()
-            blocked = (system_disabled() or is_blacked_out(today, now)
-                       or os.path.exists(MANUAL_STOP_FLAG))
+            off = system_disabled() or os.path.exists(MANUAL_STOP_FLAG)  # everything off
+            blacked = is_blacked_out(today, now)                          # audio off (quiet hours)
             show = self._in_show.is_set() or is_show_running()
             music  = cfg.get("music", {})
             effect = cfg.get("effect", {})
@@ -685,10 +691,10 @@ class ShowScheduler:
                       "music_enabled": bool(music.get("enabled")),
                       "effect_enabled": bool(effect.get("enabled"))}
 
-            # --- background music: only when FPP is idle (no show) ---
+            # --- background music (audio): idle only, silenced by blackout ---
             pl = music.get("playlist", "")
             want_music = bool(
-                music.get("enabled") and pl and not blocked and not show
+                music.get("enabled") and pl and not off and not blacked and not show
                 and in_window(now, music.get("start", "00:00"), music.get("end", "00:00"))
             )
             cur = fpp_current_playlist()
@@ -699,24 +705,25 @@ class ShowScheduler:
                 status["music"] = pl
             elif not show and pl and cur == pl:
                 # Stop only OUR looping music (never interrupt a show)
-                log.info("Background music window closed — stopping %s", pl)
+                log.info("Background music stopping — %s", pl)
                 fpp_stop()
 
-            # --- background effect: overlay, suppressed during shows ---
-            eff = effect.get("effect", "")
+            # --- background effect (lighting): overlay, ignores blackout ---
+            eff  = effect.get("effect", "")
+            kind = effect.get("type", "eseq")
             want_effect = bool(
-                effect.get("enabled") and eff and not blocked and not show
+                effect.get("enabled") and eff and not off and not show
                 and in_window(now, effect.get("start", "00:00"), effect.get("end", "00:00"))
             )
             if want_effect:
-                if self._bg_effect != eff:
+                if self._bg_effect != (kind, eff):
                     if self._bg_effect:
-                        fpp_stop_effect(self._bg_effect)
-                    fpp_start_effect(eff)
-                    self._bg_effect = eff
+                        fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
+                    fpp_start_effect(eff, kind)
+                    self._bg_effect = (kind, eff)
                 status["effect"] = eff
             elif self._bg_effect:
-                fpp_stop_effect(self._bg_effect)
+                fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
                 self._bg_effect = None
 
             save_json(BG_STATUS_FILE, status)

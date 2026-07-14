@@ -265,9 +265,11 @@ switch ($_GET['action'] ?? '') {
                 ];
             }
         }
-        // Available overlay effects on the box
+        // Available overlay content: .eseq effects and .fseq sequences
         $effRaw = @file_get_contents('http://localhost/api/effects');
-        $bg['_effects'] = $effRaw !== false ? (json_decode($effRaw, true) ?: []) : [];
+        $seqRaw = @file_get_contents('http://localhost/api/sequence');
+        $bg['_effects']   = $effRaw !== false ? (json_decode($effRaw, true) ?: []) : [];
+        $bg['_sequences'] = $seqRaw !== false ? (json_decode($seqRaw, true) ?: []) : [];
         echo json_encode($bg);
         break;
 
