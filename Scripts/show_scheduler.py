@@ -16,6 +16,7 @@ Config files (all in /home/fpp/media/config/):
 """
 
 import datetime
+import fcntl
 import glob
 import json
 import logging
@@ -645,6 +646,10 @@ class ShowScheduler:
                 log.warning("FPP never reported '%s' as current playlist — aborting wait", playlist)
                 return
             log.info("FPP confirmed playing: %s", playlist)
+            # Lift the pre-show dim now that the show is on — the light show
+            # itself plays at normal brightness (the dim is only a brief
+            # pre-show cue during start-up).
+            trigger_dim_restore(an_cfg)
             # Wait for the show playlist to end; 2-hour cap as safety net
             max_wait = 7200
             waited   = 0
@@ -879,5 +884,26 @@ class ShowScheduler:
             t.join()
 
 
+LOCK_PATH = "/tmp/showmanager_scheduler.lock"
+
+def acquire_single_instance():
+    """Exclusive lock so only one scheduler ever runs. Without this, a second
+    copy (e.g. a restart racing the boot launch) double-fires every show,
+    announcement, and background action. The lock releases automatically when
+    the holding process dies."""
+    handle = open(LOCK_PATH, "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log.warning("Another scheduler is already running — exiting this copy")
+        return None
+    handle.write(str(os.getpid()))
+    handle.flush()
+    return handle   # keep the fd open for the process lifetime to hold the lock
+
+
 if __name__ == "__main__":
+    _lock = acquire_single_instance()
+    if _lock is None:
+        raise SystemExit(0)
     ShowScheduler().run()
