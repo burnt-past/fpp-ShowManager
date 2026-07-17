@@ -1,25 +1,20 @@
 # Screenshots
 
-Place actual screenshots here once the plugin is running on a live FPP instance.
+Place screenshots of the running plugin here.
 
-## Expected files
+## Suggested captures
 
 | Filename | What to capture |
 |---|---|
-| `hardware.png` | Hardware settings page — XR18 IP and channel fields |
-| `shows.png` | Shows page with at least two show definitions filled in |
-| `schedule.png` | Calendar view with several shows scheduled and one blackout day visible |
-| `schedule-day.png` | The day editor modal open, showing a rotation entry and an add-show form |
-| `announcements.png` | Announcements page fully configured with pre-show rows and daytime settings |
+| `status.png` | Status tab — now-playing, meters, manual trigger, system pills, log |
+| `schedule.png` | Schedule tab (Month view) with shows, a blackout, and the background window chips |
+| `background.png` | Background tab — music and effect schedules |
+| `announcements.png` | Announcements tab — ducking, lighting fade, pre-show rows, daytime, files |
+| `hardware.png` | Hardware tab — XR18 mixer settings |
+| `kiosk.png` | The full-screen kiosk during a show |
 
-## How to capture
+## Tips
 
-1. Open the FPP web interface on your laptop/desktop browser
-2. Navigate to each plugin page via the FPP menu
-3. Use your OS screenshot tool or browser's built-in screenshot (F12 → device toolbar → screenshot)
-4. Crop to just the plugin content area (exclude the FPP chrome if possible)
-5. Save as PNG at the filenames above and place in this folder
-
-## Recommended resolution
-
-1280×800 or similar — wide enough to show the full table layouts without horizontal scroll.
+1. Open the FPP web UI in a desktop browser (the settings pages fill FPP's content panel).
+2. For the kiosk, open it standalone: `…&page=kiosk.php&nopage=1`.
+3. Crop to the plugin content where possible. 1280×800+ keeps the layouts readable.

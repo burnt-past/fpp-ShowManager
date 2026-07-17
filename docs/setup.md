@@ -2,218 +2,127 @@
 
 ## Prerequisites
 
-Before installing this plugin you need:
+- **FPP 9.4 or later** on a Linux host
+- `ffmpeg` (or `mpg123`) for announcement playback
+- **fpp-brightness** plugin — optional, for the pre-show brightness fade
+- **Behringer XR18** on the same LAN — optional, for volume sync/ducking
+- **fpp-plugin-3DViewer** — optional, for the kiosk's live 3D preview and show-synced garland
 
-- **FPP 5.0 or later** running on a Linux machine
-- **Behringer XR18** on the same local network as the FPP host (Ethernet or Wi-Fi)
-- **fpp-brightness plugin** installed (for pre-show lighting dim/restore)
-- The FPP host connected to the XR18 via **USB** for audio output
-- `ffmpeg` installed for announcement playback
+Everything except FPP itself is optional; features whose hardware/plugins are absent simply no-op.
 
 ---
 
-## Step 1 — Install dependencies
+## Step 1 — Install audio playback
 
-SSH into your FPP host:
+SSH into the FPP host:
 
 ```bash
 sudo apt update
-sudo apt install -y ffmpeg
+sudo apt install -y ffmpeg     # or: sudo apt install -y mpg123
 ```
 
-Verify it installed:
+---
+
+## Step 2 — Install the plugin
+
+1. FPP web UI → **Content Setup → Plugin Manager**
+2. Install **Show Manager** (repo `burnt-past/fpp-ShowManager`)
+
+The daemons (`xr18_bridge.py`, `show_scheduler.py`) start automatically on boot via `scripts/postStart.sh` — the hook FPP runs after fppd starts.
+
+**After installing or updating, restart the daemons once** so the new code takes over: **Plugin Setup → Restart Daemons**, the **Restart Scheduler** button on the Status tab, or a reboot.
+
+---
+
+## Step 3 — (Optional) fpp-brightness
+
+For the pre-show brightness fade, install **fpp-brightness** from the Plugin Manager. No extra configuration is needed. Without it, the brightness fade simply does nothing.
+
+---
+
+## Step 4 — (Optional) Connect the XR18
+
+For volume sync and announcement ducking:
+
+**Network** — the XR18 must be reachable over UDP. Find its IP in *X AIR Edit* and put the FPP host on the same subnet. On dedicated event Wi-Fi, disable AP/client isolation so device-to-device UDP works.
+
+**USB audio** — connect the FPP host to the XR18's USB port and confirm the device:
 
 ```bash
-ffmpeg -version
+aplay -l          # look for "XR18" / "X18"
 ```
 
-If `ffmpeg` is unavailable on your image, `mpg123` is used as a fallback:
+Set it as FPP's audio output in **FPP → Settings**. In X AIR Edit, route **USB Return** to your music channel(s) and assign them to the main LR mix.
 
-```bash
-sudo apt install -y mpg123
-```
+**Configure** — open the **Hardware** tab and set the mixer IP, music fader channel, show/idle levels, and announce channel/level. Saving restarts the bridge automatically.
 
 ---
 
-## Step 2 — Install the plugin via FPP Plugin Manager
+## Step 5 — Build your schedule
 
-1. Open the FPP web interface in your browser
-2. Go to **Content Setup → Plugin Manager**
-3. Search for **Show Manager** or paste the repository URL:
-   `https://github.com/burnt-past/fpp-ShowManager`
-4. Click **Install**
-5. FPP will clone the repo and run `plugin_setup.php`, which starts both background daemons
+Open **Show Manager** in the FPP menu. Work through the tabs:
 
----
+- **Schedule** — click a day to add a one-off show (pick an FPP playlist and time), or add a repeating rule (days, window, interval). Mark whole-day or timed blackouts.
+- **Background** — set the background music playlist + window, and the background effect (`.eseq`/`.fseq`) + window.
+- **Announcements** — add pre-show announcement rows, daytime announcements, ducking, and the pre-show brightness fade. Upload audio here or drop files in the folders below.
+- **Status** — watch it run, trigger a playlist manually, and read the scheduler log.
 
-## Step 3 — Install fpp-brightness
+The scheduler reads the calendar every 30 seconds — no restart needed after schedule changes.
 
-If not already installed:
-
-1. In FPP Plugin Manager, search for **fpp-brightness**
-2. Install it — no additional configuration is needed for this plugin to work with ours
-
----
-
-## Step 4 — Connect and configure the XR18
-
-### Network connection
-
-The XR18 must be reachable from the FPP host over UDP. Find its IP address in **X AIR Edit** (the Behringer control app) under the network status screen.
-
-Make sure your FPP host and XR18 are on the **same subnet**. A dedicated Wi-Fi network for the XR18 (common in live setups) works as long as the FPP host can reach it.
-
-### USB audio connection
-
-Plug a USB cable from the FPP host to the XR18's USB port. The XR18 will appear as an ALSA audio device. To confirm:
-
-```bash
-aplay -l
-# Look for "XR18" or "X18" in the output
-```
-
-Set this device as FPP's audio output in **FPP → Settings → Audio**.
-
-### XR18 internal routing
-
-In X AIR Edit, route **USB Return 1-2** to the channels you intend to use for music. By default this plugin assumes:
-
-- **Channel 01** — music left
-- **Channel 02** — music right
-
-Both channels should be assigned to the main LR mix.
-
----
-
-## Step 5 — Configure the plugin
-
-Open **FPP → Plugins → Show Manager — Hardware**:
-
-| Field | Value |
-|---|---|
-| XR18 IP Address | IP shown in X AIR Edit (e.g. `192.168.1.50`) |
-| Music Channel 1 | `01` (or whichever XR18 channel your music left goes to) |
-| Music Channel 2 | `02` |
-| Announcement Channel | `03` (optional — only relevant if you have a separate input there) |
-| Announcement Channel Volume | `0.75` — the fader level maintained on the announcement channel |
-
-Click **Save Settings**.
-
----
-
-## Step 6 — Define your shows
-
-Go to **Show Manager — Shows**:
-
-1. Click **+ Add Show** for each show you have
-2. Give it an ID (no spaces, e.g. `show_a`), a display name, and select its FPP playlist from the dropdown
-3. Optionally select a **pre-show transition playlist** — an FPP sequence you've created that fades or dims the lighting before the main show begins
-4. Set the **transition duration** (seconds) — how long to run the transition before starting the main show
-5. Set the **approximate duration** (minutes) — used as a timeout safety net; make it 1.5–2× your actual show length
-6. Click **Save Shows**
-
----
-
-## Step 7 — Configure announcements
-
-Go to **Show Manager — Announcements**:
-
-### Place your audio files
+### Announcement audio locations
 
 ```
-/home/fpp/media/plugins/ShowManager/announcements/
-    5min.mp3              ← pre-show warning files (any name you choose)
-    10min.mp3
-    15min.mp3
-    daytime/
-        ad_01.mp3         ← general/daytime announcement files
-        ad_02.mp3
-        ...
+/home/fpp/media/plugins/fpp-ShowManager/announcements/         ← pre-show
+/home/fpp/media/plugins/fpp-ShowManager/announcements/daytime/ ← daytime
 ```
 
-The folders are created automatically when the plugin loads. Copy files in via SFTP or `scp`.
-
-### Settings
-
-- **Duck level** — how quiet the music gets while an announcement plays (0.25 = 25% of current level)
-- **Fade duration** — how many seconds the fade down/up takes (2–3 seconds feels natural)
-- **Gain boost** — how much louder the announcement audio is relative to the music (6 dB ≈ 2× volume)
-- **Pre-show brightness** — the fpp-brightness value while a show is starting (0 = fully off, 100 = normal)
-- **Normal brightness** — restored after each show ends
-- **Background playlist** — the FPP playlist that plays (looping) between shows
-- **Pre-show announcements** — add one row per warning; set minutes before show and filename
+These folders are created automatically. Pre-show rows can also point at any audio already in FPP's `music/` or `upload/` folders.
 
 ---
 
-## Step 8 — Schedule your shows
+## Step 6 — (Optional) Kiosk
 
-Go to **Show Manager — Schedule**:
+The **Kiosk** button (top-right of the plugin) opens a full-screen, touch-first page for a wall-mounted tablet: giant show state, one-tap start, hold-to-stop, temporary volume, "disable system", a live 3D preview, and a light string that mirrors the running show. Bookmark it on the tablet:
 
-1. Navigate to the current month using **Prev / Next**
-2. Click on any day to open the day editor
-3. Click **Add Show to Day**, set the time, choose the show (or set up a rotation)
-4. To mark a date as a **blackout** (no shows), click **Mark as Blackout** in the day editor
+```
+http://<fpp-host>/plugin.php?plugin=fpp-ShowManager&page=kiosk.php&nopage=1
+```
 
-The scheduler reads this calendar every 30 seconds. No restart is needed after making schedule changes.
+The 3D preview and show-synced garland appear only if **fpp-plugin-3DViewer** is installed; everything else works without it.
 
 ---
 
-## Folder structure
+## Folder & file layout
 
 ```
-/home/fpp/media/plugins/ShowManager/
-│
+/home/fpp/media/plugins/fpp-ShowManager/
+├── app.php                 ← operator UI (all tabs)
+├── kiosk.php               ← wall-tablet kiosk
+├── ajax.php                ← UI backend
+├── scripts/postStart.sh    ← starts the daemons on boot
 ├── Scripts/
-│   ├── xr18_bridge.py          ← XR18 OSC volume sync daemon
-│   └── show_scheduler.py       ← Show/announcement scheduler daemon
-│
-├── announcements/
-│   ├── 5min.mp3                ← Your pre-show announcement files
-│   ├── 10min.mp3
-│   └── daytime/
-│       └── *.mp3               ← General daytime announcement files
-│
-├── config.php                  ← Hardware settings page
-├── shows.php                   ← Show definitions page
-├── schedule.php                ← Calendar page
-├── announcements.php           ← Announcement settings page
-├── plugin_setup.php            ← Starts both daemons on plugin load
-└── pluginInfo.json
+│   ├── xr18_bridge.py       ← XR18 OSC volume sync
+│   └── show_scheduler.py    ← scheduler / background / announcements
+└── announcements/…          ← uploaded audio
 
-/home/fpp/media/config/
-├── ShowManager.config    ← Hardware settings (JSON)
-├── ShowManagerShows.config            ← Show definitions (JSON)
-├── ShowManagerSchedule.config         ← Calendar entries (JSON)
-├── ShowManagerAnnouncements.config    ← Announcement settings (JSON)
-└── ShowManagerRotation.config    ← Auto-managed rotation state (JSON)
-
-/home/fpp/media/logs/
-├── xr18_bridge.log             ← Volume sync log
-└── showmanager.log          ← Scheduler / announcement log
+/home/fpp/media/config/      ← ShowManager*.config (see configuration.md)
+/home/fpp/media/logs/        ← showmanager.log, xr18_bridge.log
 ```
 
 ---
 
-## Verifying the daemons are running
+## Verifying the daemons
 
 ```bash
-ps aux | grep -E "xr18_bridge|show_scheduler"
-```
-
-You should see two Python processes. If not, check the logs:
-
-```bash
-tail -f /home/fpp/media/logs/xr18_bridge.log
+pgrep -af "xr18_bridge|show_scheduler"
 tail -f /home/fpp/media/logs/showmanager.log
 ```
 
-To restart manually:
+You should see exactly **one** of each process (a single-instance lock prevents duplicates). To restart, use the **Restart Daemons** / **Restart Scheduler** buttons, or:
 
 ```bash
-pkill -f xr18_bridge.py
-pkill -f show_scheduler.py
-python3 /home/fpp/media/plugins/ShowManager/Scripts/xr18_bridge.py &
-python3 /home/fpp/media/plugins/ShowManager/Scripts/show_scheduler.py &
+pkill -f show_scheduler.py; pkill -f xr18_bridge.py
+sleep 1
+python3 /home/fpp/media/plugins/fpp-ShowManager/Scripts/xr18_bridge.py    >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &
+python3 /home/fpp/media/plugins/fpp-ShowManager/Scripts/show_scheduler.py >> /home/fpp/media/logs/showmanager.log 2>&1 &
 ```
-
-Or simply disable and re-enable the plugin in FPP's Plugin Manager, which re-runs `plugin_setup.php`.

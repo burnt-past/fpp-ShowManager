@@ -1,211 +1,226 @@
 # Configuration Reference
 
-All settings are stored as JSON files in `/home/fpp/media/config/`. They are written by the plugin's web pages and read by the daemons. You can edit them directly if needed — the daemons pick up changes within 30–60 seconds without a restart.
+All settings are JSON files in `/home/fpp/media/config/`. The plugin's tabs write them and the daemons read them — the scheduler picks up changes within about a minute without a restart. You can edit them directly if needed.
+
+The plugin also writes a few coordination files under `/tmp` (see [Runtime files](#runtime-files)); those are not configuration and should not be edited.
 
 ---
 
-## ShowManager.config — Hardware
+## ShowManagerHardware.config — Hardware
 
-Managed by the **Hardware** page.
+Managed by the **Hardware** tab. Also seeds the XR18 bridge.
 
 ```json
 {
-  "xr18_ip":       "192.168.1.50",
-  "music_ch1":     "01",
-  "music_ch2":     "02",
-  "announce_ch":   "03",
-  "announce_vol":  "0.75",
-  "duck_level":    0.25,
-  "duck_fade_secs": 2.0
+  "mixer_ip":      "192.168.1.50",
+  "fader_channel": 1,
+  "show_level":    0.75,
+  "idle_level":    0.0,
+  "announce_ch":   3,
+  "announce_vol":  0.75
 }
 ```
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `xr18_ip` | string | `192.168.0.1` | IP address of the XR18 on your network |
-| `music_ch1` | string | `01` | XR18 input channel number for music left (01–18) |
-| `music_ch2` | string | `02` | XR18 input channel number for music right (01–18) |
-| `announce_ch` | string | `03` | XR18 channel maintained at a fixed fader level for a separate announcement source |
-| `announce_vol` | string/float | `0.75` | Fader level (0.0–1.0) held on the announcement channel |
-| `duck_level` | float | `0.25` | Fader level music channels drop to during an announcement |
-| `duck_fade_secs` | float | `2.0` | Duration of the fade down and fade up in seconds |
+| `mixer_ip` | string | `192.168.0.1` | IP address of the XR18 |
+| `fader_channel` | int | `1` | XR18 music channel synced with FPP volume |
+| `show_level` | float | `0.75` | Music fader level applied when a show starts |
+| `idle_level` | float | `0.0` | Music fader level applied after a show ends |
+| `announce_ch` | int | `3` | XR18 channel held at a fixed level for a separate announcement source |
+| `announce_vol` | float | `0.75` | Fader level (0–1) held on the announcement channel |
 
----
+> Ducking settings (`duck_level`, `duck_fade_secs`) live in the Announcements config, below.
 
-## ShowManagerShows.config — Show Definitions
-
-Managed by the **Shows** page.
-
-```json
-{
-  "shows": [
-    {
-      "id":                   "show_a",
-      "name":                 "Show A",
-      "playlist":             "ShowPlaylistA",
-      "transition_playlist":  "PreShowFadeA",
-      "transition_secs":      120,
-      "duration_mins":        15
-    },
-    {
-      "id":                   "show_b",
-      "name":                 "Show B",
-      "playlist":             "ShowPlaylistB",
-      "transition_playlist":  "",
-      "transition_secs":      0,
-      "duration_mins":        12
-    }
-  ]
-}
-```
-
-| Key | Type | Description |
-|---|---|---|
-| `id` | string | Unique identifier, no spaces (used in schedule entries) |
-| `name` | string | Human-readable label shown in the calendar |
-| `playlist` | string | Name of the FPP playlist to trigger at show time |
-| `transition_playlist` | string | FPP playlist triggered before the show for lighting transitions (optional — leave blank to skip) |
-| `transition_secs` | int | How many seconds to run the transition playlist before starting the main show |
-| `duration_mins` | int | Approximate show duration — used as a ×3 safety timeout. Set to your actual show length; the scheduler polls FPP for the real end. |
+Older installs may have a legacy `ShowManager.config` with `xr18_ip`/`music_ch1`/`music_ch2` — it is read as a fallback only.
 
 ---
 
 ## ShowManagerSchedule.config — Calendar
 
-Managed by the **Schedule** page. You should not need to edit this manually.
+Managed by the **Schedule** tab. One `entries` array (one-off shows and blackouts) plus a `rules` array (repeating shows).
 
 ```json
 {
   "entries": [
-    {
-      "id":      "e_abc123",
-      "date":    "2024-12-14",
-      "type":    "show",
-      "time":    "19:30",
-      "show_id": "show_a"
-    },
-    {
-      "id":           "e_def456",
-      "date":         "2024-12-14",
-      "type":         "show",
-      "time":         "21:00",
-      "rotation_ids": ["show_a", "show_b"]
-    },
-    {
-      "id":     "e_ghi789",
-      "date":   "2024-12-20",
-      "type":   "blackout",
-      "reason": "Private event"
-    }
+    { "id": "e_abc", "date": "2026-12-14", "type": "show", "time": "19:30",
+      "playlist": "Main Street Magic" },
+
+    { "id": "e_def", "date": "2026-12-14", "type": "show", "time": "21:00",
+      "playlists": ["Show A", "Show B"] },
+
+    { "id": "e_ghi", "date": "2026-12-24", "type": "blackout" },
+
+    { "id": "e_jkl", "date": "2026-12-25", "type": "blackout",
+      "start_time": "22:00", "end_time": "23:00" }
+  ],
+  "rules": [
+    { "id": "r_1", "playlist": "Main Street Magic",
+      "days": [5, 6], "window_start": "19:00", "window_end": "22:00",
+      "interval_mins": 30, "start_date": "2026-11-28", "end_date": "2026-12-31" }
   ]
 }
 ```
 
-### Entry types
+### Show entries
 
-**`show` with specific playlist:**
-```json
-{ "type": "show", "date": "2024-12-14", "time": "19:30", "show_id": "show_a" }
-```
+| Key | Description |
+|---|---|
+| `type` | `"show"` |
+| `date` | `YYYY-MM-DD` |
+| `time` | `HH:MM` (24-hour) |
+| `playlist` | FPP playlist to start; **or** |
+| `playlists` | list of playlists that rotate — a different one each time the slot fires (state in `ShowManagerRotation.config`) |
 
-**`show` with rotation:**
-```json
-{ "type": "show", "date": "2024-12-14", "time": "21:00", "rotation_ids": ["show_a", "show_b"] }
-```
-Rotation automatically alternates between shows in order each time that slot fires. State is tracked in `ShowManagerRotation.config`.
+### Blackout entries
 
-**`blackout`:**
-```json
-{ "type": "blackout", "date": "2024-12-20", "reason": "Private event" }
-```
-All shows and pre-show announcements for this date are suppressed.
+| Key | Description |
+|---|---|
+| `type` | `"blackout"` |
+| `date` | `YYYY-MM-DD` |
+| `start_time` / `end_time` | optional `HH:MM` range. Omit both for a whole-day blackout. |
+
+A blackout is the venue's **quiet hours**: it suppresses shows and background **music** (audio), but background **lighting effects keep running**.
+
+### Repeating rules
+
+| Key | Description |
+|---|---|
+| `playlist` / `playlists` | same as show entries |
+| `days` | day-of-week list, `0`=Sun … `6`=Sat |
+| `window_start` | first show time `HH:MM` |
+| `window_end` | optional — with `interval_mins`, generates shows across the window |
+| `interval_mins` | optional — spacing between generated shows |
+| `start_date` / `end_date` | active date range |
+
+Rules are expanded into virtual show entries per day; you don't edit them by hand.
 
 ---
 
-## ShowManagerAnnouncements.config — Announcements
+## ShowManagerBackground.config — Background music & effects
 
-Managed by the **Announcements** page.
+Managed by the **Background** tab. Two independent daily windows.
 
 ```json
 {
-  "folder":              "/home/fpp/media/plugins/ShowManager/announcements",
-  "gain_db":             6.0,
-  "max_duration_secs":   300,
-  "background_playlist": "BackgroundMusic",
+  "music":  { "enabled": true,  "playlist": "Ambient Mix",
+              "start": "16:00", "end": "23:00" },
+  "effect": { "enabled": true,  "effect": "Standby-V2", "type": "fseq",
+              "start": "17:00", "end": "05:00" }
+}
+```
+
+| Key | Description |
+|---|---|
+| `music.enabled` | loop the background playlist during its window |
+| `music.playlist` | FPP playlist (audio) to loop when idle |
+| `music.start` / `.end` | daily window `HH:MM`; equal start & end = all day |
+| `effect.enabled` | run the background overlay during its window |
+| `effect.effect` | name of the `.eseq` effect or `.fseq` sequence |
+| `effect.type` | `"eseq"` or `"fseq"` (selects the FPP command used) |
+| `effect.start` / `.end` | daily window `HH:MM`; windows may cross midnight |
+
+Background music plays only when FPP is idle (never over a show) and is silenced by blackouts. The effect is an overlay: suppressed only while a show runs, but it keeps running through blackouts. Both stand down on a system disable or manual stop.
+
+For backward compatibility, an old `background_playlist` in the Announcements config is treated as an always-on music window until this file is configured.
+
+---
+
+## ShowManagerAnnouncements.config — Announcements, ducking & lighting
+
+Managed by the **Announcements** tab.
+
+```json
+{
+  "duck_level": 0.25,
+  "duck_fade_secs": 2.0,
+  "gain_db": 6.0,
+  "max_duration_secs": 300,
   "pre_show_brightness": 20,
-  "normal_brightness":   100,
+  "normal_brightness": 100,
+  "pre_show_fade_secs": 30,
+  "fade_anchor_mins": "1",
   "pre_show": [
-    { "mins_before": 15, "file": "15min.mp3" },
-    { "mins_before": 10, "file": "10min.mp3" },
-    { "mins_before": 5,  "file": "5min.mp3"  }
+    { "mins_before": 5, "file": "preshow_5min.mp3" },
+    { "mins_before": 1, "file": "countdown.mp3" }
   ],
   "daytime": {
-    "enabled":       true,
-    "start":         "10:00",
-    "end":           "18:00",
-    "interval_mins": 20,
-    "folder":        "/home/fpp/media/plugins/ShowManager/announcements/daytime"
+    "enabled": true, "start": "10:00", "end": "18:00", "interval_mins": 20
   }
 }
 ```
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `folder` | string | — | Base folder for pre-show announcement MP3s |
-| `gain_db` | float | `6.0` | Software volume boost applied to announcement audio. 6 dB ≈ 2× louder; 12 dB ≈ 4× louder. |
-| `max_duration_secs` | int | `300` | Safety timeout — playback process is killed if it runs longer than this |
-| `background_playlist` | string | — | FPP playlist started (looping) after every show ends |
-| `pre_show_brightness` | int | `20` | fpp-brightness value set when a show is about to start (0–200, 100 = normal) |
-| `normal_brightness` | int | `100` | fpp-brightness value restored after a show ends |
-| `pre_show` | array | `[]` | List of `{mins_before, file}` announcements. Firing is within a ±30-second window. |
-| `daytime.enabled` | bool | `false` | Whether daytime general announcements are active |
-| `daytime.start` / `.end` | string | `10:00` / `18:00` | Time window for daytime announcements (HH:MM, 24-hour) |
+| `duck_level` | float | `0.25` | Fader level music drops to during an announcement |
+| `duck_fade_secs` | float | `2.0` | Duration of the duck fade down/up |
+| `gain_db` | float | `6.0` | Software volume boost on announcement audio (6 dB ≈ 2×) |
+| `max_duration_secs` | int | `300` | Playback is killed if it runs longer than this |
+| `pre_show_brightness` | int | `20` | Brightness the pre-show fade dims to (0–200) |
+| `normal_brightness` | int | `100` | Brightness snapped to at show start |
+| `pre_show_fade_secs` | int | `30` | Duration of the pre-show brightness fade |
+| `fade_anchor_mins` | string | `""` | `""` = fade starts the fade time before the show; a number = fade starts when the pre-show announcement at that `mins_before` begins |
+| `pre_show` | array | `[]` | `{mins_before, file}` rows; `file` may be a bare name or an absolute path |
+| `daytime.enabled` | bool | `false` | Random daytime announcements on an interval |
+| `daytime.start` / `.end` | string | `10:00`/`18:00` | Daytime window (HH:MM) |
 | `daytime.interval_mins` | int | `20` | Minimum minutes between daytime announcements |
-| `daytime.folder` | string | — | Folder for daytime MP3s (separate from pre-show) |
+
+**Pre-show brightness fade:** brightness eases from `normal_brightness` down to `pre_show_brightness` over `pre_show_fade_secs`, holds dim until show time, then — after the background overlay effect is stopped — snaps back to `normal_brightness` as the show begins. The fade begins either `pre_show_fade_secs` before the show, or (if `fade_anchor_mins` is set) when that pre-show announcement plays. Requires the [fpp-brightness](https://github.com/FalconChristmas/fpp-brightness) plugin; no-ops without it.
 
 ---
 
-## ShowManagerRotation.config — Rotation State
+## ShowManagerOverrides.config — Disable override
 
-**Auto-managed — do not edit manually.**
-
-Tracks which show in each rotation group was last played so the next one is always different.
+Written by the **kiosk** (and the "Disable system" controls). Empty when the system is enabled.
 
 ```json
-{
-  "rotations": {
-    "show_a,show_b": { "next_index": 1 }
-  }
-}
+{ "disabled_until": "2026-12-25T04:00:00" }
 ```
 
-The key is the comma-joined list of `rotation_ids` in the schedule entry. The `next_index` advances by 1 each time the slot fires, wrapping around.
-
-To reset a rotation (start back from the first show), delete the matching key from this file, or delete the file entirely.
+While `disabled_until` is in the future, the scheduler skips shows, background music, and background effects. It clears itself when the time passes or when re-enabled.
 
 ---
 
-## OSC port reference
+## ShowManagerRotation.config — Rotation state
+
+**Auto-managed — do not edit.** Tracks which entry in a `playlists` rotation fires next.
+
+```json
+{ "rotations": { "Show A,Show B": { "next_index": 1 } } }
+```
+
+The key is the comma-joined playlist list. Delete a key (or the file) to reset a rotation to the first playlist.
+
+---
+
+## Runtime files (`/tmp`)
+
+Not configuration — coordination state, safe to delete when the daemons are stopped.
+
+| File | Purpose |
+|---|---|
+| `xr18_pause_sync` | Set while an announcement ducks; pauses the bridge's fader sync |
+| `xr18_current_fader` | Current music fader level, shared bridge → scheduler |
+| `showmanager_manual_stop` | A manual Stop is in effect; background stays down until the next show |
+| `showmanager_bg_status.json` | Live background music/effect status the Status tab reads |
+| `showmanager_scheduler.lock` | Single-instance lock (flock) so only one scheduler runs |
+
+---
+
+## OSC & API reference
 
 | Direction | Protocol | Port | Purpose |
 |---|---|---|---|
-| FPP host → XR18 | UDP | 10024 | Send fader commands, `/xremote` heartbeat |
-| XR18 → FPP host | UDP | 10023 | Receive fader update notifications |
+| FPP → XR18 | UDP | 10024 | Fader commands, `/xremote` heartbeat |
+| XR18 → FPP | UDP | 10023 | Fader update notifications |
 
-Ensure no firewall blocks these ports on the FPP host or your router/switch.
+FPP HTTP API endpoints the plugin uses:
 
----
-
-## fpp-brightness API
-
-The plugin calls the fpp-brightness REST endpoint directly:
-
-```
-GET http://localhost/api/plugin-apis/Brightness/{value}
-```
-
-- **0** — completely off
-- **100** — normal/unity brightness
-- **200** — double brightness
-
-The `pre_show_brightness` and `normal_brightness` settings map directly to this value.
+- `GET /api/fppd/status` — playback state, current playlist/sequence, volume
+- `GET /api/command/Start%20Playlist/{name}/{repeat}` — start a playlist
+- `GET /api/command/Stop%20Now` — stop playback
+- `GET /api/command/Effect%20Start/{name}/{ch}/{loop}/{bg}` — start an `.eseq` overlay
+- `GET /api/command/FSEQ%20Effect%20Start/{name}/{loop}/{bg}` — overlay an `.fseq`
+- `GET /api/command/Effect%20Stop/{name}` · `.../FSEQ%20Effect%20Stop/{name}` — stop an overlay
+- `GET /api/plugin-apis/Brightness/{0-200}` — set global brightness (fpp-brightness)
+- `GET /api/system/volume` · `PUT /api/system/volume` — read/set FPP volume

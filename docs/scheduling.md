@@ -1,178 +1,91 @@
 # Scheduling Guide
 
-The scheduler lets you plan shows by calendar date rather than by day-of-week pattern. Each date can have multiple shows at different times, a rotation between playlists, or a full blackout.
+Shows are FPP **playlists** placed on a calendar by date. Each day can hold several shows, one-off or generated from repeating rules, plus blackouts. There is no separate "shows" definition step — you pick a playlist directly when you schedule it.
+
+Open **Show Manager → Schedule**. Switch between **Month**, **Week**, and **Day** views with the segmented control.
 
 ---
 
-## The Shows Page
+## Adding a one-off show
 
-Before you can schedule anything you need at least one show defined. Go to **Show Manager — Shows**.
+1. Click a day (or **+ Add Show**).
+2. Set the **date**, **time**, and pick an FPP **playlist**.
+3. Save — it appears on the calendar as a green chip.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ Show Definitions                                                             │
-│─────────────────────────────────────────────────────────────────────────────│
-│ ID          Name       FPP Playlist    Transition Playlist  Trans.  Duration │
-│─────────────────────────────────────────────────────────────────────────────│
-│ show_a    │ Show A   │ ShowPlaylistA │ PreShowFadeA       │  120s │  15 min │
-│ show_b    │ Show B   │ ShowPlaylistB │ (none)             │    0s │  12 min │
-│─────────────────────────────────────────────────────────────────────────────│
-│ [+ Add Show]                                               [Save Shows]     │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Fields explained
-
-**ID** — A short code with no spaces (e.g. `show_a`). Used internally in the schedule data. Pick something you'll recognize.
-
-**FPP Playlist** — The playlist FPP plays for the main show. Populated from your actual FPP playlists.
-
-**Transition Playlist** — Optional. An FPP sequence you've built that fades or dims the lights leading into the show. The scheduler triggers this first, waits `transition_secs`, then starts the main playlist. Leave blank if you don't need a transition.
-
-**Transition Duration** — How long (in seconds) to run the transition before the main show starts. Should match the length of your transition sequence.
-
-**Approximate Duration** — Your show's rough runtime in minutes. This is used as a safety timeout (×3 the value) in case FPP doesn't return to idle cleanly. **Always set this to your actual show length**, not a padded value — the scheduler detects the real end by polling FPP.
+Click a day to reopen it and remove or edit entries.
 
 ---
 
-## The Schedule Calendar
+## Repeating rules
 
-Go to **Show Manager — Schedule**.
+For shows that recur, use **+ New Rule** instead of adding each night by hand:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ‹ Prev          December 2024          Next ›                               │
-│─────────────────────────────────────────────────────────────────────────────│
-│  Sun      Mon      Tue      Wed      Thu      Fri      Sat                  │
-│─────────────────────────────────────────────────────────────────────────────│
-│  1        2        3        4        5        6        7                    │
-│                                      19:00    19:00    19:30                │
-│                                      Show A   Show A   ↻ A/B               │
-│─────────────────────────────────────────────────────────────────────────────│
-│  8        9        10       11       12       13       14                   │
-│                             ⛔ BLKOUT          19:00    19:30               │
-│                                               Show B   ↻ A/B               │
-│─────────────────────────────────────────────────────────────────────────────│
-│  ...                                                                        │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| Field | Meaning |
+|---|---|
+| Playlist | The FPP playlist to run |
+| Days | Which days of the week |
+| Show time | First show of the night |
+| Repeat until | (optional) end of the show window |
+| Interval | (optional) minutes between shows across the window |
+| Start / End date | The date range the rule is active |
 
-- **Green badges** — scheduled shows with their start times
-- **↻ A/B** — rotation slot (alternates between Show A and Show B)
-- **Red background + ⛔ BLKOUT** — blackout date, no shows will fire
+Example: Fri & Sat, 7:00 PM to 10:00 PM, every 30 minutes, Nov 28 – Dec 31. The rule is expanded into individual show times on the calendar (blue "rule-generated" chips). Edit or delete the rule from the **Repeating Rules** panel below the calendar.
 
 ---
 
-## Adding a show to a day
+## Playlist rotation
 
-1. Click on the date
-2. The day editor slides open:
-
-```
-┌─────────────────────────────────────┐
-│ Saturday, December 7 2024           │
-│─────────────────────────────────────│
-│ 19:30 — Show A                  [✕] │
-│ 21:00 — ↻ Show A / Show B       [✕] │
-│                                     │
-│ ─── Add Show ───                    │
-│ Time: [19:00]                       │
-│ Assignment:                         │
-│   ● Specific show  ○ Rotation       │
-│ Show: [Show A ▾]                   │
-│                                     │
-│ [Add Show to Day]                   │
-│─────────────────────────────────────│
-│ [Mark as Blackout]   [Close]        │
-└─────────────────────────────────────┘
-```
-
-3. Set the **time** (24-hour or 12-hour depending on your browser locale)
-4. Choose **Specific show** and pick from the dropdown, or choose **Rotation** and tick two or more shows
-5. Click **Add Show to Day** — it appears on the calendar immediately
-6. Click **✕** next to any entry to remove it
+Give a show entry (or rule) a **list** of playlists and it rotates — a different one each time that slot fires, so shows don't repeat back-to-back. State lives in `ShowManagerRotation.config`; delete its key to reset to the first playlist.
 
 ---
 
-## Rotation — alternating shows automatically
+## Blackouts = quiet hours
 
-When you pick **Rotation** and select two or more shows, the scheduler automatically cycles through them in order each time that slot fires:
+Mark a day (or a time range) as a blackout when the show should not run:
 
-```
-Dec 7  21:00  → Show A   (index 0)
-Dec 8  21:00  → Show B   (index 1)
-Dec 9  21:00  → Show A   (index 0, wraps)
-...
-```
+- **Whole-day blackout** — no times set. The day is shown solid red; no shows run.
+- **Timed blackout** — a start/end time. Only shows inside that window are suppressed; the day shows a red time-range chip.
 
-The state is stored in `ShowManagerRotation.config`. If you want to reset the rotation (start back at Show A), delete the file or use the FPP SSH terminal:
+A blackout is treated as the venue's **quiet hours**. During it:
 
-```bash
-rm /home/fpp/media/config/ShowManagerRotation.config
-```
+| | Blackout |
+|---|---|
+| Shows | suppressed |
+| Background **music** (audio) | suppressed |
+| Background **effect** (lighting) | **keeps running** |
 
-Rotation is per slot key (the comma-joined list of show IDs). Changing which shows are in the rotation creates a new key and resets the counter for that group.
+So the display stays lit during quiet hours, but the sound goes off. (The kiosk's **Disable system** is different — it turns *everything* off.)
 
 ---
 
-## Blackout dates
+## Background windows on the calendar
 
-Clicking **Mark as Blackout** on a date adds a blackout entry. On blackout dates:
-
-- No shows fire, even if show entries exist for that date
-- All pre-show announcements are suppressed
-- Daytime announcements still play normally (they are not show-related)
-
-To remove a blackout, open the day and click **Remove Blackout**.
+The daily background **music** and **effect** windows (set on the Background tab) are shown on every calendar day — a purple "Music HH:MM–HH:MM" chip and a cyan "Effect HH:MM–HH:MM" chip, pinned below the show chips. Day view lists them as rows with an Edit link.
 
 ---
 
 ## How the scheduler fires events
 
-The scheduler loop runs every **30 seconds**. For each upcoming show on today's schedule it calculates how many minutes until show time. Events fire when within a ±30-second window of their target time:
+The schedule loop runs every **30 seconds**. For each of today's shows it computes the time remaining and fires events within a ±30-second window:
 
-| Event | Fires when |
+| Event | Fires |
 |---|---|
-| Pre-show announcement (e.g. 15 min) | 14:30–15:30 before show time |
-| Pre-show announcement (e.g. 5 min) | 4:30–5:30 before show time |
-| Show start | 0:30 before to 0:30 after show time |
+| Pre-show announcement (`mins_before`) | ~that many minutes before show time |
+| Pre-show brightness fade | at its lead time before the show (see below) |
+| Show start | at show time |
 
-Each event fires **at most once per day per slot** — a duplicate-prevention set is cleared at midnight. This means if the system clock drifts slightly or the daemon restarts mid-day, events won't double-fire.
+Each event fires **at most once per day per slot** — a de-duplication set is cleared at midnight, and a single-instance lock prevents a second scheduler from double-firing.
+
+**Around a show:**
+
+1. The brightness fade eases lights down to the pre-show level through the pre-show window.
+2. At show time the background overlay effect is stopped, then brightness snaps to normal.
+3. The show playlist starts; music faders move to the show level.
+4. The scheduler waits for that **playlist by name** to stop (not a fixed timer), with a 2-hour safety cap.
+5. Lights/faders return to idle and background resumes per its schedule (unless a manual Stop is in effect, which stays quiet until the next show).
 
 ---
 
 ## Making changes mid-day
 
-Schedule changes take effect within 30 seconds with no restart required. However:
-
-- If an event's window has already passed for today, it won't re-fire
-- A show that is currently running is not interrupted by schedule changes
-- Adding a show for a time that's only minutes away will work if the scheduler hasn't already passed the window
-
----
-
-## Pre-show sequence timeline
-
-Given a show at **19:30** with announcements at 15, 10, and 5 minutes, and a 2-minute transition:
-
-```
-19:13:30  → "Show starts in 15 minutes" announcement plays
-            (music ducks, announcement plays, music restores)
-
-19:18:30  → "Show starts in 10 minutes" announcement
-
-19:23:30  → "Show starts in 5 minutes" announcement
-
-19:28:00  → fpp-brightness dims to pre_show_brightness level
-            Pre-show transition playlist triggers in FPP
-            (your transition sequence runs for transition_secs)
-
-19:30:00  → Main show playlist triggers in FPP
-            Scheduler polls FPP status every 5 seconds
-
-~19:45:00 → FPP returns to idle (show ended)
-            fpp-brightness restores to normal_brightness
-            Background music playlist starts (looping)
-
-19:50:00  → (Daytime announcements resume if within the daytime window)
-```
+Schedule edits take effect within 30 seconds — no restart. Caveats: an event whose window already passed today won't re-fire, and a running show isn't interrupted by schedule edits (use the Status/kiosk **Stop** for that).
