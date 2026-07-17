@@ -573,9 +573,13 @@ class ShowScheduler:
         return wrapper
 
     def _set_level(self, hw_cfg, level):
-        """Fade the music faders to a configured level (show_level / idle_level).
+        """Fade the music faders to a configured level (show / idle / background).
         No-op when the level or mixer IP is not configured."""
-        if level is None:
+        if level is None or level == "":
+            return
+        try:
+            level = float(level)
+        except (TypeError, ValueError):
             return
         ip = hw_cfg.get("mixer_ip") or hw_cfg.get("xr18_ip")
         if not ip:
@@ -737,6 +741,7 @@ class ShowScheduler:
         Idempotent — safe to call from the loop and from show end."""
         with self._bg_lock:
             cfg = self._bg()
+            hw_cfg = self._hw()
             now = datetime.datetime.now()
             today = now.date().isoformat()
             off = system_disabled() or os.path.exists(MANUAL_STOP_FLAG)  # everything off
@@ -758,6 +763,10 @@ class ShowScheduler:
             if want_music:
                 if cur != pl:
                     log.info("Background music → %s", pl)
+                    # Set the music faders to the background level before we
+                    # start looping — background music is usually quieter than
+                    # a show. Falls back to the current fader when unset.
+                    self._set_level(hw_cfg, music.get("level"))
                     fpp_start_playlist(pl, repeat=True)
                 status["music"] = pl
             elif not show and pl and cur == pl:
