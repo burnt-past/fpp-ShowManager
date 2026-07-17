@@ -104,7 +104,7 @@ Managed by the **Background** tab. Two independent daily windows.
 ```json
 {
   "music":  { "enabled": true,  "playlist": "Ambient Mix",
-              "start": "16:00", "end": "23:00" },
+              "start": "16:00", "end": "23:00", "level": 0.4 },
   "effect": { "enabled": true,  "effect": "Standby-V2", "type": "fseq",
               "start": "17:00", "end": "05:00" }
 }
@@ -115,6 +115,7 @@ Managed by the **Background** tab. Two independent daily windows.
 | `music.enabled` | loop the background playlist during its window |
 | `music.playlist` | FPP playlist (audio) to loop when idle |
 | `music.start` / `.end` | daily window `HH:MM`; equal start & end = all day |
+| `music.level` | float (0–1) or omitted | music fader level while background music plays; blank/omitted leaves the fader at the idle level |
 | `effect.enabled` | run the background overlay during its window |
 | `effect.effect` | name of the `.eseq` effect or `.fseq` sequence |
 | `effect.type` | `"eseq"` or `"fseq"` (selects the FPP command used) |

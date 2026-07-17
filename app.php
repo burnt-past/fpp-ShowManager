@@ -1011,7 +1011,8 @@ function renderBackground(){
         <label class="sm-lbl">Window start<input type="time" id="bg-m-start" class="sm-input" value="${escH(m.start||'16:00')}"></label>
         <label class="sm-lbl">Window end<input type="time" id="bg-m-end" class="sm-input" value="${escH(m.end||'23:00')}"></label>
       </div>
-      <div class="sm-hint" style="margin-top:8px">Same start &amp; end = all day.</div>
+      <label class="sm-lbl" style="margin-top:12px">Volume level (0–1)<input type="number" id="bg-m-lvl" class="sm-input" min="0" max="1" step="0.01" value="${escH(m.level!=null&&m.level!==''?String(m.level):'')}" placeholder="idle level"></label>
+      <div class="sm-hint" style="margin-top:8px">Fader level while background music plays (blank = leave at the idle level). Same start &amp; end = all day.</div>
     </div>
     <div class="sm-card">
       <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-e-en" ${e.enabled?'checked':''}>Background Effect</label>
@@ -1030,12 +1031,16 @@ function renderBackground(){
 }
 async function saveBackground(){
   const body={
-    music:{
-      enabled:document.getElementById('bg-m-en').checked,
-      playlist:document.getElementById('bg-m-pl').value,
-      start:document.getElementById('bg-m-start').value||'00:00',
-      end:document.getElementById('bg-m-end').value||'00:00',
-    },
+    music:(()=>{
+      const lv=document.getElementById('bg-m-lvl').value.trim();
+      return {
+        enabled:document.getElementById('bg-m-en').checked,
+        playlist:document.getElementById('bg-m-pl').value,
+        start:document.getElementById('bg-m-start').value||'00:00',
+        end:document.getElementById('bg-m-end').value||'00:00',
+        level:lv===''?null:numOr(lv,null),
+      };
+    })(),
     effect:(()=>{
       const v=document.getElementById('bg-e-fx').value;
       const i=v.indexOf('|');
