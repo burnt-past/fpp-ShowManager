@@ -1,19 +1,44 @@
 # FPP Show Manager
 
-A [Falcon Pi Player](https://github.com/FalconChristmas/fpp) plugin that integrates a **Behringer XR18** digital mixer with FPP for complete show management — volume sync, scheduled shows, pre-show announcements, lighting transitions, and background music automation.
+A [Falcon Pi Player](https://github.com/FalconChristmas/fpp) plugin for running a scheduled outdoor light‑and‑music show. It adds a calendar scheduler, background music and lighting automation, pre‑show announcements, bidirectional volume sync with a **Behringer XR18** mixer, and a full‑screen **kiosk** for wall‑mounted tablets — including a live 3D preview and a page that changes color with the show.
+
+Targets **FPP 9.4+**.
+
+---
+
+## Two interfaces
+
+**Show Manager** (in the FPP menu) — the operator UI, styled to blend with FPP. Five tabs:
+
+| Tab | What it does |
+|---|---|
+| **Status** | Live now‑playing, FPP/XR18 meters, manual trigger (start/stop any playlist), today's schedule, system health (daemons, background music/effect), and the scheduler log. |
+| **Schedule** | Month/Week/Day calendar. One‑off shows, repeating rules, and blackouts (whole‑day or a time range). Background music/effect windows are shown on the calendar too. |
+| **Background** | Two independent daily schedules — background **music** (a looping playlist) and a background **effect** (a `.eseq` or `.fseq` overlay), each with its own window. |
+| **Announcements** | Pre‑show announcements, daytime announcements, audio ducking, and pre‑show lighting fade. |
+| **Hardware** | XR18 mixer IP, channels, and show/idle music levels. |
+
+**Kiosk** (`kiosk.php`, opened from the header or bookmarked) — a full‑screen, touch‑first page for helpers:
+
+- Giant **SHOW RUNNING / IDLE / DISABLED** state with the current sequence.
+- One‑tap **Start** (next scheduled show) and **hold‑to‑stop**.
+- Temporary volume, and **Disable system** for an hour / tonight.
+- **Live 3D preview** of the running show (if the [3D Viewer](#optional-3d-viewer) plugin is installed).
+- A decorative light string and the whole page tint that **mirror a real string from the show** in real time.
 
 ---
 
 ## Features
 
-- **Bidirectional volume sync** — FPP master volume ↔ XR18 channel faders via OSC. Moving a hardware fader on the XR18 updates FPP, and vice versa.
-- **Calendar-based show scheduler** — schedule shows by date, not just day-of-week. Supports blackout dates (client requests, holidays, etc.) and rotation between multiple playlists so shows never repeat back-to-back.
-- **Pre-show announcements** — plays MP3 audio at configurable intervals before each show (e.g. 15 min, 10 min, 5 min warnings). Music ducks automatically while the announcement plays.
-- **Daytime general announcements** — plays random MP3s from a folder on a repeating interval during configurable hours, suppressed near show times.
-- **Lighting transitions** — sends dim/restore commands to the [fpp-brightness](https://github.com/FalconChristmas/fpp-brightness) plugin before and after each show.
-- **Background music automation** — resumes a configured looping playlist automatically after every show ends.
-- **Show-safe** — all announcements and fader changes are completely suppressed while an FPP sequence (`.fseq`) is actively running. The plugin hands off fully to FPP during shows.
-- **Crash-safe** — every thread catches its own exceptions. A watchdog cleans up stale coordination flags so the volume bridge always recovers.
+- **Calendar scheduler** — schedule shows by date, not just day‑of‑week. Repeating rules (e.g. every Fri/Sat, 7–10 pm, every 30 min) and one‑off entries.
+- **Blackouts = quiet hours** — block a whole day, or a time range. A blackout silences **audio** (shows and background music) but **leaves the lighting effect running** — for venues with quiet hours.
+- **Background music & effects** — during their own daily windows, loop a background playlist (audio) and overlay a background lighting effect. Both stand down while a show runs, on a system‑disable, or a manual stop.
+- **Pre‑show announcements** — play audio N minutes before each show; music ducks automatically while it plays. Files can come from the plugin's folder or anywhere in FPP's media.
+- **Daytime announcements** — random clips on an interval during configurable hours, suppressed near show times.
+- **Pre‑show brightness fade** — brightness fades to a pre‑show level over a configurable time (starting either the fade time before the show, or when a chosen pre‑show audio begins), then snaps to normal as the show starts (after the background overlay is cleared).
+- **Bidirectional XR18 volume sync** — FPP master volume ↔ XR18 music faders over OSC; a separate announcement channel is held at its own level. Show/idle fader levels are applied around each show.
+- **Kiosk** — the wall‑tablet control surface described above.
+- **Robust by design** — a single‑instance lock prevents duplicate schedulers; each thread catches its own exceptions; a watchdog clears stale coordination flags; feeds auto‑reconnect. The plugin also re‑enables FPP's native scheduler when its schedule is empty, clearing the "FPP Scheduler is disabled" warning.
 
 ---
 
@@ -21,134 +46,85 @@ A [Falcon Pi Player](https://github.com/FalconChristmas/fpp) plugin that integra
 
 | Requirement | Notes |
 |---|---|
-| Falcon Pi Player ≥ 5.0 | Running on a Linux machine |
-| Behringer XR18 (X Air 18) | Connected to the same network as the FPP host |
-| [fpp-brightness](https://github.com/FalconChristmas/fpp-brightness) plugin | For pre-show lighting dim/restore |
-| Python 3.7+ | Pre-installed on FPP images |
-| `ffmpeg` **or** `mpg123` | For announcement audio playback (`sudo apt install ffmpeg`) |
-| XR18 connected via USB | For audio output from FPP to the mixer |
-| FPP host and XR18 on the same LAN | OSC control travels over UDP, not USB |
+| Falcon Pi Player **9.4+** | The plugin is served by FPP; the daemons run under Python 3. |
+| `ffmpeg` **or** `mpg123` | Announcement audio playback (`sudo apt install -y ffmpeg`). |
+| [fpp‑brightness](https://github.com/FalconChristmas/fpp-brightness) plugin | Pre‑show lighting fade (optional — the fade no‑ops if absent). |
+| Behringer XR18 on the LAN | Optional — volume sync/ducking no‑op without it. OSC travels over UDP; audio over USB. |
 
----
+### Optional: 3D Viewer
 
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        FPP Host (Linux)                          │
-│                                                                  │
-│  ┌──────────────┐   OSC fader sync    ┌──────────────────────┐  │
-│  │ xr18_bridge  │◄───────────────────►│                      │  │
-│  │   .py        │                     │   Behringer XR18     │  │
-│  │              │   /xremote hbeat    │   UDP port 10024     │  │
-│  │ Volume sync  │────────────────────►│                      │  │
-│  └──────┬───────┘                     │   ch1/ch2: music     │  │
-│         │ pause-sync flag             │   ch3:     announce  │  │
-│         │ fader state file            └──────────────────────┘  │
-│  ┌──────▼───────────────────────────────────────────┐           │
-│  │              show_scheduler.py                    │           │
-│  │                                                   │           │
-│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────┐  │           │
-│  │  │  Schedule   │  │  Daytime     │  │Watchdog │  │           │
-│  │  │  loop       │  │  announcer   │  │         │  │           │
-│  │  │  (30s tick) │  │  (60s tick)  │  │(60s)    │  │           │
-│  │  └──────┬──────┘  └──────┬───────┘  └─────────┘  │           │
-│  └─────────┼────────────────┼──────────────────────--┘           │
-│            │                │                                    │
-│     FPP HTTP API      ALSA audio out                            │
-│     Brightness API    (USB → XR18)                              │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Signal flow for an announcement
-
-1. Scheduler detects it's time for an announcement and no show is running
-2. Writes `PAUSE_SYNC_FLAG` → bridge stops syncing faders
-3. Reads current fader level from `FADER_STATE_FILE`
-4. Fades XR18 music channel faders down to duck level over 2–3 seconds via OSC
-5. Plays the MP3 via `ffmpeg` with a software gain boost (+6 dB default)
-6. Fades faders back up to original level
-7. Removes `PAUSE_SYNC_FLAG` → bridge resumes normal sync
-
-### Signal flow for a show
-
-1. Scheduler fires at the scheduled time
-2. Calls `GET /api/plugin-apis/Brightness/{pre_show_level}` to dim lighting
-3. Calls FPP API to start the show playlist
-4. Polls FPP status every 5 seconds until the sequence goes idle
-5. Calls `GET /api/plugin-apis/Brightness/{normal_level}` to restore lighting
-6. Calls FPP API to start the background music playlist (looping)
+The kiosk's live 3D preview and show‑synced garland read data from the companion **fpp‑plugin‑3DViewer** (served at `/3dviewer/`). Both features auto‑hide if it isn't installed — everything else works without it.
 
 ---
 
 ## Installation
 
-See **[docs/setup.md](docs/setup.md)** for the full installation guide.
-
-Quick version:
+Install via the FPP **Plugin Manager** (repo `burnt-past/fpp-ShowManager`), then:
 
 ```bash
-# Install the plugin via FPP Plugin Manager
-# Plugin name: Show Manager
-# Repo: https://github.com/burnt-past/fpp-ShowManager
-
-# Install ffmpeg for announcement playback
-sudo apt install -y ffmpeg
-
-# Place announcement MP3s here:
-# /home/fpp/media/plugins/ShowManager/announcements/       ← pre-show
-# /home/fpp/media/plugins/ShowManager/announcements/daytime/ ← general
+sudo apt install -y ffmpeg          # announcement playback (if not already present)
 ```
 
----
+The plugin's daemons (`xr18_bridge.py`, `show_scheduler.py`) start automatically on boot via `scripts/postStart.sh`, the hook FPP runs after fppd starts. After installing or updating, restart them once — **Plugin Setup → Restart Daemons**, the **Restart Scheduler** button on the Status tab, or a reboot.
 
-## Plugin Pages
+Announcement audio can be uploaded from the Announcements tab, or dropped into:
 
-After installation the FPP menu gains four entries:
+```
+/home/fpp/media/plugins/fpp-ShowManager/announcements/         ← pre‑show
+/home/fpp/media/plugins/fpp-ShowManager/announcements/daytime/ ← daytime
+```
 
-| Page | Purpose |
-|---|---|
-| **Hardware** | XR18 IP address, music channel numbers, announcement channel volume |
-| **Shows** | Define each show: FPP playlist, transition playlist, estimated duration |
-| **Schedule** | Monthly calendar — add shows to dates, mark blackout days |
-| **Announcements** | Duck levels, gain boost, brightness values, pre-show timing, daytime window |
+Pre‑show rows can also point at any audio already in FPP's `music/` or `upload/` folders.
 
----
-
-## Log Files
-
-| File | Contains |
-|---|---|
-| `/home/fpp/media/logs/xr18_bridge.log` | Volume sync, XR18 OSC activity |
-| `/home/fpp/media/logs/showmanager.log` | Show triggers, announcements, errors |
+See **[docs/setup.md](docs/setup.md)** for the full guide.
 
 ---
 
-## Configuration Files
+## How it works
 
-All stored in `/home/fpp/media/config/`:
+Two daemons run alongside FPP:
+
+- **`xr18_bridge.py`** — keeps FPP master volume and the XR18 music faders in sync over OSC (UDP 10024), holds the announcement channel at its own level, and shares the current fader level with the scheduler.
+- **`show_scheduler.py`** — four loops: the **schedule** loop (shows, pre‑show announcements, brightness fade), the **daytime** announcer, the **background** loop (music/effect windows), and a **watchdog**. It drives FPP through its HTTP API and the brightness plugin.
+
+They coordinate through small files in `/tmp` (a pause‑sync flag during announcements, the current fader level, a manual‑stop flag, and the background status the UI reads).
+
+**Around a show:** the brightness fades down through the pre‑show window → at show time the background overlay effect is stopped and brightness snaps to normal → the show playlist starts → the scheduler waits for that playlist to end (tracking it by name) → dim/idle levels restore and background resumes per its schedule.
+
+---
+
+## Configuration files
+
+Stored in `/home/fpp/media/config/`:
 
 | File | Contents |
 |---|---|
-| `ShowManagerHardware.config` | Hardware: mixer IP, channels, duck/show/idle levels |
-| `ShowManager.config` | Legacy hardware config (read as fallback) |
-| `ShowManagerShows.config` | Legacy show definitions (playlists, durations) |
-| `ShowManagerSchedule.config` | Calendar entries (shows + blackout dates) |
-| `ShowManagerAnnouncements.config` | Announcement and brightness settings |
-| `ShowManagerRotation.config` | Auto-managed rotation index per slot |
+| `ShowManagerHardware.config` | Mixer IP, channels, show/idle/announce levels |
+| `ShowManagerSchedule.config` | Calendar entries (shows, rules, blackouts) |
+| `ShowManagerBackground.config` | Background music + effect windows |
+| `ShowManagerAnnouncements.config` | Announcement, ducking, and brightness settings |
+| `ShowManagerOverrides.config` | Kiosk "disable system until…" state |
+| `ShowManagerRotation.config` | Auto‑managed rotation index for playlist groups |
+| `ShowManager.config` | Legacy hardware config (read as a fallback) |
+
+## Log files
+
+| File | Contains |
+|---|---|
+| `/home/fpp/media/logs/showmanager.log` | Show triggers, announcements, background, brightness, errors |
+| `/home/fpp/media/logs/xr18_bridge.log` | Volume sync and XR18 OSC activity |
+
+The Status tab shows a live tail of `showmanager.log` with pause/copy/clear.
 
 ---
 
-## Screenshots
+## Docs
 
-> Screenshots below are from a live installation. See [`docs/screenshots/`](docs/screenshots/) for full-size versions.
-
-| | |
-|---|---|
-| ![Schedule Calendar](docs/screenshots/schedule.png) | ![Show Definitions](docs/screenshots/shows.png) |
-| *Monthly calendar — click any day to schedule shows or mark blackout* | *Show definition page — select FPP playlists and set durations* |
-| ![Announcements](docs/screenshots/announcements.png) | ![Hardware Settings](docs/screenshots/hardware.png) |
-| *Announcement settings — ducking, brightness, pre-show and daytime config* | *Hardware page — XR18 IP and channel configuration* |
+- [Setup](docs/setup.md)
+- [Scheduling](docs/scheduling.md)
+- [Announcements](docs/announcements.md)
+- [Configuration](docs/configuration.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
 ---
 
