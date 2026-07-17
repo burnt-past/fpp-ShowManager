@@ -16,8 +16,8 @@ $plJson = json_encode($playlists);
   --bg:transparent;--card:rgba(127,127,127,.07);--raise:rgba(127,127,127,.13);--high:rgba(127,127,127,.10);
   --border:rgba(127,127,127,.30);--brdHi:rgba(127,127,127,.45);
   --text:currentColor;--sub:#6c757d;--mut:#9aa4ae;
-  --mint:#0d9488;--amber:#b45309;--red:#dc2626;--s1:#2563eb;--s2:#7c3aed;
-  --mintBg:rgba(13,148,136,.12);--mintBrd:rgba(13,148,136,.35);--mintInk:#ffffff;
+  --mint:#28a745;--amber:#b45309;--red:#dc2626;--s1:#2563eb;--s2:#7c3aed;
+  --mintBg:rgba(40,167,69,.14);--mintBrd:rgba(40,167,69,.4);--mintInk:#ffffff;
   --amberBg:rgba(180,83,9,.12);--amberBrd:rgba(180,83,9,.4);
   --redBg:rgba(220,38,38,.10);--redBrd:rgba(220,38,38,.35);
   --s1Bg:rgba(37,99,235,.10);--s1Brd:rgba(37,99,235,.3);
@@ -47,16 +47,21 @@ $plJson = json_encode($playlists);
 #sm-tabs{display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px}
 .sm-tab{appearance:none;border:1px solid transparent;border-bottom:none;background:transparent;color:inherit;opacity:.7;font-size:14px;padding:9px 16px;border-radius:5px 5px 0 0;margin-bottom:-1px}
 .sm-tab.active{border-color:var(--border);background:var(--bg);opacity:1;font-weight:600;border-bottom:1px solid transparent}
-/* cards */
-.sm-card{background:var(--card);border:1px solid var(--border);border-radius:6px;padding:14px 16px}
+/* cards — no outline, soft under-shadow */
+.sm-card{background:var(--card);border:none;border-radius:8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 6px 16px rgba(0,0,0,.07)}
 .sm-ct{font-weight:700;font-size:15px;margin-bottom:10px}
-/* buttons */
-.sm-btn{appearance:none;background:var(--raise);border:1px solid var(--border);color:inherit;font-weight:600;font-size:13px;padding:7px 14px;border-radius:5px;white-space:nowrap}
+/* buttons — pill shaped, FPP-native */
+.sm-btn{appearance:none;background:var(--raise);border:1px solid var(--border);color:inherit;font-weight:600;font-size:13px;padding:7px 16px;border-radius:999px;white-space:nowrap}
 .sm-btn:hover{background:var(--high)}
 .sm-btn.ghost{background:transparent;color:var(--sub)}
 .sm-btn.solid{background:var(--mint);border-color:var(--mint);color:var(--mintInk);font-weight:600}
 .sm-btn.danger{background:transparent;border-color:var(--redBrd);color:var(--red)}
-.sm-btn.sm{padding:4px 10px;font-size:12px}
+.sm-btn.sm{padding:4px 12px;font-size:12px}
+/* status pill */
+.sm-pill{font-family:var(--mono);font-size:12px;font-weight:600;padding:3px 11px;border-radius:999px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sm-pill.ok{background:var(--mintBg);color:var(--mint)}
+.sm-pill.idle{background:var(--amberBg);color:var(--amber)}
+.sm-pill.bad{background:var(--redBg);color:var(--red)}
 /* inputs — light touch, let FPP/browser defaults do most of the work */
 .sm-input,.sm-select{width:100%;padding:7px 10px;font-size:13px;border:1px solid var(--brdHi);border-radius:4px;background:transparent;color:inherit}
 .sm-input:focus,.sm-select:focus{border-color:var(--mint);outline:none}
@@ -342,11 +347,10 @@ function _sysHtml(fpp,xr,running){
   const bg=xr.background||null;
   if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music||'idle']);
   if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect||'idle']);
-  const col={ok:'var(--mint)',idle:'var(--amber)',bad:'var(--red)'};
   return rows.map(([l,st,txt])=>`
   <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
     <span style="font-size:14px">${l}</span>
-    <span style="margin-left:auto;font-family:var(--mono);font-size:12.5px;font-weight:600;color:${col[st]};overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap">${escH(txt)}</span>
+    <span class="sm-pill ${st}" style="margin-left:auto">${escH(txt)}</span>
   </div>`).join('');
 }
 
