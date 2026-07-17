@@ -31,7 +31,7 @@ $plJson = json_encode($playlists);
 @keyframes sm-slide{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes sm-shimmer{0%{background-position:-320px 0}100%{background-position:320px 0}}
 .sm-skel{background:linear-gradient(90deg,var(--raise) 0px,var(--high) 160px,var(--raise) 320px);background-size:640px 100%;animation:sm-shimmer 1.2s linear infinite;border-radius:6px}
-.sm-wrap{position:relative;max-width:1180px;margin:0 auto;padding:6px 4px 30px}
+.sm-wrap{position:relative;width:100%;margin:0;padding:6px 4px 30px}
 /* now playing strip */
 #sm-nowplaying{display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:6px;margin-bottom:14px;border:1px solid var(--border);background:var(--card)}
 #sm-nowplaying.on{background:var(--amberBg);border-color:var(--amberBrd)}
