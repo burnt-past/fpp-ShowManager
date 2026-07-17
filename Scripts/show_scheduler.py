@@ -324,20 +324,6 @@ def trigger_dim_restore(cfg):
     """Snap lighting to the normal level."""
     _set_brightness(int(cfg.get("normal_brightness", 100)))
 
-def audio_duration(path):
-    """Length of an audio file in seconds via ffprobe, or None if unavailable."""
-    if not os.path.isfile(path):
-        return None
-    try:
-        out = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-             "-of", "csv=p=0", path],
-            capture_output=True, text=True, timeout=10,
-        ).stdout.strip()
-        return float(out) if out else None
-    except (FileNotFoundError, ValueError, subprocess.SubprocessError):
-        return None
-
 
 # ---------------------------------------------------------------------------
 # Rotation state — tracks which show in a rotation group fires next
@@ -553,7 +539,6 @@ class ShowScheduler:
         self._last_daytime_announce = 0.0
         self._bg_effect = None       # (kind, name) of the effect we started, or None
         self._bg_lock   = threading.Lock()
-        self._audio_dur = {}         # path -> duration cache (avoid re-probing)
 
     # ---- helpers -----------------------------------------------------------
 
@@ -610,54 +595,52 @@ class ShowScheduler:
 
     # ---- pre-show brightness fade ------------------------------------------
 
-    def _fade_window(self, an_cfg):
-        """How many seconds before show start the brightness fade should begin.
+    def _fade_lead_secs(self, an_cfg):
+        """How many seconds before show start the brightness fade should BEGIN.
 
-        = length of the closest pre-show audio if one exists (fade starts when
-        that audio would start), else the configured pre_show_fade_secs."""
-        best = None
-        folder = an_cfg.get("folder", ANNOUNCE_FOLDER)
-        for pre in an_cfg.get("pre_show", []):
-            fname = pre.get("file", "")
-            if not fname:
-                continue
-            path = fname if os.path.isabs(fname) else os.path.join(folder, fname)
-            off = float(pre.get("mins_before", 5))
-            if best is None or off < best[0]:   # closest to show wins
-                best = (off, path)
-        if best:
-            path = best[1]
-            if path not in self._audio_dur:
-                self._audio_dur[path] = audio_duration(path)
-            dur = self._audio_dur[path]
-            if dur and dur > 0:
-                return dur
-        return float(an_cfg.get("pre_show_fade_secs", 30))
+        The fade DURATION is always pre_show_fade_secs. The fade START is either
+        the fade time before the show (default), or when a selected pre-show
+        audio begins (that announcement's mins_before)."""
+        fade_secs = float(an_cfg.get("pre_show_fade_secs", 30))
+        anchor = an_cfg.get("fade_anchor_mins")
+        if anchor not in (None, ""):
+            try:
+                mins = float(anchor)
+            except (TypeError, ValueError):
+                mins = None
+            if mins is not None:
+                for pre in an_cfg.get("pre_show", []):
+                    if pre.get("file") and abs(float(pre.get("mins_before", 5)) - mins) < 0.01:
+                        return mins * 60.0   # fade begins when that audio starts
+        return fade_secs
 
-    def _run_preshow_fade(self, show_dt, window_secs, an_cfg):
-        """Fade brightness from normal down to the pre-show level, reaching the
-        dim level right as the show starts. _run_show then snaps back to 100%."""
-        normal = int(an_cfg.get("normal_brightness", 100))
-        dim    = int(an_cfg.get("pre_show_brightness", 20))
-        if dim >= normal or window_secs <= 0:
+    def _run_preshow_fade(self, show_dt, an_cfg):
+        """Fade brightness from normal down to the pre-show level over the fade
+        time, then hold dim until the show starts. _run_show snaps back to
+        normal (after clearing the background effect)."""
+        normal    = int(an_cfg.get("normal_brightness", 100))
+        dim       = int(an_cfg.get("pre_show_brightness", 20))
+        fade_secs = float(an_cfg.get("pre_show_fade_secs", 30))
+        if dim >= normal or fade_secs <= 0:
             return                      # nothing to dim
         today = show_dt.date().isoformat()
-        log.info("Pre-show brightness fade: %d%% → %d%% over %.0fs", normal, dim, window_secs)
+        fade_start = datetime.datetime.now()
+        log.info("Pre-show brightness fade: %d%% → %d%% over %.0fs", normal, dim, fade_secs)
         _set_brightness(normal, log_it=False)
         while True:
             now = datetime.datetime.now()
-            remaining = (show_dt - now).total_seconds()
-            if remaining <= 0:
-                break                   # show is starting — _run_show snaps to normal
+            if now >= show_dt:
+                break                   # show is starting — _run_show takes over
             if (self._in_show.is_set() or is_show_running()
                     or system_disabled() or is_blacked_out(today, now)):
                 _set_brightness(normal, log_it=False)   # aborted — leave it bright
                 log.info("Pre-show fade aborted")
                 return
-            frac  = max(0.0, min(1.0, 1.0 - remaining / window_secs))
+            elapsed = (now - fade_start).total_seconds()
+            frac  = max(0.0, min(1.0, elapsed / fade_secs))   # holds at dim past fade_secs
             level = round(normal + (dim - normal) * frac)
             _set_brightness(level, log_it=False)
-            time.sleep(min(1.0, remaining))
+            time.sleep(min(1.0, (show_dt - now).total_seconds()))
 
     # ---- show runner -------------------------------------------------------
 
@@ -693,6 +676,14 @@ class ShowScheduler:
             pass
         self._in_show.set()
         try:
+            # Kill the background overlay effect first — only once it's gone do
+            # we snap to full brightness, so the show's own lighting takes over
+            # cleanly (no bright flash of the leftover overlay).
+            with self._bg_lock:
+                if self._bg_effect:
+                    fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
+                    self._bg_effect = None
+                    time.sleep(0.5)   # let FPP drop the overlay before the snap
             trigger_dim_restore(an_cfg)   # snap to full brightness as the show begins
             self._set_level(hw_cfg, hw_cfg.get("show_level"))
             if not fpp_start_playlist(playlist):
@@ -856,15 +847,15 @@ class ShowScheduler:
                             self._fire_once(key, self._run_announcement,
                                             os.path.join(folder, fname))
 
-                    # Pre-show brightness fade — begins one fade-window before
-                    # the show and reaches the dim level right as it starts.
+                    # Pre-show brightness fade — begins at its lead time before
+                    # the show (fade time, or a selected pre-show audio's start).
                     delta_secs = delta_mins * 60.0
                     if delta_secs > 0.5 and not self._in_show.is_set():
-                        window = self._fade_window(an_cfg)
-                        if delta_secs <= window:
+                        lead = self._fade_lead_secs(an_cfg)
+                        if delta_secs <= lead:
                             fkey = f"{today}|{entry['time']}|fade"
                             self._fire_once(fkey, self._run_preshow_fade,
-                                            show_time, window, an_cfg)
+                                            show_time, an_cfg)
 
                     # Show start
                     key = f"{today}|{entry['time']}|show"
