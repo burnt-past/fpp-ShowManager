@@ -305,25 +305,38 @@ def is_blacked_out(date_str, now):
 # Range 0-200 — 100 = normal, 0 = off, 200 = double
 # ---------------------------------------------------------------------------
 
-def _set_brightness(value):
+def _set_brightness(value, log_it=True):
     value = max(0, min(200, int(value)))
     try:
         urllib.request.urlopen(
             f"http://localhost/api/plugin-apis/Brightness/{value}", timeout=5
         )
-        log.info("Brightness set to %d", value)
+        if log_it:
+            log.info("Brightness set to %d", value)
     except Exception as e:
         log.warning("Brightness set failed (%d): %s", value, e)
 
 def trigger_dim(cfg):
-    """Dim lighting before a show using the fpp-brightness plugin."""
-    level = int(cfg.get("pre_show_brightness", 20))
-    _set_brightness(level)
+    """Dim lighting to the pre-show level (instant)."""
+    _set_brightness(int(cfg.get("pre_show_brightness", 20)))
 
 def trigger_dim_restore(cfg):
-    """Restore lighting to normal after a show ends."""
-    level = int(cfg.get("normal_brightness", 100))
-    _set_brightness(level)
+    """Snap lighting to the normal level."""
+    _set_brightness(int(cfg.get("normal_brightness", 100)))
+
+def audio_duration(path):
+    """Length of an audio file in seconds via ffprobe, or None if unavailable."""
+    if not os.path.isfile(path):
+        return None
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+             "-of", "csv=p=0", path],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+        return float(out) if out else None
+    except (FileNotFoundError, ValueError, subprocess.SubprocessError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -540,6 +553,7 @@ class ShowScheduler:
         self._last_daytime_announce = 0.0
         self._bg_effect = None       # (kind, name) of the effect we started, or None
         self._bg_lock   = threading.Lock()
+        self._audio_dur = {}         # path -> duration cache (avoid re-probing)
 
     # ---- helpers -----------------------------------------------------------
 
@@ -594,6 +608,57 @@ class ShowScheduler:
         _fade_faders(ip, ch1, ch2, cur, float(level), 2.0)
         log.info("Music fader level set to %.2f", float(level))
 
+    # ---- pre-show brightness fade ------------------------------------------
+
+    def _fade_window(self, an_cfg):
+        """How many seconds before show start the brightness fade should begin.
+
+        = length of the closest pre-show audio if one exists (fade starts when
+        that audio would start), else the configured pre_show_fade_secs."""
+        best = None
+        folder = an_cfg.get("folder", ANNOUNCE_FOLDER)
+        for pre in an_cfg.get("pre_show", []):
+            fname = pre.get("file", "")
+            if not fname:
+                continue
+            path = fname if os.path.isabs(fname) else os.path.join(folder, fname)
+            off = float(pre.get("mins_before", 5))
+            if best is None or off < best[0]:   # closest to show wins
+                best = (off, path)
+        if best:
+            path = best[1]
+            if path not in self._audio_dur:
+                self._audio_dur[path] = audio_duration(path)
+            dur = self._audio_dur[path]
+            if dur and dur > 0:
+                return dur
+        return float(an_cfg.get("pre_show_fade_secs", 30))
+
+    def _run_preshow_fade(self, show_dt, window_secs, an_cfg):
+        """Fade brightness from normal down to the pre-show level, reaching the
+        dim level right as the show starts. _run_show then snaps back to 100%."""
+        normal = int(an_cfg.get("normal_brightness", 100))
+        dim    = int(an_cfg.get("pre_show_brightness", 20))
+        if dim >= normal or window_secs <= 0:
+            return                      # nothing to dim
+        today = show_dt.date().isoformat()
+        log.info("Pre-show brightness fade: %d%% → %d%% over %.0fs", normal, dim, window_secs)
+        _set_brightness(normal, log_it=False)
+        while True:
+            now = datetime.datetime.now()
+            remaining = (show_dt - now).total_seconds()
+            if remaining <= 0:
+                break                   # show is starting — _run_show snaps to normal
+            if (self._in_show.is_set() or is_show_running()
+                    or system_disabled() or is_blacked_out(today, now)):
+                _set_brightness(normal, log_it=False)   # aborted — leave it bright
+                log.info("Pre-show fade aborted")
+                return
+            frac  = max(0.0, min(1.0, 1.0 - remaining / window_secs))
+            level = round(normal + (dim - normal) * frac)
+            _set_brightness(level, log_it=False)
+            time.sleep(min(1.0, remaining))
+
     # ---- show runner -------------------------------------------------------
 
     def _run_show(self, entry):
@@ -628,7 +693,7 @@ class ShowScheduler:
             pass
         self._in_show.set()
         try:
-            trigger_dim(an_cfg)
+            trigger_dim_restore(an_cfg)   # snap to full brightness as the show begins
             self._set_level(hw_cfg, hw_cfg.get("show_level"))
             if not fpp_start_playlist(playlist):
                 log.error("Playlist start returned failure for '%s' — aborting show", playlist)
@@ -646,10 +711,6 @@ class ShowScheduler:
                 log.warning("FPP never reported '%s' as current playlist — aborting wait", playlist)
                 return
             log.info("FPP confirmed playing: %s", playlist)
-            # Lift the pre-show dim now that the show is on — the light show
-            # itself plays at normal brightness (the dim is only a brief
-            # pre-show cue during start-up).
-            trigger_dim_restore(an_cfg)
             # Wait for the show playlist to end; 2-hour cap as safety net
             max_wait = 7200
             waited   = 0
@@ -794,6 +855,16 @@ class ShowScheduler:
                             folder = an_cfg.get("folder", ANNOUNCE_FOLDER)
                             self._fire_once(key, self._run_announcement,
                                             os.path.join(folder, fname))
+
+                    # Pre-show brightness fade — begins one fade-window before
+                    # the show and reaches the dim level right as it starts.
+                    delta_secs = delta_mins * 60.0
+                    if delta_secs > 0.5 and not self._in_show.is_set():
+                        window = self._fade_window(an_cfg)
+                        if delta_secs <= window:
+                            fkey = f"{today}|{entry['time']}|fade"
+                            self._fire_once(fkey, self._run_preshow_fade,
+                                            show_time, window, an_cfg)
 
                     # Show start
                     key = f"{today}|{entry['time']}|show"
