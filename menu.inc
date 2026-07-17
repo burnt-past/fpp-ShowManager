@@ -1,0 +1,14 @@
+<?php
+$menuEntries = Array(
+	Array('text' => 'Show Manager', 'type' => 'status', 'page' => 'app.php', 'wrap' => 1),
+);
+
+foreach ($menuEntries as $entry)
+{
+	if ($entry['type'] != $menu)
+		continue;
+
+	printf("<li><a href='plugin.php?plugin=%s&page=%s'>%s</a></li>\n",
+		$plugin, $entry['page'], $entry['text']);
+}
+?>
