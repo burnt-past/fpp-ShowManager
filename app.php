@@ -60,6 +60,8 @@ $plJson = json_encode($playlists);
 /* inputs — light touch, let FPP/browser defaults do most of the work */
 .sm-input,.sm-select{width:100%;padding:7px 10px;font-size:13px;border:1px solid var(--brdHi);border-radius:4px;background:transparent;color:inherit}
 .sm-input:focus,.sm-select:focus{border-color:var(--mint);outline:none}
+/* FPP's own input styling stretches checkboxes into bars — force native */
+#sm input[type=checkbox]{appearance:auto;-webkit-appearance:auto;width:16px;height:16px;min-width:16px;flex:none;margin:0;padding:0;accent-color:var(--mint)}
 .sm-lbl{display:block;font-size:12px;color:var(--sub)}
 .sm-lbl .sm-input,.sm-lbl .sm-select{margin-top:4px}
 .sm-hint{font-size:12px;color:var(--mut)}
@@ -72,7 +74,6 @@ $plJson = json_encode($playlists);
 .sm-chip{border-radius:4px;padding:1px 6px;font-size:11px;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;background:var(--mintBg);color:var(--mint);border:1px solid var(--mintBrd)}
 .sm-chip.rule{background:var(--s1Bg);color:var(--s1);border-color:var(--s1Brd)}
 .sm-chip.blk{background:var(--redBg);color:var(--red);border-color:var(--redBrd)}
-.sm-dot{width:9px;height:9px;border-radius:50%;flex:none}
 /* segmented */
 .sm-seg{display:flex;gap:0;border:1px solid var(--border);border-radius:5px;overflow:hidden}
 .sm-seg button{appearance:none;border:none;padding:6px 14px;font-size:13px;background:transparent;color:inherit;opacity:.7}
@@ -281,18 +282,13 @@ function _heroHtml(fpp,xr){
   const volPct=vol!=null?Math.max(0,Math.min(100,vol)):0;
   const fadPct=fader!=null?Math.max(0,Math.min(100,Math.round(fader*100))):0;
   return `
-  <div style="position:absolute;top:-70px;right:-40px;width:280px;height:200px;background:radial-gradient(circle,var(--amberBg),transparent 68%);pointer-events:none"></div>
-  <div style="position:relative;display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between">
-    <div style="display:flex;align-items:center;gap:16px">
-      <div style="width:52px;height:52px;border-radius:15px;flex:none;background:linear-gradient(150deg,var(--amberBg),var(--raise));border:1px solid var(--brdHi);display:flex;align-items:center;justify-content:center;font-size:24px;color:var(--amber);box-shadow:0 0 22px -4px var(--amber)">♪</div>
-      <div>
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
-          <span style="width:11px;height:11px;border-radius:50%;background:${playing?'var(--amber)':'var(--mut)'};${playing?'animation:sm-pulse 1.6s ease-in-out infinite':''}"></span>
-          <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'SHOW RUNNING':'IDLE'}</span>
-        </div>
-        <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">${escH(playing?curPl:'Idle')}</div>
-        <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">${playing&&_cleanName(fpp.current_sequence||fpp.current_song||'')?'♪ '+escH(_cleanName(fpp.current_sequence||fpp.current_song||''))+' &nbsp;·&nbsp; ':''}uptime ${escH(fpp.uptime||'—')}</div>
+  <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between">
+    <div>
+      <div style="margin-bottom:6px">
+        <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'SHOW RUNNING':'IDLE'}</span>
       </div>
+      <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">${escH(playing?curPl:'Idle')}</div>
+      <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">${playing&&_cleanName(fpp.current_sequence||fpp.current_song||'')?escH(_cleanName(fpp.current_sequence||fpp.current_song||''))+' &nbsp;·&nbsp; ':''}uptime ${escH(fpp.uptime||'—')}</div>
     </div>
     <div style="display:flex;gap:30px">
       <div style="text-align:right;min-width:110px">
@@ -310,16 +306,13 @@ function _heroHtml(fpp,xr){
 }
 function _statsHtml(fpp,xr,shows,upcoming){
   return [
-    ['V','FPP Version',fpp.version||'—','var(--s1)'],
-    ['#','Instance',fpp.HostName||fpp.hostname||'—','var(--s2)'],
-    ['▦','Shows Today',shows.length,'var(--amber)'],
-    ['↗','Upcoming',upcoming.length,'var(--mint)'],
-  ].map(([icon,l,v,c])=>`
-  <div class="sm-card" style="border-radius:16px;padding:16px 18px">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <span style="width:34px;height:34px;flex:none;border-radius:10px;background:var(--raise);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;font-family:var(--mono);color:${c}">${icon}</span>
-      <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700">${l}</span>
-    </div>
+    ['FPP Version',fpp.version||'—'],
+    ['Instance',fpp.HostName||fpp.hostname||'—'],
+    ['Shows Today',shows.length],
+    ['Upcoming',upcoming.length],
+  ].map(([l,v])=>`
+  <div class="sm-card" style="padding:14px 16px">
+    <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700;margin-bottom:10px">${l}</div>
     <div style="font-size:24px;font-weight:800;font-family:var(--mono);word-break:break-all;line-height:1.2">${escH(String(v))}</div>
   </div>`).join('');
 }
@@ -347,14 +340,13 @@ function _sysHtml(fpp,xr,running){
     ['Scheduler',running?'ok':'bad',running?'active':'stopped'],
   ];
   const bg=xr.background||null;
-  if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music?('▶ '+bg.music):'idle']);
-  if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect?('▶ '+bg.effect):'idle']);
+  if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music||'idle']);
+  if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect||'idle']);
   const col={ok:'var(--mint)',idle:'var(--amber)',bad:'var(--red)'};
   return rows.map(([l,st,txt])=>`
   <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
-    <span class="sm-dot" style="background:${col[st]};box-shadow:0 0 8px ${col[st]}"></span>
     <span style="font-size:14px">${l}</span>
-    <span style="margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--sub);overflow:hidden;text-overflow:ellipsis;max-width:150px;white-space:nowrap">${escH(txt)}</span>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:12.5px;font-weight:600;color:${col[st]};overflow:hidden;text-overflow:ellipsis;max-width:180px;white-space:nowrap">${escH(txt)}</span>
   </div>`).join('');
 }
 
@@ -364,7 +356,7 @@ async function renderStatus(){
   const {fpp,xr,log}=d;
   el.innerHTML=`
 <div style="display:flex;flex-direction:column;gap:16px">
-  <div class="sm-card" style="position:relative;overflow:hidden;border-color:var(--brdHi);border-radius:20px;padding:26px 28px;box-shadow:0 26px 70px -30px var(--amberBrd),inset 0 1px 0 rgba(255,255,255,.06)">
+  <div class="sm-card" style="padding:20px 22px">
     <div id="sm-hero">${_heroHtml(fpp,xr)}</div>
   </div>
   <div id="sm-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">${_statsHtml(fpp,xr,d.shows,d.upcoming)}</div>
@@ -841,7 +833,7 @@ function renderAnnouncements(){
       <button class="sm-btn danger sm" style="margin-left:auto;flex:none" onclick="annDeleteFile('${escH(escJ(x.path))}')">Delete</button>
     </div>`).join('');
   const daytimeBody=daytime.enabled?`
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin-bottom:12px"><input type="checkbox" id="ann-dt-en" checked style="width:auto">Enabled</label>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin-bottom:12px"><input type="checkbox" id="ann-dt-en" checked>Enabled</label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <label class="sm-lbl">Window start<input type="time" id="ann-dt-start" class="sm-input" value="${escH(daytime.start||'10:00')}"></label>
       <label class="sm-lbl">Window end<input type="time" id="ann-dt-end" class="sm-input" value="${escH(daytime.end||'18:00')}"></label>
@@ -962,7 +954,7 @@ function renderBackground(){
   el.innerHTML=`
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start;max-width:760px">
     <div class="sm-card">
-      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-m-en" ${m.enabled?'checked':''} style="width:auto">Background Music</label>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-m-en" ${m.enabled?'checked':''}>Background Music</label>
       <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Loops a playlist during its window when no show is running.</p>
       <label class="sm-lbl" style="margin-bottom:10px">Playlist<select id="bg-m-pl" class="sm-select">${plOptions(m.playlist||'')}</select></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -972,7 +964,7 @@ function renderBackground(){
       <div class="sm-hint" style="margin-top:8px">Same start &amp; end = all day.</div>
     </div>
     <div class="sm-card">
-      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-e-en" ${e.enabled?'checked':''} style="width:auto">Background Effect</label>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;margin-bottom:4px"><input type="checkbox" id="bg-e-en" ${e.enabled?'checked':''}>Background Effect</label>
       <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Loops a lighting overlay during its window, layered on top. Suppressed while a show runs; keeps running through blackouts.</p>
       <label class="sm-lbl" style="margin-bottom:10px">Effect or sequence${hasFx?'':' <span style="color:var(--mut)">(none found in FPP)</span>'}<select id="bg-e-fx" class="sm-select">${effOptions(effects,sequences,e.type||'eseq',e.effect||'')}</select></label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
