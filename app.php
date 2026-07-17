@@ -43,10 +43,11 @@ $plJson = json_encode($playlists);
 #sm-nowplaying.on #sm-np-label{color:var(--amber)}
 #sm-nowplaying.off #sm-np-label{color:var(--red)}
 #sm-np-sub{font-weight:600;font-size:13px}
-/* tabs — FPP/bootstrap style */
-#sm-tabs{display:flex;align-items:flex-end;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px}
-.sm-tab{appearance:none;border:1px solid transparent;border-bottom:none;background:transparent;color:inherit;opacity:.7;font-size:14px;padding:9px 16px;border-radius:5px 5px 0 0;margin-bottom:-1px}
-.sm-tab.active{border-color:var(--border);background:var(--bg);opacity:1;font-weight:600;border-bottom:1px solid transparent}
+/* tabs — underline style, wraps instead of clipping */
+#sm-tabs{display:flex;align-items:center;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:18px}
+.sm-tab{appearance:none;border:none;background:transparent;color:inherit;opacity:.6;font-size:14px;padding:10px 16px;border-bottom:2px solid transparent;margin-bottom:-1px}
+.sm-tab:hover{opacity:.9}
+.sm-tab.active{opacity:1;font-weight:600;border-bottom-color:var(--mint)}
 /* cards — no outline, soft under-shadow */
 .sm-card{background:var(--card);border:none;border-radius:8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 6px 16px rgba(0,0,0,.07)}
 /* 3-across responsive card grid (full width) */
