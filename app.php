@@ -49,6 +49,10 @@ $plJson = json_encode($playlists);
 .sm-tab.active{border-color:var(--border);background:var(--bg);opacity:1;font-weight:600;border-bottom:1px solid transparent}
 /* cards — no outline, soft under-shadow */
 .sm-card{background:var(--card);border:none;border-radius:8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 6px 16px rgba(0,0,0,.07)}
+/* 3-across responsive card grid (full width) */
+.sm-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+@media (max-width:1000px){.sm-grid3{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.sm-grid3{grid-template-columns:1fr}}
 .sm-ct{font-weight:700;font-size:15px;margin-bottom:10px}
 /* buttons — pill shaped, FPP-native */
 .sm-btn{appearance:none;background:var(--raise);border:1px solid var(--border);color:inherit;font-weight:600;font-size:13px;padding:7px 16px;border-radius:999px;white-space:nowrap}
@@ -882,26 +886,18 @@ function renderAnnouncements(){
     </div>`;
   const fadeAnchor=['<option value="">Fade time before show</option>',
     ...preShow.filter(p=>p.file).map(p=>`<option value="${p.mins_before}"${String(cfg.fade_anchor_mins??'')===String(p.mins_before)?' selected':''}>${escH(String(p.mins_before))} min · ${escH(p.file)}</option>`)].join('');
-  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start">
+  el.innerHTML=`<div class="sm-grid3">
     <div class="sm-card">
-      <div class="sm-ct">Pre-Show Announcements</div>
-      <p style="font-size:12px;color:var(--sub);margin:0 0 4px">Each row fires one announcement N minutes before show time.</p>
-      ${preRows}
-      <button class="sm-btn" style="margin-top:12px" onclick="annAddPre()">+ Add row</button>
-      <div style="height:1px;background:var(--border);margin:16px 0"></div>
-      <div class="sm-ct" style="margin-bottom:10px">Daytime Announcements</div>
-      ${daytimeBody}
-    </div>
-    <div class="sm-card">
-      <div class="sm-ct" style="margin-bottom:12px">Ducking</div>
+      <div class="sm-ct" style="margin-bottom:14px">Ducking</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label class="sm-lbl">Duck level (0–1)<input type="number" id="ann-duck" class="sm-input" value="${cfg.duck_level??0.25}" min="0" max="1" step="0.05"></label>
         <label class="sm-lbl">Fade (secs)<input type="number" id="ann-fade" class="sm-input" value="${cfg.duck_fade_secs??2}" min="0.5" max="10" step="0.5"></label>
         <label class="sm-lbl">Gain boost (dB)<input type="number" id="ann-gain" class="sm-input" value="${cfg.gain_db??6}" min="0" max="24"></label>
         <label class="sm-lbl">Max duration (s)<input type="number" id="ann-maxdur" class="sm-input" value="${cfg.max_duration_secs??300}" min="10" max="3600"></label>
       </div>
-      <div style="height:1px;background:var(--border);margin:16px 0"></div>
-      <div class="sm-ct" style="margin-bottom:12px">Lighting</div>
+    </div>
+    <div class="sm-card">
+      <div class="sm-ct" style="margin-bottom:14px">Lighting</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label class="sm-lbl">Pre-show brightness<input type="number" id="ann-prebright" class="sm-input" value="${cfg.pre_show_brightness??20}" min="0" max="200"></label>
         <label class="sm-lbl">Normal brightness<input type="number" id="ann-normbright" class="sm-input" value="${cfg.normal_brightness??100}" min="0" max="200"></label>
@@ -909,6 +905,16 @@ function renderAnnouncements(){
         <label class="sm-lbl">Fade start<select id="ann-fadeanchor" class="sm-select">${fadeAnchor}</select></label>
       </div>
       <div class="sm-hint" style="margin-top:8px">Brightness fades to the pre-show level over the fade time, starting either the fade time before the show or when the selected pre-show audio begins. At show start the background effect is cleared, then brightness snaps to normal.</div>
+    </div>
+    <div class="sm-card">
+      <div class="sm-ct">Pre-Show Announcements</div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 4px">Each row fires one announcement N minutes before show time.</p>
+      ${preRows}
+      <button class="sm-btn" style="margin-top:12px" onclick="annAddPre()">+ Add row</button>
+    </div>
+    <div class="sm-card">
+      <div class="sm-ct">Daytime Announcements</div>
+      ${daytimeBody}
     </div>
     <div class="sm-card">
       <div class="sm-ct">Files</div>
