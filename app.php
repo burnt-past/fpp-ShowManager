@@ -895,7 +895,9 @@ function renderAnnouncements(){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <label class="sm-lbl">Pre-show brightness<input type="number" id="ann-prebright" class="sm-input" value="${cfg.pre_show_brightness??20}" min="0" max="200"></label>
         <label class="sm-lbl">Normal brightness<input type="number" id="ann-normbright" class="sm-input" value="${cfg.normal_brightness??100}" min="0" max="200"></label>
+        <label class="sm-lbl">Fade time (s)<input type="number" id="ann-fadesecs" class="sm-input" value="${cfg.pre_show_fade_secs??30}" min="0" max="600"></label>
       </div>
+      <div class="sm-hint" style="margin-top:8px">Brightness fades to the pre-show level as a show approaches, reaching it right at show start, then snaps to normal. The fade spans the pre-show audio if one exists, otherwise the fade time.</div>
     </div>
     <div class="sm-card">
       <div class="sm-ct">Pre-Show Announcements</div>
@@ -932,6 +934,7 @@ async function saveAnnouncements(){
     max_duration_secs:Math.round(numOr(document.getElementById('ann-maxdur').value,300)),
     pre_show_brightness:Math.round(numOr(document.getElementById('ann-prebright').value,20)),
     normal_brightness:Math.round(numOr(document.getElementById('ann-normbright').value,100)),
+    pre_show_fade_secs:Math.round(numOr(document.getElementById('ann-fadesecs').value,30)),
     pre_show:preShow,
     daytime:dtEn?{
       enabled:dtEn.checked,
