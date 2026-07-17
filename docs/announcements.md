@@ -69,7 +69,10 @@ Requires the [fpp-brightness](https://github.com/FalconChristmas/fpp-brightness)
 - **Normal brightness** — the full level (usually 100) the show runs at.
 - **Fade time (s)** — how long the fade down takes.
 - **Fade start** — either *"Fade time before show"* (default) or *"when a selected pre-show audio begins"*.
+- **Post-show fade back (s)** — how long the lights take to come back up after a show ends (0 = snap straight back).
 
 **Behavior:** brightness eases from normal down to the pre-show level over the fade time, then **holds** dim until show time. When the show starts, the background overlay effect is stopped first, then brightness **snaps back to normal** — a smooth dim-down into a bright reveal.
 
 The fade *starts* either the fade time before the show, or (if you pick a pre-show audio as the anchor) the moment that announcement plays — so you can sync the dim to a countdown clip. The fade *duration* is always your Fade time value.
+
+**After the show:** when the playlist ends, the scheduled background is restored first, then brightness **snaps to 0 and fades back up to normal** over the post-show fade time. Leave it at 0 to snap straight back to normal (the original behavior). A new show starting during the fade takes over immediately.

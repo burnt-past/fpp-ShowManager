@@ -646,6 +646,33 @@ class ShowScheduler:
             _set_brightness(level, log_it=False)
             time.sleep(min(1.0, (show_dt - now).total_seconds()))
 
+    def _run_postshow_fade(self, an_cfg):
+        """When a show ends: snap brightness to 0, then fade back up to the
+        normal level over post_show_fade_secs. With no fade time configured,
+        snap straight to normal (old behavior)."""
+        normal    = int(an_cfg.get("normal_brightness", 100))
+        try:
+            fade_secs = float(an_cfg.get("post_show_fade_secs", 0))
+        except (TypeError, ValueError):
+            fade_secs = 0.0
+        if fade_secs <= 0:
+            trigger_dim_restore(an_cfg)   # snap to normal
+            return
+        log.info("Post-show brightness fade: 0%% → %d%% over %.0fs", normal, fade_secs)
+        _set_brightness(0, log_it=False)
+        fade_start = datetime.datetime.now()
+        while True:
+            now = datetime.datetime.now()
+            # A new show (or manual re-dim) takes over — stop fading.
+            if self._in_show.is_set() or is_show_running():
+                return
+            elapsed = (now - fade_start).total_seconds()
+            frac  = max(0.0, min(1.0, elapsed / fade_secs))
+            _set_brightness(round(normal * frac), log_it=False)
+            if frac >= 1.0:
+                break
+            time.sleep(min(1.0, fade_secs - elapsed))
+
     # ---- show runner -------------------------------------------------------
 
     def _run_show(self, entry):
@@ -717,12 +744,15 @@ class ShowScheduler:
             log.info("--- Show ended: %s ---", playlist)
         finally:
             self._in_show.clear()
-            trigger_dim_restore(an_cfg)
             self._set_level(hw_cfg, hw_cfg.get("idle_level"))
-            # Hand back to scheduled background immediately (no silent gap). If a
+            # Hand back to scheduled background first (no silent gap) so any
+            # overlay effect is running before we fade the lights up. If a
             # Stop was pressed during the show, MANUAL_STOP_FLAG is now set and
             # _apply_background keeps things quiet until the next show.
             self._apply_background()
+            # Snap lights to 0 and fade back to normal over the configured
+            # post-show fade time (or snap straight to normal when unset).
+            self._run_postshow_fade(an_cfg)
 
     # ---- background music + effects ----------------------------------------
 
