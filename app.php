@@ -43,11 +43,13 @@ $plJson = json_encode($playlists);
 #sm-nowplaying.on #sm-np-label{color:var(--amber)}
 #sm-nowplaying.off #sm-np-label{color:var(--red)}
 #sm-np-sub{font-weight:600;font-size:13px}
-/* tabs — underline style, wraps instead of clipping */
-#sm-tabs{display:flex;align-items:center;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:18px}
-.sm-tab{appearance:none;border:none;background:transparent;color:inherit;opacity:.6;font-size:14px;padding:10px 16px;border-bottom:2px solid transparent;margin-bottom:-1px}
+/* tabs — underline style; scroll horizontally on small screens instead of wrapping/clipping */
+#sm-tabs{display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+#sm-tabs::-webkit-scrollbar{display:none}
+.sm-tab{appearance:none;border:none;background:transparent;color:inherit;opacity:.6;font-size:14px;padding:10px 16px;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;flex:none}
 .sm-tab:hover{opacity:.9}
 .sm-tab.active{opacity:1;font-weight:600;border-bottom-color:var(--mint)}
+@media (max-width:600px){.sm-tab{padding:9px 11px;font-size:13px}}
 /* cards — no outline, soft under-shadow */
 .sm-card{background:var(--card);border:none;border-radius:8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 6px 16px rgba(0,0,0,.07)}
 /* 3-across responsive card grid (full width) */
