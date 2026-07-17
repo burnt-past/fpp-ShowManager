@@ -906,8 +906,9 @@ function renderAnnouncements(){
         <label class="sm-lbl">Normal brightness<input type="number" id="ann-normbright" class="sm-input" value="${cfg.normal_brightness??100}" min="0" max="200"></label>
         <label class="sm-lbl">Fade time (s)<input type="number" id="ann-fadesecs" class="sm-input" value="${cfg.pre_show_fade_secs??30}" min="0" max="600"></label>
         <label class="sm-lbl">Fade start<select id="ann-fadeanchor" class="sm-select">${fadeAnchor}</select></label>
+        <label class="sm-lbl">Post-show fade back (s)<input type="number" id="ann-postfade" class="sm-input" value="${cfg.post_show_fade_secs??0}" min="0" max="600"></label>
       </div>
-      <div class="sm-hint" style="margin-top:8px">Brightness fades to the pre-show level over the fade time, starting either the fade time before the show or when the selected pre-show audio begins. At show start the background effect is cleared, then brightness snaps to normal.</div>
+      <div class="sm-hint" style="margin-top:8px">Brightness fades to the pre-show level over the fade time, starting either the fade time before the show or when the selected pre-show audio begins. At show start the background effect is cleared, then brightness snaps to normal. When the show ends, brightness snaps to 0 and fades back to normal over the post-show fade (0 = snap straight back).</div>
     </div>
     <div class="sm-card">
       <div class="sm-ct">Pre-Show Announcements</div>
@@ -945,6 +946,7 @@ async function saveAnnouncements(){
     pre_show_brightness:Math.round(numOr(document.getElementById('ann-prebright').value,20)),
     normal_brightness:Math.round(numOr(document.getElementById('ann-normbright').value,100)),
     pre_show_fade_secs:Math.round(numOr(document.getElementById('ann-fadesecs').value,30)),
+    post_show_fade_secs:Math.round(numOr(document.getElementById('ann-postfade').value,0)),
     fade_anchor_mins:document.getElementById('ann-fadeanchor').value,
     pre_show:preShow,
     daytime:dtEn?{
