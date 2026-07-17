@@ -21,9 +21,9 @@ $plJson = json_encode($playlists);
   --amberBg:rgba(180,83,9,.12);--amberBrd:rgba(180,83,9,.4);
   --redBg:rgba(220,38,38,.10);--redBrd:rgba(220,38,38,.35);
   --s1Bg:rgba(37,99,235,.10);--s1Brd:rgba(37,99,235,.3);
-  --font:inherit;
+  --font:'PP Neue Montreal','Neue Montreal','Inter','Helvetica Neue','Segoe UI',Roboto,Arial,sans-serif;
   --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
-  position:relative;min-height:400px;
+  position:relative;min-height:400px;font-family:var(--font);
 }
 #sm *{box-sizing:border-box}
 #sm button{font-family:inherit;cursor:pointer}
@@ -299,12 +299,12 @@ function _heroHtml(fpp,xr){
       <div style="text-align:right;min-width:110px">
         <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700">FPP Volume</div>
         <div style="font-size:30px;font-weight:800;font-family:var(--mono);margin-top:4px">${vol!=null?vol+'%':'—'}</div>
-        <div style="height:5px;border-radius:3px;background:var(--high);margin-top:8px;overflow:hidden"><div style="width:${volPct}%;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--s1),var(--mint))"></div></div>
+        <div style="height:5px;border-radius:3px;background:var(--high);margin-top:8px;overflow:hidden"><div style="width:${volPct}%;height:100%;border-radius:3px;background:var(--mint)"></div></div>
       </div>
       <div style="text-align:right;min-width:110px">
         <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700">XR18 Fader</div>
         <div style="font-size:30px;font-weight:800;font-family:var(--mono);margin-top:4px">${fader!=null?fader.toFixed(2):'—'}</div>
-        <div style="height:5px;border-radius:3px;background:var(--high);margin-top:8px;overflow:hidden"><div style="width:${fadPct}%;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--s2),var(--amber))"></div></div>
+        <div style="height:5px;border-radius:3px;background:var(--high);margin-top:8px;overflow:hidden"><div style="width:${fadPct}%;height:100%;border-radius:3px;background:var(--mint)"></div></div>
       </div>
     </div>
   </div>`;
@@ -340,13 +340,13 @@ function _schedHtml(d){
 function _sysHtml(fpp,xr,running){
   // state: 'ok' green · 'idle' amber · 'bad' red
   const rows=[
-    ['FPP Daemon',fpp.fppd==='running'?'ok':'bad',fpp.fppd==='running'?'running':'stopped'],
-    ['XR18 Mixer',xr.xr18_fader!=null?'ok':'bad',xr.xr18_fader!=null?('fader '+xr.xr18_fader.toFixed(2)):'n/a'],
-    ['Scheduler',running?'ok':'bad',running?'active':'stopped'],
+    ['FPP Daemon',fpp.fppd==='running'?'ok':'bad',fpp.fppd==='running'?'Running':'Stopped'],
+    ['XR18 Mixer',xr.xr18_fader!=null?'ok':'bad',xr.xr18_fader!=null?('Fader '+xr.xr18_fader.toFixed(2)):'N/A'],
+    ['Scheduler',running?'ok':'bad',running?'Active':'Stopped'],
   ];
   const bg=xr.background||null;
-  if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music||'idle']);
-  if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect||'idle']);
+  if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music||'Idle']);
+  if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect||'Idle']);
   return rows.map(([l,st,txt])=>`
   <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
     <span style="font-size:14px">${l}</span>
@@ -370,8 +370,8 @@ async function renderStatus(){
         <div class="sm-ct" style="margin-bottom:14px">Manual Trigger</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <select id="trig-pl" class="sm-select" style="flex:1;min-width:140px">${plOptions('')}</select>
-          <button class="sm-btn solid" onclick="triggerPlaylist()">▶ Start</button>
-          <button class="sm-btn" onclick="stopPlaylist()">⏸ Stop</button>
+          <button class="sm-btn solid" onclick="triggerPlaylist()">Start</button>
+          <button class="sm-btn" onclick="stopPlaylist()">Stop</button>
         </div>
       </div>
       <div class="sm-card">

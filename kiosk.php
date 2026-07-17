@@ -26,7 +26,7 @@ $plJson = json_encode($playlists);
   --amberBg:rgba(246,181,63,.16);--amberBrd:rgba(246,181,63,.42);
   --redBg:rgba(245,86,111,.15);--redBrd:rgba(245,86,111,.45);
   --mintBg:rgba(47,211,196,.14);
-  --font:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font:'PP Neue Montreal','Neue Montreal','Inter','Helvetica Neue','Segoe UI',Roboto,Arial,sans-serif;
   --mono:ui-monospace,'SF Mono','Cascadia Code',Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
