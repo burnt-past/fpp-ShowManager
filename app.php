@@ -79,6 +79,8 @@ $plJson = json_encode($playlists);
 .sm-chip{border-radius:4px;padding:1px 6px;font-size:11px;font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.5;background:var(--mintBg);color:var(--mint);border:1px solid var(--mintBrd)}
 .sm-chip.rule{background:var(--s1Bg);color:var(--s1);border-color:var(--s1Brd)}
 .sm-chip.blk{background:var(--redBg);color:var(--red);border-color:var(--redBrd)}
+.sm-chip.bgm{background:rgba(124,58,237,.12);color:#7c3aed;border-color:rgba(124,58,237,.32)}
+.sm-chip.bgf{background:rgba(8,145,178,.12);color:#0e7490;border-color:rgba(8,145,178,.32)}
 /* segmented */
 .sm-seg{display:flex;gap:0;border:1px solid var(--border);border-radius:5px;overflow:hidden}
 .sm-seg button{appearance:none;border:none;padding:6px 14px;font-size:13px;background:transparent;color:inherit;opacity:.7}
@@ -477,22 +479,33 @@ async function fetchMonth(y,m){
   dataCache[k]=d;return d;
 }
 function invalidate(){Object.keys(dataCache).forEach(k=>delete dataCache[k]);}
-let calState={view:'Month',cursor:new Date(),byDate:{},rules:[]};
+let calState={view:'Month',cursor:new Date(),byDate:{},rules:[],bg:{}};
 async function calLoad(){
   const {view,cursor}=calState;
   const pairs=new Set();
   const y=cursor.getFullYear(),m=cursor.getMonth()+1;
   pairs.add(mkey(y,m));
   if(view==='Week'){const we=addDays(getSunday(cursor),6);pairs.add(mkey(we.getFullYear(),we.getMonth()+1));}
-  const results=await Promise.all([...pairs].map(k=>{const[y,m]=k.split('-');return fetchMonth(+y,+m);}));
+  const [results,bg]=await Promise.all([
+    Promise.all([...pairs].map(k=>{const[y,m]=k.split('-');return fetchMonth(+y,+m);})),
+    fetch(AJAX+'&action=get_background').then(r=>r.json()).catch(()=>({})),
+  ]);
   const byDate={};const rules=[];
   results.forEach(md=>{
     (md.entries||[]).forEach(e=>{if(!byDate[e.date])byDate[e.date]=[];byDate[e.date].push(e);});
     (md.rules||[]).forEach(r=>{if(!rules.find(x=>x.id===r.id))rules.push(r);});
   });
   Object.keys(byDate).forEach(dt=>byDate[dt].sort((a,b)=>(a.time||'').localeCompare(b.time||'')));
-  calState.byDate=byDate;calState.rules=rules;
+  calState.byDate=byDate;calState.rules=rules;calState.bg=bg||{};
   renderSchedule();
+}
+/* Background music/effect windows run daily — shown on every day cell.
+   Effect runs through blackouts (lighting only); music does not (audio). */
+function _bgWindows(){
+  const bg=calState.bg||{},m=bg.music||{},e=bg.effect||{},out=[];
+  if(m.enabled&&m.playlist) out.push({cls:'bgm',lbl:'Music',range:(m.start||'00:00')+'–'+(m.end||'00:00')});
+  if(e.enabled&&e.effect)   out.push({cls:'bgf',lbl:'Effect',range:(e.start||'00:00')+'–'+(e.end||'00:00')});
+  return out;
 }
 function initSchedule(){if(document.getElementById('sm-schedule').innerHTML==='')calLoad();else renderSchedule();}
 
@@ -516,6 +529,8 @@ function renderMonthView(){
     else{
       ents.slice(0,3).forEach(e=>html+=`<div class="sm-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
       if(ents.length>3)html+=`<div style="font-size:10px;color:var(--mut)">+${ents.length-3} more</div>`;
+      const bw=_bgWindows();
+      if(bw.length)html+='<div style="margin-top:auto;padding-top:3px">'+bw.map(w=>`<div class="sm-chip ${w.cls}">${w.lbl} ${escH(w.range)}</div>`).join('')+'</div>';
     }
     html+='</div>';
   }
@@ -536,7 +551,11 @@ function renderWeekView(){
     hd+=`<div class="cal-dow" style="${isTd?'color:var(--mint)':''}">${DAYS[d.getDay()]}<br><span style="font-family:var(--mono);font-weight:400">${ds.slice(5)}</span></div>`;
     bd+=`<div class="cal-cell${fullBlk?' bo':''}${isTd?' today':''}" style="min-height:150px" onclick="openDayModal('${ds}')">`;
     if(fullBlk)bd+='<div style="font-size:10px;color:var(--red);font-weight:700">✖ Blackout</div>';
-    else ents.slice(0,5).forEach(e=>bd+=`<div class="sm-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
+    else{
+      ents.slice(0,5).forEach(e=>bd+=`<div class="sm-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
+      const bw=_bgWindows();
+      if(bw.length)bd+='<div style="margin-top:auto;padding-top:3px">'+bw.map(w=>`<div class="sm-chip ${w.cls}">${w.lbl} ${escH(w.range)}</div>`).join('')+'</div>';
+    }
     bd+='</div>';
   }
   return `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px">${hd}</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">${bd}</div>`;
@@ -547,8 +566,7 @@ function renderDayView(){
   const {cursor,byDate}=calState;
   const ds=fmtDate(cursor);
   const ents=byDate[ds]||[];
-  if(!ents.length)return `<div style="text-align:center;padding:48px 0;color:var(--sub)"><div style="font-size:32px">📅</div><div style="font-size:15px;font-weight:500;margin-top:10px">No shows scheduled</div></div>`;
-  return ents.map(e=>{
+  let html=ents.map(e=>{
     const isRule=!!e.rule_id,isBlk=e.type==='blackout';
     const c=isBlk?'var(--red)':isRule?'var(--s1)':'var(--mint)';
     return `<div class="dv-entry">
@@ -560,6 +578,18 @@ function renderDayView(){
         :`<button class="sm-btn danger sm" onclick="deleteEntry('${escH(e.id)}')">Remove</button>`}
     </div>`;
   }).join('');
+  // Background windows (run daily)
+  const bg=calState.bg||{},m=bg.music||{},e=bg.effect||{};
+  const bgRow=(on,c,lbl,name,start,end,note)=>`<div class="dv-entry">
+    <div style="width:4px;height:36px;border-radius:2px;background:${c};flex-shrink:0"></div>
+    <span style="font-family:var(--mono);font-size:14px;color:${c};min-width:110px">${escH(start||'00:00')}–${escH(end||'00:00')}</span>
+    <span style="flex:1;font-size:14px"><span style="font-weight:600">${lbl}</span> · ${escH(name)}${note?` <span style="color:var(--mut);font-size:12px">${note}</span>`:''}</span>
+    <button class="sm-btn ghost sm" onclick="smTab('background')">Edit</button>
+  </div>`;
+  if(m.enabled&&m.playlist) html+=bgRow(1,'#7c3aed','BG Music',m.playlist,m.start,m.end,'daily');
+  if(e.enabled&&e.effect)   html+=bgRow(1,'#0e7490','BG Effect',e.effect,e.start,e.end,'daily · through blackouts');
+  if(!html)return `<div style="text-align:center;padding:48px 0;color:var(--sub)"><div style="font-size:32px">📅</div><div style="font-size:15px;font-weight:500;margin-top:10px">Nothing scheduled</div></div>`;
+  return html;
 }
 
 /* ── SCHEDULE RENDER ── */
@@ -606,6 +636,8 @@ function renderSchedule(){
     <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--mint)"></span>One-off show</span>
     <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--s1)"></span>Rule-generated</span>
     <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:var(--red)"></span>Blackout</span>
+    <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#7c3aed"></span>BG music</span>
+    <span style="display:flex;align-items:center;gap:6px"><span style="width:11px;height:11px;border-radius:3px;background:#0e7490"></span>BG effect</span>
   </div>
   <div class="sm-card" style="padding:14px;overflow-x:auto">
     <div style="min-width:640px">${calHtml}</div>
