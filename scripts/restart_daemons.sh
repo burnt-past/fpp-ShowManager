@@ -12,8 +12,8 @@
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOGDIR="/home/fpp/media/logs"
 
-pkill -f xr18_bridge.py    2>/dev/null
-pkill -f show_scheduler.py 2>/dev/null
+pkill -f "[x]r18_bridge.py"    2>/dev/null
+pkill -f "[s]how_scheduler.py" 2>/dev/null
 sleep 1   # let the processes exit and release their locks before relaunch
 
 python3 "$PLUGIN_DIR/Scripts/xr18_bridge.py"    >> "$LOGDIR/xr18_bridge.log" 2>&1 &

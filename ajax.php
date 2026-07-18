@@ -202,7 +202,7 @@ switch ($_GET['action'] ?? '') {
 
     case 'get_log':
         $logFile = '/home/fpp/media/logs/showmanager.log';
-        $running = (int)shell_exec('pgrep -fc show_scheduler.py 2>/dev/null') > 0;
+        $running = (int)shell_exec('pgrep -fc "[s]how_scheduler.py" 2>/dev/null') > 0;
         if (!file_exists($logFile)) {
             echo json_encode(['lines' => ['(log file not found — scheduler may not have run yet)'], 'running' => $running]);
             break;
@@ -219,7 +219,7 @@ switch ($_GET['action'] ?? '') {
 
     case 'scheduler_restart':
         $pluginDir = __DIR__;
-        shell_exec("pkill -f show_scheduler.py 2>/dev/null");
+        shell_exec('pkill -f "[s]how_scheduler.py" 2>/dev/null');
         sleep(1);
         shell_exec("python3 " . escapeshellarg("$pluginDir/Scripts/show_scheduler.py") . " >> /home/fpp/media/logs/showmanager.log 2>&1 &");
         echo json_encode(['ok' => true]);
@@ -245,7 +245,7 @@ switch ($_GET['action'] ?? '') {
         file_put_contents($hwFile, json_encode($body, JSON_PRETTY_PRINT));
         // The bridge only reads config at startup — restart it to apply
         $pluginDir = __DIR__;
-        shell_exec("pkill -f xr18_bridge.py 2>/dev/null");
+        shell_exec('pkill -f "[x]r18_bridge.py" 2>/dev/null');
         sleep(1);
         shell_exec("python3 " . escapeshellarg("$pluginDir/Scripts/xr18_bridge.py") . " >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &");
         echo json_encode(['ok' => true]);
@@ -353,7 +353,7 @@ switch ($_GET['action'] ?? '') {
         $playlist = $_GET['playlist'] ?? '';
         if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
         @unlink('/tmp/showmanager_manual_stop');
-        $running = (int)shell_exec('pgrep -fc show_scheduler.py 2>/dev/null') > 0;
+        $running = (int)shell_exec('pgrep -fc "[s]how_scheduler.py" 2>/dev/null') > 0;
         file_put_contents('/tmp/showmanager_run_now', json_encode(['playlist' => $playlist]));
         echo json_encode(['ok' => $running, 'queued' => true, 'scheduler_running' => $running]);
         break;
@@ -389,7 +389,7 @@ switch ($_GET['action'] ?? '') {
         if (!$written) { http_response_code(400); echo json_encode(['error' => 'no valid config files in backup']); break; }
         // Apply immediately: restart both daemons so new hardware/schedule take effect
         $pluginDir = __DIR__;
-        shell_exec('pkill -f show_scheduler.py 2>/dev/null; pkill -f xr18_bridge.py 2>/dev/null');
+        shell_exec('pkill -f "[s]how_scheduler.py" 2>/dev/null; pkill -f "[x]r18_bridge.py" 2>/dev/null');
         sleep(1);
         shell_exec('python3 ' . escapeshellarg("$pluginDir/Scripts/xr18_bridge.py")    . ' >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &');
         shell_exec('python3 ' . escapeshellarg("$pluginDir/Scripts/show_scheduler.py") . ' >> /home/fpp/media/logs/showmanager.log 2>&1 &');
@@ -402,10 +402,10 @@ switch ($_GET['action'] ?? '') {
             $checks[] = ['label' => $label, 'status' => $status, 'detail' => $detail];
         };
         // Daemons
-        $sched = (int)shell_exec('pgrep -fc show_scheduler.py 2>/dev/null');
+        $sched = (int)shell_exec('pgrep -fc "[s]how_scheduler.py" 2>/dev/null');
         $add('Scheduler daemon', $sched === 1 ? 'ok' : ($sched > 1 ? 'warn' : 'bad'),
              $sched === 1 ? 'Running (1 instance)' : ($sched > 1 ? "$sched instances — restart to dedupe" : 'Not running'));
-        $bridge = (int)shell_exec('pgrep -fc xr18_bridge.py 2>/dev/null');
+        $bridge = (int)shell_exec('pgrep -fc "[x]r18_bridge.py" 2>/dev/null');
         $add('XR18 bridge', $bridge >= 1 ? 'ok' : 'bad', $bridge >= 1 ? 'Running' : 'Not running');
         // FPP daemon
         $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true]]);
