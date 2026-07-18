@@ -24,7 +24,7 @@ Errors are labelled `ERROR`, warnings `WARNING`.
 
 ### Everything fires twice (announcements, shows)
 
-Two scheduler copies were running. A single-instance lock now prevents this — restart the daemons once (**Restart Scheduler**) so the old duplicate is cleared and one locked instance takes over. Confirm with `pgrep -af show_scheduler.py` (should be one line).
+Two scheduler copies were running. Both daemons now hold a single-instance `flock` lock, so a second copy exits on startup — and a plugin **update** stops the old daemons before starting the new code (`fpp_install.sh`), so updates no longer leave duplicates. If you still see two, restart the daemons once (**Restart Scheduler**, or Plugin Setup → Restart Daemons) and confirm with `pgrep -af show_scheduler.py` / `pgrep -af xr18_bridge.py` (one line each).
 
 ### A show starts but ends instantly
 
@@ -107,20 +107,20 @@ Both need **fpp-plugin-3DViewer** at `/3dviewer/`. If the preview card doesn't a
 
 ## Daemon management
 
-Restart via **Plugin Setup → Restart Daemons** or the **Restart Scheduler** button. Manually:
+Restart via **Plugin Setup → Restart Daemons** or the **Restart Scheduler** button. Manually, use the bundled kill-first launcher (the same one boot and updates use):
 
 ```bash
-pkill -f show_scheduler.py; pkill -f xr18_bridge.py
-sleep 1
-python3 /home/fpp/media/plugins/fpp-ShowManager/Scripts/xr18_bridge.py    >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &
-python3 /home/fpp/media/plugins/fpp-ShowManager/Scripts/show_scheduler.py >> /home/fpp/media/logs/showmanager.log 2>&1 &
+/home/fpp/media/plugins/fpp-ShowManager/scripts/restart_daemons.sh
 ```
+
+It stops any running copies, waits for their locks to release, then starts the current code — so it never duplicates. (Boot runs `scripts/postStart.sh` and plugin updates run `fpp_install.sh`; both call this script.)
 
 Clear coordination state (does not touch config):
 
 ```bash
 pkill -f show_scheduler.py; pkill -f xr18_bridge.py
-rm -f /tmp/xr18_pause_sync /tmp/xr18_current_fader /tmp/showmanager_manual_stop /tmp/showmanager_scheduler.lock
+rm -f /tmp/xr18_pause_sync /tmp/xr18_current_fader /tmp/showmanager_manual_stop \
+      /tmp/showmanager_run_now /tmp/showmanager_scheduler.lock /tmp/showmanager_bridge.lock
 ```
 
 Reset a playlist rotation: `rm /home/fpp/media/config/ShowManagerRotation.config`.

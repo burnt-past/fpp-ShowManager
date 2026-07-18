@@ -68,7 +68,7 @@ Install via the FPP **Plugin Manager** (repo `burnt-past/fpp-ShowManager`), then
 sudo apt install -y ffmpeg          # announcement playback (if not already present)
 ```
 
-The plugin's daemons (`xr18_bridge.py`, `show_scheduler.py`) start automatically on boot via `scripts/postStart.sh`, the hook FPP runs after fppd starts. After installing or updating, restart them once — **Plugin Setup → Restart Daemons**, the **Restart Scheduler** button on the Status tab, or a reboot.
+The plugin's daemons (`xr18_bridge.py`, `show_scheduler.py`) start automatically on boot via `scripts/postStart.sh`, the hook FPP runs after fppd starts. A plugin **update** runs `fpp_install.sh`, which stops the old daemons before starting the freshly-pulled code — so updates don't leave duplicates. (Both daemons also hold single-instance locks as a backstop.) You can always restart them by hand — **Plugin Setup → Restart Daemons**, the **Restart Scheduler** button, or `scripts/restart_daemons.sh`.
 
 Announcement audio can be uploaded from the Announcements tab, or dropped into:
 
