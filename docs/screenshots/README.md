@@ -6,11 +6,12 @@ Place screenshots of the running plugin here.
 
 | Filename | What to capture |
 |---|---|
-| `status.png` | Status tab — now-playing, meters, manual trigger, system pills, log |
+| `status.png` | Status tab — now-playing, meters, warnings banner, Run Show, tonight's timeline, system pills, log |
 | `schedule.png` | Schedule tab (Month view) with shows, a blackout, and the background window chips |
 | `background.png` | Background tab — music and effect schedules |
 | `announcements.png` | Announcements tab — ducking, lighting fade, pre-show rows, daytime, files |
 | `hardware.png` | Hardware tab — XR18 mixer settings |
+| `system.png` | System tab — backup/restore and diagnostics |
 | `kiosk.png` | The full-screen kiosk during a show |
 
 ## Tips

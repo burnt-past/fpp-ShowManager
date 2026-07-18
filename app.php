@@ -133,12 +133,14 @@ $plJson = json_encode($playlists);
       <button class="sm-tab" onclick="smTab('background')">Background</button>
       <button class="sm-tab" onclick="smTab('announcements')">Announcements</button>
       <button class="sm-tab" onclick="smTab('hardware')">Hardware</button>
+      <button class="sm-tab" onclick="smTab('system')">System</button>
     </div>
     <div id="sm-status" class="sm-pane"></div>
     <div id="sm-schedule" class="sm-pane" style="display:none"></div>
     <div id="sm-background" class="sm-pane" style="display:none"></div>
     <div id="sm-announcements" class="sm-pane" style="display:none"></div>
     <div id="sm-hardware" class="sm-pane" style="display:none"></div>
+    <div id="sm-system" class="sm-pane" style="display:none"></div>
   </div>
   <div id="sm-modal-layer"></div>
   <div id="sm-toasts"></div>
@@ -197,11 +199,11 @@ function _runConfirm(){closeModal();const cb=_confirmCb;_confirmCb=null;if(cb)cb
 
 /* ── TABS ── */
 function smTab(name){
-  document.querySelectorAll('.sm-tab').forEach((b,i)=>b.classList.toggle('active',['status','schedule','background','announcements','hardware'][i]===name));
+  document.querySelectorAll('.sm-tab').forEach((b,i)=>b.classList.toggle('active',['status','schedule','background','announcements','hardware','system'][i]===name));
   document.querySelectorAll('.sm-pane').forEach(p=>p.style.display='none');
   document.getElementById('sm-'+name).style.display='';
-  if(name!=='status'&&statusTimer){clearInterval(statusTimer);statusTimer=null;}
-  ({status:loadStatus,schedule:initSchedule,background:loadBackground,announcements:loadAnnouncements,hardware:loadHardware})[name]?.();
+  if(name!=='status'&&statusTimer){clearInterval(statusTimer);statusTimer=null;clearInterval(_cdTimer);_cdTimer=null;}
+  ({status:loadStatus,schedule:initSchedule,background:loadBackground,announcements:loadAnnouncements,hardware:loadHardware,system:loadSystem})[name]?.();
 }
 
 /* ── NOW PLAYING STRIP ── */
@@ -241,6 +243,7 @@ async function _npTick(){
 let statusTimer=null;
 let triggerLog=[];
 let logPaused=false;
+let tlBg=null,tlAnn=null,tlEvents=[],_cdTimer=null;
 
 function loadStatus(){
   clearInterval(statusTimer);
@@ -257,6 +260,7 @@ function loadStatus(){
   }
   renderStatus().then(()=>{el.dataset.loaded='1';});
   statusTimer=setInterval(_tick,3000);
+  clearInterval(_cdTimer);_cdTimer=setInterval(_updateCountdown,1000);
 }
 
 /* Mirror the scheduler's blackout rules so the UI shows what will actually run */
@@ -330,22 +334,6 @@ function _statsHtml(fpp,xr,shows,upcoming){
     <div style="font-size:24px;font-weight:800;font-family:var(--mono);word-break:break-all;line-height:1.2">${escH(String(v))}</div>
   </div>`).join('');
 }
-function _schedHtml(d){
-  if(d.fullBlackout) return '<div style="font-size:13px;color:var(--red);font-weight:600">⛔ Blackout day — no shows will run</div>';
-  if(!d.shows.length) return '<div style="font-size:13px;color:var(--mut)">No shows today</div>';
-  const nowIdx=d.playing?(d.nextIdx<0?d.shows.length-1:d.nextIdx-1):-1;
-  return d.shows.map((s,i)=>{
-    const isNow=i===nowIdx&&nowIdx>=0&&(!s.playlist||!d.curName||s.playlist===d.curName);
-    const isNext=i===d.nextIdx&&!isNow;
-    const isPast=(d.nextIdx<0||i<d.nextIdx)&&!isNow;
-    return `<div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);opacity:${isPast?.42:1}">
-      <span style="font-family:var(--mono);font-size:14px;font-weight:600;width:52px;color:${isNow?'var(--amber)':'var(--text)'}">${escH(s.time)}</span>
-      <span style="font-size:14px;${isNext||isNow?'font-weight:600':''}">${escH(qlabel(s))}</span>
-      ${isNext?'<span class="sm-badge mint">Next</span>':''}
-      ${isNow?'<span class="sm-badge amber">Now</span>':''}
-    </div>`;
-  }).join('');
-}
 function _sysHtml(fpp,xr,running){
   // state: 'ok' green · 'idle' amber · 'bad' red
   const rows=[
@@ -363,12 +351,87 @@ function _sysHtml(fpp,xr,running){
   </div>`).join('');
 }
 
+/* ── tonight's timeline (shows + pre-show announcements + background windows) ── */
+function _showName(s){return s.playlist||(s.playlists||[]).join(' / ')||'(show)';}
+function _addMin(hm,delta){
+  const p=(hm||'').split(':');if(p.length!==2)return null;
+  let m=(+p[0])*60+(+p[1])+delta;
+  if(m<0||m>=1440)return null;   // spilled to another day — skip
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+}
+function _computeEvents(d){
+  const ev=[],shows=d.shows||[];
+  shows.forEach(s=>ev.push({t:s.time,kind:'show',label:'Show — '+_showName(s)}));
+  const pre=(tlAnn&&tlAnn.pre_show)||[];
+  shows.forEach(s=>pre.forEach(p=>{
+    if(!p.file)return;
+    const mb=Math.round(+p.mins_before||0),t=_addMin(s.time,-mb);
+    if(t)ev.push({t,kind:'ann',label:'Announcement — '+mb+'m before '+_showName(s)});
+  }));
+  if(tlBg){
+    const m=tlBg.music||{},e=tlBg.effect||{};
+    if(m.enabled&&m.playlist&&m.start&&m.start!==m.end){ev.push({t:m.start,kind:'bgm',label:'Background music starts'});ev.push({t:m.end,kind:'bgm',label:'Background music ends'});}
+    if(e.enabled&&e.effect&&e.start&&e.start!==e.end){ev.push({t:e.start,kind:'bgf',label:'Background effect starts'});ev.push({t:e.end,kind:'bgf',label:'Background effect ends'});}
+  }
+  ev.sort((a,b)=>a.t.localeCompare(b.t));
+  tlEvents=ev;return ev;
+}
+function _eventDate(t){const p=t.split(':'),d=new Date();d.setHours(+p[0],+p[1],0,0);return d;}
+function _fmtCountdown(secs){const s=Math.max(0,Math.round(secs)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),ss=s%60;return h>0?h+'h '+m+'m':(m>0?m+'m '+ss+'s':ss+'s');}
+function _updateCountdown(){
+  const elC=document.getElementById('sm-next-countdown');if(!elC)return;
+  const elL=document.getElementById('sm-next-label'),now=new Date();
+  let nextEv=null,best=Infinity;
+  tlEvents.forEach(ev=>{const diff=(_eventDate(ev.t)-now)/1000;if(diff>=0&&diff<best){best=diff;nextEv=ev;}});
+  if(!nextEv){elC.textContent='—';if(elL)elL.textContent='Nothing else scheduled today';return;}
+  elC.textContent=_fmtCountdown(best);
+  if(elL)elL.textContent=nextEv.label+' · '+nextEv.t;
+}
+function _timelineHtml(d){
+  _computeEvents(d);
+  if(d.fullBlackout)return '<div style="font-size:13px;color:var(--red);font-weight:600">⛔ Blackout day — shows and background music suppressed</div>';
+  if(!tlEvents.length)return '<div style="font-size:13px;color:var(--mut)">Nothing scheduled today</div>';
+  const now=new Date().toTimeString().slice(0,5);
+  const icon={show:'▶',ann:'🔔',bgm:'♪',bgf:'✦'};
+  const nextT=(tlEvents.find(ev=>ev.t>=now)||{}).t;
+  const rows=tlEvents.map(ev=>{
+    const past=ev.t<now,isNext=ev.t===nextT&&!past;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);opacity:${past?.4:1}">
+      <span style="font-family:var(--mono);font-size:13px;font-weight:600;width:46px">${escH(ev.t)}</span>
+      <span style="width:16px;text-align:center;color:var(--sub)">${icon[ev.kind]||'·'}</span>
+      <span style="font-size:13px;${isNext?'font-weight:600':''}">${escH(ev.label)}</span>
+      ${isNext?'<span class="sm-badge mint" style="margin-left:auto">Next</span>':''}
+    </div>`;
+  }).join('');
+  return `<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">
+      <span style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700">Next up in</span>
+      <span id="sm-next-countdown" style="font-size:22px;font-weight:800;font-family:var(--mono)">—</span>
+    </div>
+    <div id="sm-next-label" style="font-size:12px;color:var(--sub);margin-bottom:12px">&nbsp;</div>
+    ${rows}`;
+}
+function _warnHtml(ws){
+  if(!ws||!ws.length)return '';
+  const hasBad=ws.some(w=>w.level==='bad');
+  return `<div class="sm-card" style="border-left:3px solid ${hasBad?'var(--red)':'var(--amber)'}">
+    <div class="sm-ct" style="margin-bottom:8px">⚠ ${ws.length} schedule ${ws.length===1?'warning':'warnings'}</div>
+    ${ws.map(w=>`<div style="display:flex;gap:8px;padding:4px 0;font-size:13px;align-items:flex-start"><span style="color:${w.level==='bad'?'var(--red)':'var(--amber)'};line-height:1.5">●</span><span>${escH(w.text)}</span></div>`).join('')}
+  </div>`;
+}
+
 async function renderStatus(){
   const el=document.getElementById('sm-status');
-  const d=await _fetchStatus();
+  const [d,bg,ann,warn]=await Promise.all([
+    _fetchStatus(),
+    fetch(AJAX+'&action=get_background').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_announcements').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_warnings').then(r=>r.json()).catch(()=>({warnings:[]})),
+  ]);
+  tlBg=bg;tlAnn=ann;
   const {fpp,xr,log}=d;
   el.innerHTML=`
 <div style="display:flex;flex-direction:column;gap:16px">
+  <div id="sm-warnings">${_warnHtml(warn.warnings)}</div>
   <div class="sm-card" style="padding:20px 22px">
     <div id="sm-hero">${_heroHtml(fpp,xr)}</div>
   </div>
@@ -376,16 +439,18 @@ async function renderStatus(){
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start">
     <div style="display:flex;flex-direction:column;gap:16px">
       <div class="sm-card">
-        <div class="sm-ct" style="margin-bottom:14px">Manual Trigger</div>
+        <div class="sm-ct" style="margin-bottom:4px">Manual Trigger</div>
+        <p style="font-size:12px;color:var(--sub);margin:0 0 12px"><b>Run Show</b> uses the full pipeline (dim, fader levels, post-show fade). <b>Start</b> is a raw FPP start for testing.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <select id="trig-pl" class="sm-select" style="flex:1;min-width:140px">${plOptions('')}</select>
-          <button class="sm-btn solid" onclick="triggerPlaylist()">Start</button>
+          <button class="sm-btn solid" onclick="runShow()">▶ Run Show</button>
+          <button class="sm-btn" onclick="triggerPlaylist()">Start</button>
           <button class="sm-btn" onclick="stopPlaylist()">Stop</button>
         </div>
       </div>
       <div class="sm-card">
-        <div class="sm-ct" style="margin-bottom:6px">Today's Schedule</div>
-        <div id="sm-sched">${_schedHtml(d)}</div>
+        <div class="sm-ct" style="margin-bottom:6px">Tonight's Timeline</div>
+        <div id="sm-sched">${_timelineHtml(d)}</div>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px">
@@ -429,7 +494,8 @@ async function _tick(){
   const {fpp,xr,log}=d;
   const hero=document.getElementById('sm-hero');if(hero)hero.innerHTML=_heroHtml(fpp,xr);
   const stats=document.getElementById('sm-stats');if(stats)stats.innerHTML=_statsHtml(fpp,xr,d.shows,d.upcoming);
-  const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_schedHtml(d);
+  const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_timelineHtml(d);
+  _updateCountdown();
   const sysEl=document.getElementById('sm-sys');if(sysEl)sysEl.innerHTML=_sysHtml(fpp,xr,log.running);
   if(!logPaused){const lc=document.getElementById('sm-log-content');if(lc){lc.textContent=log.lines.join('\n')||'(empty)';lc.scrollTop=lc.scrollHeight;}}
 }
@@ -446,6 +512,18 @@ async function triggerPlaylist(){
   const r=await fetch(AJAX+'&action=trigger_playlist&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(e=>({error:String(e)}));
   _appendTriggerLog('  URL:  '+r.url+'\n  HTTP: '+r.http+'\n  Body: '+(r.response||'(empty)'));
   toast(r.ok?('Started "'+pl+'"'):'Start failed — see probe output',r.ok?'ok':'err');
+}
+async function runShow(){
+  const pl=document.getElementById('trig-pl').value;
+  if(!pl)return toast('Select a playlist first','err');
+  _appendTriggerLog('[Run Show] '+pl+' — through the full pipeline…');
+  const r=await fetch(AJAX+'&action=trigger_show&playlist='+encodeURIComponent(pl)).then(r=>r.json()).catch(e=>({error:String(e)}));
+  if(r.scheduler_running===false){
+    _appendTriggerLog('  Scheduler is NOT running — start it first (System tab / Restart Scheduler).');
+    return toast('Scheduler not running — start it first','err');
+  }
+  _appendTriggerLog('  Queued — the scheduler will dim, set levels, and start the show within a few seconds.');
+  toast('Running "'+pl+'" through the show pipeline','ok');
 }
 async function stopPlaylist(){
   _appendTriggerLog('[Stop] — sending…');
@@ -1106,6 +1184,84 @@ async function saveHardware(){
   const j=await r.json();
   if(j.ok)toast('Saved — bridge restarted','ok');
   else toast('Save failed','err');
+}
+
+/* ── SYSTEM TAB (backup / restore / diagnostics) ── */
+function loadSystem(){
+  const el=document.getElementById('sm-system');
+  el.innerHTML=`
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start">
+    <div class="sm-card">
+      <div class="sm-ct" style="margin-bottom:6px">Backup &amp; Restore</div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 14px">Download every Show Manager setting as one file, or restore from a previous backup. Restoring overwrites current settings and restarts the daemons.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="sm-btn solid" onclick="exportConfig()">⬇ Download backup</button>
+        <button class="sm-btn" onclick="document.getElementById('sm-restore-file').click()">⬆ Restore from file…</button>
+        <input type="file" id="sm-restore-file" accept="application/json,.json" style="display:none" onchange="importConfig(this)">
+      </div>
+      <div class="sm-hint" style="margin-top:10px">Backup includes schedule, background, announcements, hardware and overrides.</div>
+    </div>
+    <div class="sm-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
+        <div style="display:flex;gap:6px">
+          <button class="sm-btn ghost sm" onclick="brightnessFlash()">Flash lights</button>
+          <button class="sm-btn ghost sm" onclick="runDiag()">↻ Re-check</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">A quick pre-show health check of the rig.</p>
+      <div id="sm-diag"><div class="sm-skel" style="height:180px"></div></div>
+    </div>
+  </div>`;
+  runDiag();
+}
+async function exportConfig(){
+  try{
+    const r=await fetch(AJAX+'&action=export_config');
+    const txt=await r.text();
+    const stamp=new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));
+    a.download='showmanager-backup-'+stamp+'.json';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    toast('Backup downloaded','ok');
+  }catch(e){toast('Backup failed','err');}
+}
+function importConfig(input){
+  const file=input.files&&input.files[0];
+  input.value='';
+  if(!file)return;
+  smConfirm('Restore settings?','This overwrites current schedule, background, announcements and hardware settings with the backup, then restarts the daemons.','Restore',async()=>{
+    try{
+      const text=await file.text();
+      const r=await fetch(AJAX+'&action=import_config',{method:'POST',body:text});
+      const j=await r.json();
+      if(j.ok){toast('Restored '+j.restored.length+' file(s) — daemons restarting','ok');}
+      else toast(j.error||'Restore failed','err');
+    }catch(e){toast('Restore failed — invalid file','err');}
+  });
+}
+function _diagRow(c){
+  const st=c.status==='ok'?'ok':(c.status==='warn'?'idle':'bad');
+  return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+    <span style="font-size:14px">${escH(c.label)}</span>
+    <span style="font-size:12px;color:var(--sub);margin-left:auto;text-align:right">${escH(c.detail)}</span>
+    <span class="sm-pill ${st}" style="min-width:0">${c.status==='ok'?'OK':(c.status==='warn'?'Check':'Fail')}</span>
+  </div>`;
+}
+async function runDiag(){
+  const box=document.getElementById('sm-diag');
+  if(box)box.innerHTML='<div class="sm-skel" style="height:180px"></div>';
+  const r=await fetch(AJAX+'&action=diagnostics').then(r=>r.json()).catch(()=>null);
+  if(!box)return;
+  if(!r||!r.checks){box.innerHTML='<div style="color:var(--red);font-size:13px">Diagnostics failed to run</div>';return;}
+  box.innerHTML=r.checks.map(_diagRow).join('');
+}
+async function brightnessFlash(){
+  toast('Flashing lights…','amber');
+  const r=await fetch(AJAX+'&action=brightness_flash').then(r=>r.json()).catch(()=>({}));
+  toast(r.note||'Done',r.ok?'ok':'err');
 }
 
 /* ── INIT ── */

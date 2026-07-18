@@ -346,6 +346,171 @@ switch ($_GET['action'] ?? '') {
         } else { http_response_code(400); echo json_encode(['error' => 'invalid path']); }
         break;
 
+    case 'trigger_show':
+        // Run a playlist through the scheduler's full show pipeline (brightness,
+        // fader levels, effect kill, end detection, post-show fade). We hand the
+        // request to the running scheduler via a file it polls every few seconds.
+        $playlist = $_GET['playlist'] ?? '';
+        if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
+        @unlink('/tmp/showmanager_manual_stop');
+        $running = (int)shell_exec('pgrep -fc show_scheduler.py 2>/dev/null') > 0;
+        file_put_contents('/tmp/showmanager_run_now', json_encode(['playlist' => $playlist]));
+        echo json_encode(['ok' => $running, 'queued' => true, 'scheduler_running' => $running]);
+        break;
+
+    case 'export_config':
+        // Bundle every ShowManager*.config into one downloadable object.
+        $files = [];
+        foreach (glob($settings['configDirectory'] . '/ShowManager*.config') as $f) {
+            $files[basename($f)] = json_decode(file_get_contents($f), true);
+        }
+        echo json_encode([
+            'type'     => 'showmanager-backup',
+            'version'  => 1,
+            'exported' => date('c'),
+            'host'     => gethostname(),
+            'files'    => $files,
+        ], JSON_PRETTY_PRINT);
+        break;
+
+    case 'import_config':
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || ($body['type'] ?? '') !== 'showmanager-backup' || empty($body['files'])) {
+            http_response_code(400); echo json_encode(['error' => 'not a Show Manager backup']); break;
+        }
+        $written = [];
+        foreach ($body['files'] as $name => $content) {
+            // Only accept our own config names, basename only (no path traversal)
+            $base = basename($name);
+            if ($base !== $name || !preg_match('/^ShowManager[A-Za-z]*\.config$/', $base)) continue;
+            file_put_contents($settings['configDirectory'] . '/' . $base, json_encode($content, JSON_PRETTY_PRINT));
+            $written[] = $base;
+        }
+        if (!$written) { http_response_code(400); echo json_encode(['error' => 'no valid config files in backup']); break; }
+        // Apply immediately: restart both daemons so new hardware/schedule take effect
+        $pluginDir = __DIR__;
+        shell_exec('pkill -f show_scheduler.py 2>/dev/null; pkill -f xr18_bridge.py 2>/dev/null');
+        sleep(1);
+        shell_exec('python3 ' . escapeshellarg("$pluginDir/Scripts/xr18_bridge.py")    . ' >> /home/fpp/media/logs/xr18_bridge.log 2>&1 &');
+        shell_exec('python3 ' . escapeshellarg("$pluginDir/Scripts/show_scheduler.py") . ' >> /home/fpp/media/logs/showmanager.log 2>&1 &');
+        echo json_encode(['ok' => true, 'restored' => $written]);
+        break;
+
+    case 'diagnostics':
+        $checks = [];
+        $add = function($label, $status, $detail) use (&$checks) {
+            $checks[] = ['label' => $label, 'status' => $status, 'detail' => $detail];
+        };
+        // Daemons
+        $sched = (int)shell_exec('pgrep -fc show_scheduler.py 2>/dev/null');
+        $add('Scheduler daemon', $sched === 1 ? 'ok' : ($sched > 1 ? 'warn' : 'bad'),
+             $sched === 1 ? 'Running (1 instance)' : ($sched > 1 ? "$sched instances — restart to dedupe" : 'Not running'));
+        $bridge = (int)shell_exec('pgrep -fc xr18_bridge.py 2>/dev/null');
+        $add('XR18 bridge', $bridge >= 1 ? 'ok' : 'bad', $bridge >= 1 ? 'Running' : 'Not running');
+        // FPP daemon
+        $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true]]);
+        $fppRaw = @file_get_contents('http://localhost/api/fppd/status', false, $ctx);
+        $fpp = $fppRaw !== false ? json_decode($fppRaw, true) : null;
+        $add('FPP daemon', $fpp ? 'ok' : 'bad', $fpp ? ('Reachable — mode ' . ($fpp['mode_name'] ?? $fpp['mode'] ?? '?')) : 'No response from FPP API');
+        // Mixer reachability
+        $hwFile = $settings['configDirectory'] . '/ShowManagerHardware.config';
+        $hw = file_exists($hwFile) ? (json_decode(file_get_contents($hwFile), true) ?? []) : [];
+        $mip = $hw['mixer_ip'] ?? ($hw['xr18_ip'] ?? '');
+        if ($mip) {
+            $ok = false; $out = [];
+            exec('ping -c1 -W1 ' . escapeshellarg($mip) . ' 2>/dev/null', $out, $rc);
+            $add('Mixer reachable', $rc === 0 ? 'ok' : 'bad', $rc === 0 ? "Ping OK ($mip)" : "No ping response ($mip)");
+        } else {
+            $add('Mixer reachable', 'warn', 'No mixer IP configured');
+        }
+        // Plugins
+        $plugDir = dirname(__DIR__);
+        $bright = glob($plugDir . '/*rightness*');
+        $add('Brightness plugin', $bright ? 'ok' : 'warn', $bright ? basename($bright[0]) : 'Not installed — brightness fades no-op');
+        $viewer = array_merge(glob($plugDir . '/*3d*') ?: [], glob($plugDir . '/*3D*') ?: [], glob($plugDir . '/*iewer*') ?: []);
+        $add('3D Viewer plugin', $viewer ? 'ok' : 'warn', $viewer ? basename($viewer[0]) : 'Not installed — kiosk preview/garland off');
+        // Audio tooling
+        $ff = trim(shell_exec('command -v ffmpeg 2>/dev/null') ?: '');
+        $mp = trim(shell_exec('command -v mpg123 2>/dev/null') ?: '');
+        $add('Audio player', ($ff || $mp) ? 'ok' : 'bad', $ff ? 'ffmpeg' : ($mp ? 'mpg123' : 'Neither ffmpeg nor mpg123 found'));
+        // Clock sync
+        $ntp = trim(shell_exec('timedatectl show -p NTPSynchronized --value 2>/dev/null') ?: '');
+        if ($ntp === '') $add('Clock sync', 'warn', 'Unknown (timedatectl unavailable)');
+        else $add('Clock sync', $ntp === 'yes' ? 'ok' : 'warn', $ntp === 'yes' ? 'NTP synced — ' . date('Y-m-d H:i:s') : 'NOT synced — shows may fire at wrong times');
+        // Disk
+        $free = @disk_free_space('/home/fpp/media');
+        if ($free !== false) {
+            $mb = $free / 1048576;
+            $add('Disk space', $mb > 200 ? 'ok' : ($mb > 50 ? 'warn' : 'bad'), sprintf('%.0f MB free on media', $mb));
+        }
+        // Config writable
+        $add('Config writable', is_writable($settings['configDirectory']) ? 'ok' : 'bad',
+             is_writable($settings['configDirectory']) ? $settings['configDirectory'] : 'NOT writable — settings cannot save');
+        echo json_encode(['checks' => $checks]);
+        break;
+
+    case 'brightness_flash':
+        // Visible self-test: dark → full, so an operator can confirm the rig responds.
+        $ctx = stream_context_create(['http' => ['timeout' => 4, 'ignore_errors' => true]]);
+        $ok = true;
+        foreach ([0, 100] as $i => $v) {
+            if ($i) sleep(1);
+            if (@file_get_contents("http://localhost/api/plugin-apis/Brightness/$v", false, $ctx) === false) $ok = false;
+        }
+        echo json_encode(['ok' => $ok, 'note' => $ok ? 'Flashed 0 → 100%' : 'Brightness plugin did not respond']);
+        break;
+
+    case 'get_warnings':
+        $warn = [];
+        $playlists = [];
+        foreach (glob('/home/fpp/media/playlists/*.json') as $f) $playlists[] = basename($f, '.json');
+        $ents  = $schedule['entries'] ?? [];
+        $shows = array_filter($ents, fn($e) => ($e['type'] ?? '') === 'show');
+        $blk   = array_filter($ents, fn($e) => ($e['type'] ?? '') === 'blackout');
+        // Per-show checks
+        $seen = [];
+        foreach ($shows as $s) {
+            $pl = $s['playlist'] ?? '';
+            $pls = $s['playlists'] ?? [];
+            $when = ($s['date'] ?? '?') . ' ' . ($s['time'] ?? '');
+            if (!$pl && !$pls) { $warn[] = ['bad', "Show on $when has no playlist selected"]; }
+            foreach (array_filter(array_merge($pl ? [$pl] : [], $pls)) as $name) {
+                if (!in_array($name, $playlists)) $warn[] = ['bad', "Show on $when uses \"$name\" which is not an FPP playlist"];
+            }
+            // Same date+time duplicate
+            $key = ($s['date'] ?? '') . ' ' . ($s['time'] ?? '');
+            if (isset($seen[$key])) $warn[] = ['warn', "Two shows scheduled at the same time: $when"];
+            $seen[$key] = true;
+            // Inside a blackout on the same date
+            foreach ($blk as $b) {
+                if (($b['date'] ?? '') !== ($s['date'] ?? '')) continue;
+                $bs = $b['start_time'] ?? ''; $be = $b['end_time'] ?? '';
+                $covered = (!$bs && !$be) || (($bs ?: '00:00') <= ($s['time'] ?? '') && ($s['time'] ?? '') <= ($be ?: '23:59'));
+                if ($covered) { $warn[] = ['warn', "Show on $when falls inside a blackout — it will not run"]; break; }
+            }
+        }
+        // Background config
+        $bgFile = $settings['configDirectory'] . '/ShowManagerBackground.config';
+        $bg = file_exists($bgFile) ? (json_decode(file_get_contents($bgFile), true) ?? []) : [];
+        if (!empty($bg['music']['enabled'])) {
+            $bpl = $bg['music']['playlist'] ?? '';
+            if (!$bpl) $warn[] = ['warn', 'Background music is enabled but no playlist is selected'];
+            elseif (!in_array($bpl, $playlists)) $warn[] = ['bad', "Background music playlist \"$bpl\" is not an FPP playlist"];
+        }
+        if (!empty($bg['effect']['enabled']) && empty($bg['effect']['effect']))
+            $warn[] = ['warn', 'Background effect is enabled but no effect/sequence is selected'];
+        // Pre-show announcement files
+        $annFile = $settings['configDirectory'] . '/ShowManagerAnnouncements.config';
+        $ann = file_exists($annFile) ? (json_decode(file_get_contents($annFile), true) ?? []) : [];
+        foreach ($ann['pre_show'] ?? [] as $row) {
+            $file = $row['file'] ?? '';
+            if (!$file) continue;
+            $path = $file[0] === '/' ? $file : __DIR__ . '/announcements/' . $file;
+            if (!file_exists($path)) $warn[] = ['bad', "Pre-show audio missing: " . basename($file)];
+        }
+        echo json_encode(['warnings' => array_map(fn($w) => ['level' => $w[0], 'text' => $w[1]], $warn)]);
+        break;
+
     default:
         http_response_code(400);
         echo json_encode(['error' => 'unknown action']);

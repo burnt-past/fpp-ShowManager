@@ -129,8 +129,15 @@ Reset a playlist rotation: `rm /home/fpp/media/config/ShowManagerRotation.config
 
 ## Log rotation
 
-The logs grow indefinitely. To truncate daily, add to `crontab -e`:
+Both logs rotate automatically — each is capped at ~2 MB with 3 old copies kept (`showmanager.log.1`, `.2`, …), so they can't fill the SD card. No cron job is needed. (Nothing stops you truncating them manually: `truncate -s 0 /home/fpp/media/logs/showmanager.log`.)
 
-```bash
-0 4 * * * truncate -s 0 /home/fpp/media/logs/showmanager.log /home/fpp/media/logs/xr18_bridge.log
-```
+---
+
+## System tab (diagnostics, backup)
+
+The **System** tab has two tools for keeping a rig healthy:
+
+- **Diagnostics** — a one-click health check: scheduler/bridge/FPP alive, mixer reachable (ping), brightness and 3D-viewer plugins present, an audio player installed, the clock NTP-synced (a wrong clock fires shows at the wrong time), free disk, and a writable config dir. **Flash lights** pulses brightness 0 → 100 % so you can confirm the LEDs respond. Run it before an event.
+- **Backup & Restore** — **Download backup** saves every `ShowManager*.config` as one JSON file; **Restore from file** writes them back and restarts the daemons. Take a backup before big schedule changes and before moving to a new Pi.
+
+If a check reads **Fail**/**Check**, the detail column says why (e.g. "No ping response" → fix the mixer IP on the Hardware tab; "Clock sync: NOT synced" → the Pi needs network time).
