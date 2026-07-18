@@ -42,6 +42,7 @@ ANNOUNCE_CONFIG  = "/home/fpp/media/config/ShowManagerAnnouncements.config"
 ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
 OVERRIDES_CONFIG = "/home/fpp/media/config/ShowManagerOverrides.config"
 BACKGROUND_CONFIG = "/home/fpp/media/config/ShowManagerBackground.config"
+DROPBOX_CONFIG   = "/home/fpp/media/config/ShowManagerDropbox.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
 MANUAL_STOP_FLAG = "/tmp/showmanager_manual_stop"
@@ -983,6 +984,41 @@ class ShowScheduler:
             except Exception as e:
                 log.error("Daytime loop error: %s", e)
 
+    # ---- nightly cloud backup ----------------------------------------------
+
+    def _cloud_backup_loop(self):
+        """Once a day (after 04:00), if Dropbox auto-backup is enabled, upload a
+        backup by calling the plugin's own dropbox_backup endpoint — reusing the
+        PHP implementation so the logic lives in one place."""
+        state_file = "/tmp/showmanager_cloud_backup_day"
+        plugin_name = os.path.basename(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        while not self._stop.wait(300):
+            try:
+                cfg = load_json(DROPBOX_CONFIG)
+                if not cfg.get("auto") or not cfg.get("refresh_token"):
+                    continue
+                now = datetime.datetime.now()
+                if now.hour < 4:
+                    continue
+                today = now.date().isoformat()
+                try:
+                    if open(state_file).read().strip() == today:
+                        continue
+                except OSError:
+                    pass
+                url = ("http://localhost/plugin.php?plugin=%s&page=ajax.php"
+                       "&nopage=1&action=dropbox_backup" % plugin_name)
+                try:
+                    resp = urllib.request.urlopen(url, timeout=90).read().decode()[:200]
+                    log.info("Nightly Dropbox backup: %s", resp)
+                    with open(state_file, "w") as f:
+                        f.write(today)   # only stamp on success, so failures retry
+                except Exception as e:
+                    log.warning("Nightly Dropbox backup failed: %s", e)
+            except Exception as e:
+                log.error("Cloud backup loop error: %s", e)
+
     # ---- stale flag watchdog -----------------------------------------------
 
     def _watchdog_loop(self):
@@ -1047,6 +1083,7 @@ class ShowScheduler:
             threading.Thread(target=self._background_loop, daemon=True, name="background"),
             threading.Thread(target=self._watchdog_loop,   daemon=True, name="watchdog"),
             threading.Thread(target=self._runnow_loop,     daemon=True, name="runnow"),
+            threading.Thread(target=self._cloud_backup_loop, daemon=True, name="cloudbackup"),
         ]
         for t in threads:
             t.start()

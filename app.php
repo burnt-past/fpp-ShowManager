@@ -1202,6 +1202,10 @@ function loadSystem(){
       <div class="sm-hint" style="margin-top:10px">Backup includes schedule, background, announcements, hardware and overrides.</div>
     </div>
     <div class="sm-card">
+      <div class="sm-ct" style="margin-bottom:6px">Dropbox Backup</div>
+      <div id="sm-dropbox"><div class="sm-skel" style="height:120px"></div></div>
+    </div>
+    <div class="sm-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
         <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
         <div style="display:flex;gap:6px">
@@ -1214,6 +1218,76 @@ function loadSystem(){
     </div>
   </div>`;
   runDiag();
+  loadDropbox();
+}
+let dbxCfg={};
+async function loadDropbox(){
+  dbxCfg=await fetch(AJAX+'&action=get_dropbox').then(r=>r.json()).catch(()=>({}));
+  renderDropbox();
+}
+function renderDropbox(){
+  const box=document.getElementById('sm-dropbox');if(!box)return;
+  const c=dbxCfg||{};
+  const setup=`
+    <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Upload backups to your Dropbox. Create a Dropbox app (scoped access, <code>files.content.write</code>) at dropbox.com/developers, then paste its App key &amp; secret below.</p>
+    <label class="sm-lbl">App key<input type="text" id="dbx-key" class="sm-input" value="${escH(c.app_key||'')}" placeholder="abcd1234…"></label>
+    <label class="sm-lbl" style="margin-top:8px">App secret<input type="password" id="dbx-secret" class="sm-input" placeholder="${c.has_secret?'•••••••• (saved — leave blank to keep)':'app secret'}"></label>
+    <label class="sm-lbl" style="margin-top:8px">Folder<input type="text" id="dbx-folder" class="sm-input" value="${escH(c.folder||'/ShowManager')}" placeholder="/ShowManager"></label>
+    <button class="sm-btn solid" style="margin-top:12px" onclick="saveDropbox()">Save</button>`;
+  let out=setup;
+  if(c.app_key&&c.has_secret&&!c.connected){
+    out+=`<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="font-size:12px;color:var(--sub);margin-bottom:8px"><b>1.</b> <a href="${escH(c.auth_url||'#')}" target="_blank" rel="noopener">Authorize in Dropbox ↗</a> — approve, then copy the code Dropbox shows you.</div>
+      <div style="font-size:12px;color:var(--sub);margin-bottom:8px"><b>2.</b> Paste the code:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input type="text" id="dbx-code" class="sm-input" style="flex:1;min-width:160px" placeholder="paste code">
+        <button class="sm-btn solid" onclick="connectDropbox()">Connect</button>
+      </div></div>`;
+  }
+  if(c.connected){
+    const last=c.last_backup?new Date(c.last_backup).toLocaleString():'never';
+    out+=`<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="sm-pill ok">Connected</span><span style="font-size:12px;color:var(--sub)">Last backup: ${escH(last)}</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="sm-btn solid" onclick="backupDropbox()">⬆ Back up now</button>
+        <button class="sm-btn ghost sm" onclick="testDropbox()">Test</button>
+        <button class="sm-btn danger sm" onclick="disconnectDropbox()">Disconnect</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="dbx-auto" ${c.auto?'checked':''} onchange="saveDropboxAuto(this.checked)">Nightly auto-backup (after 4&nbsp;AM)</label>
+    </div>`;
+  }
+  box.innerHTML=out;
+}
+async function saveDropbox(){
+  const body={app_key:document.getElementById('dbx-key').value,app_secret:document.getElementById('dbx-secret').value,folder:document.getElementById('dbx-folder').value,auto:!!dbxCfg.auto};
+  const j=await fetch(AJAX+'&action=save_dropbox',{method:'POST',body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>({}));
+  if(j.ok){toast('Dropbox settings saved','ok');loadDropbox();}else toast('Save failed','err');
+}
+async function saveDropboxAuto(on){
+  const body={app_key:dbxCfg.app_key,folder:dbxCfg.folder,auto:on};
+  await fetch(AJAX+'&action=save_dropbox',{method:'POST',body:JSON.stringify(body)});
+  dbxCfg.auto=on;toast(on?'Nightly backup on':'Nightly backup off','ok');
+}
+async function connectDropbox(){
+  const code=document.getElementById('dbx-code').value.trim();
+  if(!code)return toast('Paste the code first','err');
+  const j=await fetch(AJAX+'&action=dropbox_connect',{method:'POST',body:JSON.stringify({code})}).then(r=>r.json()).catch(()=>({error:'network'}));
+  if(j.ok){toast('Connected to Dropbox','ok');loadDropbox();}else toast(j.error||'Connect failed','err');
+}
+async function testDropbox(){
+  toast('Testing…','amber');
+  const j=await fetch(AJAX+'&action=dropbox_test').then(r=>r.json()).catch(()=>({error:'network'}));
+  toast(j.ok?'Dropbox connection OK':(j.error||'Test failed'),j.ok?'ok':'err');
+}
+async function backupDropbox(){
+  toast('Uploading backup…','amber');
+  const j=await fetch(AJAX+'&action=dropbox_backup').then(r=>r.json()).catch(()=>({error:'network'}));
+  if(j.ok){toast('Backed up to '+j.path,'ok');loadDropbox();}else toast(j.error||'Backup failed','err');
+}
+function disconnectDropbox(){
+  smConfirm('Disconnect Dropbox?','Removes the stored Dropbox connection from this Pi. Your uploaded backups are not deleted.','Disconnect',async()=>{
+    await fetch(AJAX+'&action=dropbox_disconnect');toast('Dropbox disconnected','mut');loadDropbox();
+  });
 }
 async function exportConfig(){
   try{

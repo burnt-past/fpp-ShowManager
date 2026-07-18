@@ -120,7 +120,8 @@ Clear coordination state (does not touch config):
 ```bash
 pkill -f show_scheduler.py; pkill -f xr18_bridge.py
 rm -f /tmp/xr18_pause_sync /tmp/xr18_current_fader /tmp/showmanager_manual_stop \
-      /tmp/showmanager_run_now /tmp/showmanager_scheduler.lock /tmp/showmanager_bridge.lock
+      /tmp/showmanager_run_now /tmp/showmanager_cloud_backup_day \
+      /tmp/showmanager_scheduler.lock /tmp/showmanager_bridge.lock
 ```
 
 Reset a playlist rotation: `rm /home/fpp/media/config/ShowManagerRotation.config`.
@@ -138,6 +139,13 @@ Both logs rotate automatically — each is capped at ~2 MB with 3 old copies kep
 The **System** tab has two tools for keeping a rig healthy:
 
 - **Diagnostics** — a one-click health check: scheduler/bridge/FPP alive, mixer reachable (ping), brightness and 3D-viewer plugins present, an audio player installed, the clock NTP-synced (a wrong clock fires shows at the wrong time), free disk, and a writable config dir. **Flash lights** pulses brightness 0 → 100 % so you can confirm the LEDs respond. Run it before an event.
-- **Backup & Restore** — **Download backup** saves every `ShowManager*.config` as one JSON file; **Restore from file** writes them back and restarts the daemons. Take a backup before big schedule changes and before moving to a new Pi.
+- **Backup & Restore** — **Download backup** saves every `ShowManager*.config` (except the Dropbox secrets) as one JSON file; **Restore from file** writes them back and restarts the daemons. Take a backup before big schedule changes and before moving to a new Pi.
+- **Dropbox Backup** — upload backups to your Dropbox on demand (**Back up now**) or automatically each night (**Nightly auto-backup**, runs after 04:00). One-time setup: create a Dropbox app, save its App key & secret, **Authorize**, paste the code, **Connect**.
 
 If a check reads **Fail**/**Check**, the detail column says why (e.g. "No ping response" → fix the mixer IP on the Hardware tab; "Clock sync: NOT synced" → the Pi needs network time).
+
+### Dropbox backup fails
+
+- **"Not connected"** — finish the Authorize → paste code → Connect steps; a saved App key/secret alone isn't enough.
+- **Upload/refresh errors** — the Pi needs outbound HTTPS. Re-run **Test**; if the app's access was revoked in Dropbox, **Disconnect** and reconnect. The app must have the `files.content.write` scope.
+- **Nightly backup didn't run** — it fires once daily after 04:00 and only if the scheduler is running and auto-backup is on. Check `grep -i dropbox /home/fpp/media/logs/showmanager.log`.
