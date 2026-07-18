@@ -206,6 +206,7 @@ Not configuration — coordination state, safe to delete when the daemons are st
 | `showmanager_bg_status.json` | Live background music/effect status the Status tab reads |
 | `showmanager_run_now` | A Run Show request the scheduler picks up (deleted once consumed) |
 | `showmanager_scheduler.lock` | Single-instance lock (flock) so only one scheduler runs |
+| `showmanager_bridge.lock` | Single-instance lock (flock) so only one XR18 bridge runs |
 
 ---
 

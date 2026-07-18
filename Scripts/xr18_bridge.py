@@ -8,6 +8,7 @@ XR18 OSC protocol: send /xremote every 9s to subscribe; XR18 sends fader
 updates back to whichever host last sent /xremote.
 """
 
+import fcntl
 import json
 import logging
 import logging.handlers
@@ -282,7 +283,30 @@ def _load_cfg(path):
         log.error("Config load error %s: %s", path, e)
         return {}
 
+
+LOCK_PATH = "/tmp/showmanager_bridge.lock"
+
+def acquire_single_instance():
+    """Exclusive lock so only one bridge ever runs. Without this, a relaunch
+    that races an already-running copy (e.g. a plugin update) leaves two
+    bridges fighting over the XR18 faders. The lock releases when the holding
+    process dies."""
+    handle = open(LOCK_PATH, "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        log.warning("Another bridge is already running — exiting this copy")
+        return None
+    handle.write(str(os.getpid()))
+    handle.flush()
+    return handle   # keep the fd open for the process lifetime to hold the lock
+
+
 if __name__ == "__main__":
+    _lock = acquire_single_instance()
+    if _lock is None:
+        raise SystemExit(0)
+
     # Merge legacy config underneath the current one so old installs keep working
     cfg = {**_load_cfg(LEGACY_CONFIG_PATH), **_load_cfg(CONFIG_PATH)}
     if not cfg:
