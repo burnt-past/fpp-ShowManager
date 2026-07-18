@@ -194,6 +194,33 @@ The key is the comma-joined playlist list. Delete a key (or the file) to reset a
 
 ---
 
+## ShowManagerDropbox.config — Dropbox backup
+
+Managed by the **System** tab (Dropbox Backup). Holds the credentials for uploading backups to Dropbox. Written mode `0600`, and **never included in a backup bundle** (so the secret/token don't leave the Pi in a downloadable or uploaded backup).
+
+```json
+{
+  "app_key": "abcd1234efgh",
+  "app_secret": "…",
+  "refresh_token": "…",
+  "folder": "/ShowManager",
+  "auto": true,
+  "last_backup": "2026-07-17T04:00:03-07:00"
+}
+```
+
+| Key | Description |
+|---|---|
+| `app_key` / `app_secret` | Your Dropbox app's key and secret (scoped app, `files.content.write`) |
+| `refresh_token` | Long-lived token obtained via the one-time authorize step; exchanged for a short-lived access token per upload |
+| `folder` | Dropbox path backups are written to (relative to an app-folder app) |
+| `auto` | When true, the scheduler uploads a backup once daily after 04:00 |
+| `last_backup` | Timestamp of the last successful upload (auto-set) |
+
+**Setup:** create a Dropbox app at [dropbox.com/developers](https://www.dropbox.com/developers/apps), paste its App key & secret on the System tab, click **Authorize** (approve, copy the code Dropbox shows), paste the code, **Connect**. Requires outbound HTTPS from the Pi.
+
+---
+
 ## Runtime files (`/tmp`)
 
 Not configuration — coordination state, safe to delete when the daemons are stopped.
@@ -205,6 +232,7 @@ Not configuration — coordination state, safe to delete when the daemons are st
 | `showmanager_manual_stop` | A manual Stop is in effect; background stays down until the next show |
 | `showmanager_bg_status.json` | Live background music/effect status the Status tab reads |
 | `showmanager_run_now` | A Run Show request the scheduler picks up (deleted once consumed) |
+| `showmanager_cloud_backup_day` | Date of the last successful nightly Dropbox backup (de-dupes to once/day) |
 | `showmanager_scheduler.lock` | Single-instance lock (flock) so only one scheduler runs |
 | `showmanager_bridge.lock` | Single-instance lock (flock) so only one XR18 bridge runs |
 

@@ -45,6 +45,80 @@ function expand_rule_for_month($rule, $prefix) {
     return $out;
 }
 
+// ── Dropbox helpers ─────────────────────────────────────────────────────────
+function sm_dropbox_path($settings) {
+    return $settings['configDirectory'] . '/ShowManagerDropbox.config';
+}
+function sm_dropbox_cfg($settings) {
+    $f = sm_dropbox_path($settings);
+    return file_exists($f) ? (json_decode(file_get_contents($f), true) ?: []) : [];
+}
+function sm_dropbox_save($settings, $cfg) {
+    $f = sm_dropbox_path($settings);
+    file_put_contents($f, json_encode($cfg, JSON_PRETTY_PRINT));
+    @chmod($f, 0600);   // holds the app secret + refresh token
+}
+// Minimal HTTP that prefers cURL (reliable for HTTPS + custom headers), with a
+// stream-wrapper fallback. Returns [http_code, response_body, error_string].
+function sm_http($method, $url, $headers, $body) {
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => $method,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_TIMEOUT        => 45,
+        ]);
+        if ($body !== null) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        return [$code, $resp === false ? '' : $resp, $err];
+    }
+    $opts = ['http' => [
+        'method'        => $method,
+        'header'        => implode("\r\n", $headers),
+        'content'       => $body,
+        'timeout'       => 45,
+        'ignore_errors' => true,
+    ]];
+    $resp = @file_get_contents($url, false, stream_context_create($opts));
+    $code = 0;
+    if (isset($http_response_header) && preg_match('#\s(\d{3})\s#', $http_response_header[0] ?? '', $m)) $code = (int)$m[1];
+    return [$code, $resp === false ? '' : $resp, ''];
+}
+// Exchange the stored refresh token for a short-lived access token.
+function sm_dropbox_access_token($settings) {
+    $c = sm_dropbox_cfg($settings);
+    if (empty($c['refresh_token']) || empty($c['app_key']) || empty($c['app_secret']))
+        return [null, 'Not connected to Dropbox'];
+    $body = http_build_query([
+        'grant_type'    => 'refresh_token',
+        'refresh_token' => $c['refresh_token'],
+        'client_id'     => $c['app_key'],
+        'client_secret' => $c['app_secret'],
+    ]);
+    [$code, $resp] = sm_http('POST', 'https://api.dropbox.com/oauth2/token',
+        ['Content-Type: application/x-www-form-urlencoded'], $body);
+    $j = json_decode($resp, true);
+    if ($code === 200 && !empty($j['access_token'])) return [$j['access_token'], null];
+    return [null, $j['error_description'] ?? $j['error'] ?? "Token refresh failed (HTTP $code)"];
+}
+// Build the standard backup bundle (excludes the Dropbox config so the app
+// secret / refresh token never leave the Pi in a backup file).
+function sm_backup_bundle($settings) {
+    $files = [];
+    foreach (glob($settings['configDirectory'] . '/ShowManager*.config') as $f) {
+        if (basename($f) === 'ShowManagerDropbox.config') continue;
+        $files[basename($f)] = json_decode(file_get_contents($f), true);
+    }
+    return json_encode([
+        'type' => 'showmanager-backup', 'version' => 1,
+        'exported' => date('c'), 'host' => gethostname(), 'files' => $files,
+    ], JSON_PRETTY_PRINT);
+}
+
 switch ($_GET['action'] ?? '') {
 
     case 'trigger_playlist':
@@ -359,18 +433,8 @@ switch ($_GET['action'] ?? '') {
         break;
 
     case 'export_config':
-        // Bundle every ShowManager*.config into one downloadable object.
-        $files = [];
-        foreach (glob($settings['configDirectory'] . '/ShowManager*.config') as $f) {
-            $files[basename($f)] = json_decode(file_get_contents($f), true);
-        }
-        echo json_encode([
-            'type'     => 'showmanager-backup',
-            'version'  => 1,
-            'exported' => date('c'),
-            'host'     => gethostname(),
-            'files'    => $files,
-        ], JSON_PRETTY_PRINT);
+        // Bundle every ShowManager*.config (except the Dropbox secrets) for download.
+        echo sm_backup_bundle($settings);
         break;
 
     case 'import_config':
@@ -383,6 +447,7 @@ switch ($_GET['action'] ?? '') {
             // Only accept our own config names, basename only (no path traversal)
             $base = basename($name);
             if ($base !== $name || !preg_match('/^ShowManager[A-Za-z]*\.config$/', $base)) continue;
+            if ($base === 'ShowManagerDropbox.config') continue;   // never overwrite Dropbox creds from a restore
             file_put_contents($settings['configDirectory'] . '/' . $base, json_encode($content, JSON_PRETTY_PRINT));
             $written[] = $base;
         }
@@ -458,6 +523,105 @@ switch ($_GET['action'] ?? '') {
             if (@file_get_contents("http://localhost/api/plugin-apis/Brightness/$v", false, $ctx) === false) $ok = false;
         }
         echo json_encode(['ok' => $ok, 'note' => $ok ? 'Flashed 0 → 100%' : 'Brightness plugin did not respond']);
+        break;
+
+    case 'get_dropbox':
+        $c = sm_dropbox_cfg($settings);
+        $appKey = $c['app_key'] ?? '';
+        echo json_encode([
+            'app_key'     => $appKey,
+            'has_secret'  => !empty($c['app_secret']),
+            'folder'      => $c['folder'] ?? '/ShowManager',
+            'connected'   => !empty($c['refresh_token']),
+            'auto'        => !empty($c['auto']),
+            'last_backup' => $c['last_backup'] ?? null,
+            // Dropbox shows the auth code on-screen (no redirect) with this URL
+            'auth_url'    => $appKey
+                ? 'https://www.dropbox.com/oauth2/authorize?client_id=' . urlencode($appKey)
+                  . '&response_type=code&token_access_type=offline'
+                : null,
+        ]);
+        break;
+
+    case 'save_dropbox':
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $c = sm_dropbox_cfg($settings);
+        $c['app_key'] = trim($body['app_key'] ?? '');
+        // Blank secret means "keep the saved one" (the UI never receives it back)
+        if (isset($body['app_secret']) && trim($body['app_secret']) !== '') $c['app_secret'] = trim($body['app_secret']);
+        $folder = '/' . trim(trim($body['folder'] ?? 'ShowManager'), '/');
+        $c['folder'] = $folder === '/' ? '' : $folder;
+        $c['auto'] = !empty($body['auto']);
+        sm_dropbox_save($settings, $c);
+        echo json_encode(['ok' => true]);
+        break;
+
+    case 'dropbox_connect':
+        // Exchange the one-time authorization code for a lasting refresh token.
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $code = trim($body['code'] ?? '');
+        $c = sm_dropbox_cfg($settings);
+        if (!$code || empty($c['app_key']) || empty($c['app_secret'])) {
+            http_response_code(400); echo json_encode(['error' => 'Enter and save the app key & secret first, then paste the code']); break;
+        }
+        $post = http_build_query([
+            'code' => $code, 'grant_type' => 'authorization_code',
+            'client_id' => $c['app_key'], 'client_secret' => $c['app_secret'],
+        ]);
+        [$hc, $resp] = sm_http('POST', 'https://api.dropbox.com/oauth2/token',
+            ['Content-Type: application/x-www-form-urlencoded'], $post);
+        $j = json_decode($resp, true);
+        if ($hc === 200 && !empty($j['refresh_token'])) {
+            $c['refresh_token'] = $j['refresh_token'];
+            sm_dropbox_save($settings, $c);
+            echo json_encode(['ok' => true]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['error' => $j['error_description'] ?? $j['error'] ?? "Connect failed (HTTP $hc)"]);
+        }
+        break;
+
+    case 'dropbox_test':
+        [$tok, $err] = sm_dropbox_access_token($settings);
+        if (!$tok) { http_response_code(400); echo json_encode(['error' => $err]); break; }
+        // check/user echoes back the query — the official "is this token live?" probe
+        [$hc, $resp] = sm_http('POST', 'https://api.dropboxapi.com/2/check/user',
+            ['Authorization: Bearer ' . $tok, 'Content-Type: application/json'],
+            json_encode(['query' => 'showmanager']));
+        $j = json_decode($resp, true);
+        if ($hc === 200 && ($j['result'] ?? '') === 'showmanager') echo json_encode(['ok' => true]);
+        else { http_response_code(400); echo json_encode(['error' => $j['error_summary'] ?? "Test failed (HTTP $hc)"]); }
+        break;
+
+    case 'dropbox_backup':
+        [$tok, $err] = sm_dropbox_access_token($settings);
+        if (!$tok) { http_response_code(400); echo json_encode(['error' => $err]); break; }
+        $c = sm_dropbox_cfg($settings);
+        $folder = $c['folder'] ?? '/ShowManager';
+        $path = $folder . '/showmanager-backup-' . date('Y-m-d_His') . '.json';
+        $arg = json_encode(['path' => $path, 'mode' => 'add', 'autorename' => true, 'mute' => true]);
+        [$hc, $resp] = sm_http('POST', 'https://content.dropboxapi.com/2/files/upload', [
+            'Authorization: Bearer ' . $tok,
+            'Dropbox-API-Arg: ' . $arg,
+            'Content-Type: application/octet-stream',
+        ], sm_backup_bundle($settings));
+        $j = json_decode($resp, true);
+        if ($hc === 200 && !empty($j['name'])) {
+            $c['last_backup'] = date('c');
+            sm_dropbox_save($settings, $c);
+            echo json_encode(['ok' => true, 'path' => $j['path_display'] ?? $path]);
+        } else {
+            http_response_code(400);
+            echo json_encode(['error' => $j['error_summary'] ?? "Upload failed (HTTP $hc)"]);
+        }
+        break;
+
+    case 'dropbox_disconnect':
+        $c = sm_dropbox_cfg($settings);
+        unset($c['refresh_token']);
+        $c['auto'] = false;
+        sm_dropbox_save($settings, $c);
+        echo json_encode(['ok' => true]);
         break;
 
     case 'get_warnings':
