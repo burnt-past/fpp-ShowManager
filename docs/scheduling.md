@@ -66,13 +66,13 @@ The daily background **music** and **effect** windows (set on the Background tab
 
 ## How the scheduler fires events
 
-The schedule loop runs every **30 seconds**. For each of today's shows it computes the time remaining and fires events within a ±30-second window:
+The schedule loop runs every **30 seconds**. For each of today's shows it computes the time remaining and fires each event as its moment arrives:
 
 | Event | Fires |
 |---|---|
-| Pre-show announcement (`mins_before`) | ~that many minutes before show time |
+| Pre-show announcement (`mins_before`) | within ~30 s of that many minutes before show time |
 | Pre-show brightness fade | at its lead time before the show (see below) |
-| Show start | at show time |
+| Show start | **exactly at show time** — the loop catches the show in the tick just before its start and waits out the remaining seconds, so it never starts early (worst case a few seconds late if a poll is missed) |
 
 Each event fires **at most once per day per slot** — a de-duplication set is cleared at midnight, and a single-instance lock prevents a second scheduler from double-firing.
 
