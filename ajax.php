@@ -149,9 +149,15 @@ switch ($_GET['action'] ?? '') {
         $faderRaw = @file_get_contents('/tmp/xr18_current_fader');
         $bgRaw = @file_get_contents('/tmp/showmanager_bg_status.json');
         $bg = $bgRaw !== false ? (json_decode($bgRaw, true) ?: null) : null;
+        // The configured background-music playlist name lets the UI tell
+        // "background music playing" apart from an actual show (both are FPP
+        // playlists). Cheap file read — no /api/effects here.
+        $bgcfgFile = $settings['configDirectory'] . '/ShowManagerBackground.config';
+        $bgcfg = file_exists($bgcfgFile) ? (json_decode(file_get_contents($bgcfgFile), true) ?? []) : [];
         echo json_encode([
-            'xr18_fader' => $faderRaw !== false ? (float)trim($faderRaw) : null,
-            'background' => $bg,
+            'xr18_fader'        => $faderRaw !== false ? (float)trim($faderRaw) : null,
+            'background'        => $bg,
+            'bg_music_playlist' => $bgcfg['music']['playlist'] ?? '',
         ]);
         break;
 
