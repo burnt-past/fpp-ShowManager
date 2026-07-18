@@ -151,7 +151,7 @@ option{background:var(--card);color:var(--text)}
 <script>
 const AJAX='<?= $AJAX ?>';
 const PLAYLISTS=<?= $plJson ?>;
-let state={playing:false,cur:'',vol:null,shows:[],nextIdx:-1,disabledUntil:null,host:''};
+let state={playing:false,cur:'',vol:null,shows:[],nextIdx:-1,disabledUntil:null,host:'',bgMusic:''};
 
 function escH(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
@@ -199,11 +199,13 @@ async function pollFast(){
   render();
 }
 async function pollSlow(){
-  const [sched,ov]=await Promise.all([
+  const [sched,ov,st]=await Promise.all([
     fetch(AJAX+'&action=get_month&year='+new Date().getFullYear()+'&month='+(new Date().getMonth()+1)).then(r=>r.json()).catch(()=>({entries:[]})),
     fetch(AJAX+'&action=get_override').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
   ]);
   state.disabledUntil=ov.disabled_until||null;
+  state.bgMusic=st.bg_music_playlist||'';
   const today=fmtDate(new Date());
   const ents=(sched.entries||[]).filter(e=>e.date===today);
   const blk=ents.filter(e=>e.type==='blackout');
@@ -223,23 +225,30 @@ function render(){
   const st=document.getElementById('k-state');
   const sub=document.getElementById('k-sub');
   if(state.host)document.getElementById('k-title').textContent=state.host+' · Show Kiosk';
+  const bgMusic=state.playing&&state.bgMusic&&state.cur===state.bgMusic;
+  const isShow=state.playing&&!bgMusic;
   if(state.disabledUntil){
     dot.style.background='var(--red)';dot.style.boxShadow='0 0 20px var(--red)';dot.style.animation='none';
     st.style.color='var(--red)';st.textContent='DISABLED';
     const t=new Date(state.disabledUntil);
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
-  }else if(state.playing){
+  }else if(isShow){
     dot.style.background='var(--live1,var(--amber))';dot.style.boxShadow='0 0 20px var(--live1,var(--amber))';dot.style.animation='k-pulse 1.6s ease-in-out infinite';
     st.style.color='var(--live1,var(--amber))';st.textContent='SHOW RUNNING';
     sub.textContent=state.seq&&state.seq!==state.cur?(state.seq+(state.cur?' · '+state.cur:'')):state.cur;
+  }else if(bgMusic){
+    dot.style.background='var(--mint)';dot.style.boxShadow='0 0 16px var(--mint)';dot.style.animation='k-pulse 2.6s ease-in-out infinite';
+    st.style.color='var(--mint)';st.textContent='BG MUSIC PLAYING';
+    sub.textContent=state.cur||'Background music';
   }else{
     dot.style.background='var(--mut)';dot.style.boxShadow='none';dot.style.animation='none';
     st.style.color='var(--sub)';st.textContent='IDLE';
     sub.textContent=state.nextIdx>=0?('Next show '+state.shows[state.nextIdx].time):'No more shows today';
   }
   document.getElementById('k-enable').style.display=state.disabledUntil?'':'none';
-  // Start is greyed out while a show is already running
-  document.getElementById('k-start').disabled=state.playing&&!state.disabledUntil;
+  // Start is greyed out only while an actual show is running — background
+  // music can be interrupted by starting a show.
+  document.getElementById('k-start').disabled=isShow&&!state.disabledUntil;
   // keep the picker on the next scheduled show until the user chooses one
   const sel=document.getElementById('k-pl');
   if(sel&&!userPicked){
@@ -248,7 +257,7 @@ function render(){
   }
   const vol=document.getElementById('k-vol');
   vol.textContent=state.vol!=null?state.vol+'%':'—';
-  const nowIdx=state.playing?(state.nextIdx<0?state.shows.length-1:state.nextIdx-1):-1;
+  const nowIdx=isShow?(state.nextIdx<0?state.shows.length-1:state.nextIdx-1):-1;
   const rows=state.shows.map((s,i)=>{
     const isNow=i===nowIdx&&nowIdx>=0;
     const isNext=i===state.nextIdx&&!isNow;

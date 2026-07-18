@@ -21,7 +21,7 @@ Targets **FPP 9.4+**.
 
 **Kiosk** (`kiosk.php`, opened from the header or bookmarked) — a full‑screen, touch‑first page for helpers:
 
-- Giant **SHOW RUNNING / IDLE / DISABLED** state with the current sequence.
+- Giant **SHOW RUNNING / BG MUSIC PLAYING / IDLE / DISABLED** state with the current sequence. (Looping background music reads as *BG Music Playing*, not a show — and you can still start a show over it.)
 - One‑tap **Start** (next scheduled show) and **hold‑to‑stop**.
 - Temporary volume, and **Disable system** for an hour / tonight.
 - **Live 3D preview** of the running show (if the [3D Viewer](#optional-3d-viewer) plugin is installed).

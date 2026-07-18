@@ -214,17 +214,26 @@ function _nowTrack(fpp){
   const seq=_cleanName(fpp.current_sequence||fpp.current_song||'');
   return seq&&seq!==pl?(seq+(pl?' · '+pl:'')):(pl||seq);
 }
+/* True when FPP is playing the configured background-music playlist (not a show) */
+function _isBgMusic(fpp,bgName){
+  const cur=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
+  const playing=fpp.status===1||fpp.status==='playing';
+  return !!(playing&&bgName&&cur===bgName);
+}
 async function _npTick(){
-  const [r,ov]=await Promise.all([
+  const [r,ov,xr]=await Promise.all([
     fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({})),
     fetch(AJAX+'&action=get_override').then(r=>r.json()).catch(()=>({})),
+    fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
   ]);
   const playing=r.status===1||r.status==='playing';
+  const bgMusic=_isBgMusic(r,xr.bg_music_playlist);
+  const isShow=playing&&!bgMusic;
   const disabled=!!ov.disabled_until;
   const np=document.getElementById('sm-nowplaying');
   if(!np)return;
   np.classList.toggle('off',disabled);
-  np.classList.toggle('on',playing&&!disabled);
+  np.classList.toggle('on',isShow&&!disabled);   // amber only for a real show
   const label=document.getElementById('sm-np-label');
   const sub=document.getElementById('sm-np-sub');
   if(disabled){
@@ -232,7 +241,7 @@ async function _npTick(){
     const t=new Date(ov.disabled_until);
     sub.textContent='until '+t.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
   }else{
-    label.textContent=playing?'SHOW RUNNING':'IDLE';
+    label.textContent=isShow?'SHOW RUNNING':(bgMusic?'BG MUSIC PLAYING':'IDLE');
     sub.textContent=playing?_nowTrack(r):(npNext?'Next show '+npNext:'');
   }
   const host=r.HostName||r.hostname;
@@ -295,6 +304,10 @@ async function _fetchStatus(){
 function _heroHtml(fpp,xr){
   const playing=fpp.status===1||fpp.status==='playing';
   const curPl=fpp.current_playlist?.playlist||fpp.current_playlist?.name||fpp.current_song||'Idle';
+  const bgMusic=_isBgMusic(fpp,xr.bg_music_playlist);
+  const isShow=playing&&!bgMusic;
+  const state=isShow?'SHOW RUNNING':(bgMusic?'BG MUSIC PLAYING':'IDLE');
+  const stateColor=isShow?'var(--amber)':(bgMusic?'var(--mint)':'var(--sub)');
   const vol=fpp.volume!=null?fpp.volume:null;
   const fader=xr.xr18_fader!=null?xr.xr18_fader:null;
   const volPct=vol!=null?Math.max(0,Math.min(100,vol)):0;
@@ -303,7 +316,7 @@ function _heroHtml(fpp,xr){
   <div style="display:flex;flex-wrap:wrap;gap:24px;align-items:center;justify-content:space-between">
     <div>
       <div style="margin-bottom:6px">
-        <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${playing?'var(--amber)':'var(--sub)'}">${playing?'SHOW RUNNING':'IDLE'}</span>
+        <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${stateColor}">${state}</span>
       </div>
       <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">${escH(playing?curPl:'Idle')}</div>
       <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">${playing&&_cleanName(fpp.current_sequence||fpp.current_song||'')?escH(_cleanName(fpp.current_sequence||fpp.current_song||''))+' &nbsp;·&nbsp; ':''}uptime ${escH(fpp.uptime||'—')}</div>
