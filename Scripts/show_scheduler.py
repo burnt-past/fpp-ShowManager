@@ -20,6 +20,7 @@ import fcntl
 import glob
 import json
 import logging
+import logging.handlers
 import os
 import random
 import socket
@@ -45,16 +46,19 @@ PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
 MANUAL_STOP_FLAG = "/tmp/showmanager_manual_stop"
 BG_STATUS_FILE   = "/tmp/showmanager_bg_status.json"
+RUN_NOW_FILE     = "/tmp/showmanager_run_now"
 LOG_PATH         = "/home/fpp/media/logs/showmanager.log"
 
 XR18_PORT        = 10024
 ANNOUNCE_FOLDER  = os.path.join(os.path.dirname(os.path.dirname(__file__)), "announcements")
 
-logging.basicConfig(
-    filename=LOG_PATH,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
+# Rotate the log at ~2 MB, keep 3 old copies — bounded disk use on the Pi's
+# SD card, no external cron needed.
+_handler = logging.handlers.RotatingFileHandler(
+    LOG_PATH, maxBytes=2_000_000, backupCount=3
 )
+_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 log = logging.getLogger(__name__)
 
 
@@ -968,16 +972,56 @@ class ShowScheduler:
             except Exception:
                 pass
 
+    # ---- run-now (manual full-pipeline show) -------------------------------
+
+    def _runnow_loop(self):
+        """Watch for a run-now request written by the UI and run that playlist
+        through the full show pipeline (brightness snap, fader levels, effect
+        kill, end detection, post-show fade) — the same path a scheduled show
+        takes, just fired on demand."""
+        while not self._stop.wait(3):
+            try:
+                if not os.path.exists(RUN_NOW_FILE):
+                    continue
+                try:
+                    req = json.load(open(RUN_NOW_FILE))
+                finally:
+                    try:
+                        os.remove(RUN_NOW_FILE)   # consume the request either way
+                    except OSError:
+                        pass
+                playlist = (req or {}).get("playlist", "")
+                if not playlist:
+                    continue
+                if self._in_show.is_set() or is_show_running():
+                    log.info("Run-now ignored — a show is already running")
+                    continue
+                log.info("Run-now request: %s", playlist)
+                entry = {"playlist": playlist,
+                         "time": datetime.datetime.now().strftime("%H:%M"),
+                         "date": datetime.date.today().isoformat()}
+                threading.Thread(target=self._safe(self._run_show),
+                                 args=(entry,), daemon=True).start()
+            except Exception as e:
+                log.error("Run-now loop error: %s", e)
+
     # ---- entry point -------------------------------------------------------
 
     def run(self):
         log.info("XR18 Show Scheduler starting")
+        # Drop any stale run-now request so a queued-while-stopped show can't
+        # fire a surprise on startup — only requests made while running count.
+        try:
+            os.remove(RUN_NOW_FILE)
+        except OSError:
+            pass
         ensure_fpp_scheduler_enabled()
         threads = [
             threading.Thread(target=self._schedule_loop,   daemon=True, name="schedule"),
             threading.Thread(target=self._daytime_loop,    daemon=True, name="daytime"),
             threading.Thread(target=self._background_loop, daemon=True, name="background"),
             threading.Thread(target=self._watchdog_loop,   daemon=True, name="watchdog"),
+            threading.Thread(target=self._runnow_loop,     daemon=True, name="runnow"),
         ]
         for t in threads:
             t.start()

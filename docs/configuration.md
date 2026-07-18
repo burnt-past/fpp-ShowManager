@@ -204,6 +204,7 @@ Not configuration — coordination state, safe to delete when the daemons are st
 | `xr18_current_fader` | Current music fader level, shared bridge → scheduler |
 | `showmanager_manual_stop` | A manual Stop is in effect; background stays down until the next show |
 | `showmanager_bg_status.json` | Live background music/effect status the Status tab reads |
+| `showmanager_run_now` | A Run Show request the scheduler picks up (deleted once consumed) |
 | `showmanager_scheduler.lock` | Single-instance lock (flock) so only one scheduler runs |
 
 ---

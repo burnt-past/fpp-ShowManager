@@ -10,6 +10,7 @@ updates back to whichever host last sent /xremote.
 
 import json
 import logging
+import logging.handlers
 import os
 import socket
 import struct
@@ -30,11 +31,12 @@ ANNOUNCE_SYNC_INTERVAL = 30  # seconds between announcement-channel restorations
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"    # scheduler creates this during announcements
 FADER_STATE_FILE = "/tmp/xr18_current_fader" # bridge writes current level here
 
-logging.basicConfig(
-    filename=LOG_PATH,
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
+# Rotate at ~2 MB, keep 3 old copies — bounded disk use, no external cron.
+_handler = logging.handlers.RotatingFileHandler(
+    LOG_PATH, maxBytes=2_000_000, backupCount=3
 )
+_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+logging.basicConfig(level=logging.INFO, handlers=[_handler])
 log = logging.getLogger(__name__)
 
 
