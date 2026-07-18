@@ -679,6 +679,23 @@ class ShowScheduler:
 
     # ---- show runner -------------------------------------------------------
 
+    def _delayed_run_show(self, delay, entry):
+        """Wait out the seconds remaining until show time, then run the show.
+        The schedule loop only ticks every 30 s, so it catches a show in the
+        tick BEFORE its start time; sleeping the remainder makes the show start
+        on time instead of up to a full poll interval early."""
+        if delay > 0 and self._stop.wait(delay):
+            return                      # shutting down
+        now = datetime.datetime.now()
+        today = now.date().isoformat()
+        if system_disabled() or is_blacked_out(today, now):
+            log.info("Show suppressed at start time (disabled/blackout): %s",
+                     entry.get("playlist") or entry.get("time"))
+            return
+        if self._in_show.is_set() or is_show_running():
+            return
+        self._run_show(entry)
+
     def _run_show(self, entry):
         an_cfg = self._an()
 
@@ -900,10 +917,18 @@ class ShowScheduler:
                             self._fire_once(fkey, self._run_preshow_fade,
                                             show_time, an_cfg)
 
-                    # Show start
+                    # Show start — fire at show time, never early. Catch the
+                    # show in the tick just before (delta up to ~33 s ahead)
+                    # and wait out the remainder so it starts on the second.
                     key = f"{today}|{entry['time']}|show"
-                    if -0.5 <= delta_mins <= 0.5 and not self._in_show.is_set():
-                        self._fire_once(key, self._run_show, entry)
+                    if (key not in self._fired and not self._in_show.is_set()
+                            and -1.0 <= delta_mins <= 0.55):
+                        self._fired.add(key)
+                        delay = (show_time - datetime.datetime.now()).total_seconds()
+                        threading.Thread(
+                            target=self._safe(self._delayed_run_show),
+                            args=(max(0.0, delay), entry), daemon=True,
+                        ).start()
 
             except Exception as e:
                 log.error("Schedule loop error: %s", e)
