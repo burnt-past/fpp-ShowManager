@@ -187,11 +187,24 @@ tickClock();setInterval(tickClock,1000);
    own UI), slow lane for schedule + disable override (5s) */
 let volTouched=0;
 function _cleanName(s){s=String(s||'').split('/').pop();return s.replace(/\.[^.]+$/,'');}
+/* song metadata (title/artist) pulled from the playing file — fetched only
+   when the file changes, so no ffprobe spam on the 1s poll */
+let songMeta=null,songMetaFor='';
+function metaStr(){const m=songMeta;return m?((m.artist?m.artist+' — ':'')+(m.title||'')).trim():'';}
+async function refreshSongMeta(file){
+  if(file===songMetaFor)return;
+  songMetaFor=file;
+  if(!file){songMeta=null;render();return;}
+  const m=await fetch(AJAX+'&action=song_meta&file='+encodeURIComponent(file)).then(r=>r.json()).catch(()=>null);
+  songMeta=(m&&m.ok&&(m.title||m.artist))?m:null;
+  render();
+}
 async function pollFast(){
   const fpp=await fetch('/api/fppd/status').then(r=>r.json()).catch(()=>({}));
   state.playing=fpp.status===1||fpp.status==='playing';
   state.cur=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
   state.seq=_cleanName(fpp.current_sequence||fpp.current_song||'');
+  refreshSongMeta(state.playing?(fpp.current_song||''):'');
   if(Date.now()-volTouched>2000)state.vol=fpp.volume!=null?fpp.volume:null;
   state.host=fpp.HostName||fpp.hostname||'';
   const now=new Date().toTimeString().slice(0,5);
@@ -235,11 +248,11 @@ function render(){
   }else if(isShow){
     dot.style.background='var(--live1,var(--amber))';dot.style.boxShadow='0 0 20px var(--live1,var(--amber))';dot.style.animation='k-pulse 1.6s ease-in-out infinite';
     st.style.color='var(--live1,var(--amber))';st.textContent='SHOW RUNNING';
-    sub.textContent=state.seq&&state.seq!==state.cur?(state.seq+(state.cur?' · '+state.cur:'')):state.cur;
+    sub.textContent=metaStr()||(state.seq&&state.seq!==state.cur?(state.seq+(state.cur?' · '+state.cur:'')):state.cur);
   }else if(bgMusic){
     dot.style.background='var(--mint)';dot.style.boxShadow='0 0 16px var(--mint)';dot.style.animation='k-pulse 2.6s ease-in-out infinite';
     st.style.color='var(--mint)';st.textContent='BG MUSIC PLAYING';
-    sub.textContent=state.cur||'Background music';
+    sub.textContent=metaStr()||state.cur||'Background music';
   }else{
     dot.style.background='var(--mut)';dot.style.boxShadow='none';dot.style.animation='none';
     st.style.color='var(--sub)';st.textContent='IDLE';

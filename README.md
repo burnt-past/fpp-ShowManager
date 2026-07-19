@@ -12,7 +12,7 @@ Targets **FPP 9.4+**.
 
 | Tab | What it does |
 |---|---|
-| **Status** | Live now‑playing, FPP/XR18 meters, schedule‑sanity warnings, a manual trigger (**Run Show** through the full pipeline, or a raw start/stop), **tonight's timeline** with a live countdown to the next event, system health (daemons, background music/effect), and the scheduler log. |
+| **Status** | Live now‑playing (song **title/artist from the file's tags**), FPP/XR18 meters, schedule‑sanity warnings, a manual trigger (**Run Show** through the full pipeline, or a raw start/stop), **tonight's timeline** with a live countdown to the next event, system health (daemons, background music/effect), and the scheduler log. |
 | **Schedule** | Month/Week/Day calendar. One‑off shows, repeating rules, and blackouts (whole‑day or a time range). Background music/effect windows are shown on the calendar too. |
 | **Background** | Two independent daily schedules — background **music** (a looping playlist, with its own volume level) and a background **effect** (a `.eseq` or `.fseq` overlay), each with its own window. |
 | **Announcements** | Pre‑show announcements, daytime announcements, audio ducking, and the pre/post‑show lighting fade. |
@@ -21,7 +21,7 @@ Targets **FPP 9.4+**.
 
 **Kiosk** (`kiosk.php`, opened from the header or bookmarked) — a full‑screen, touch‑first page for helpers:
 
-- Giant **SHOW RUNNING / BG MUSIC PLAYING / IDLE / DISABLED** state with the current sequence. (Looping background music reads as *BG Music Playing*, not a show — and you can still start a show over it.)
+- Giant **SHOW RUNNING / BG MUSIC PLAYING / IDLE / DISABLED** state with the current song — **title & artist read from the file's tags** (via ffprobe), falling back to the filename if untagged. (Looping background music reads as *BG Music Playing*, not a show — and you can still start a show over it.)
 - One‑tap **Start** (next scheduled show) and **hold‑to‑stop**.
 - Temporary volume, and **Disable system** for an hour / tonight.
 - **Live 3D preview** of the running show (if the [3D Viewer](#optional-3d-viewer) plugin is installed).

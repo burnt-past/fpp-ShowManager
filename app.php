@@ -209,7 +209,23 @@ function smTab(name){
 /* ── NOW PLAYING STRIP ── */
 let npNext='';
 function _cleanName(s){s=String(s||'').split('/').pop();return s.replace(/\.[^.]+$/,'');}
+/* song metadata (title/artist) from the playing file — fetched only on change.
+   Concurrent callers (npTick + status tick) await the same in-flight fetch. */
+let songMeta=null,songMetaFor='',songMetaPromise=null;
+function _metaStr(){const m=songMeta;return m?((m.artist?m.artist+' — ':'')+(m.title||'')).trim():'';}
+async function _refreshSongMeta(file){
+  if(file===songMetaFor){if(songMetaPromise)await songMetaPromise;return;}
+  songMetaFor=file;
+  if(!file){songMeta=null;songMetaPromise=null;return;}
+  songMetaPromise=(async()=>{
+    const m=await fetch(AJAX+'&action=song_meta&file='+encodeURIComponent(file)).then(r=>r.json()).catch(()=>null);
+    songMeta=(m&&m.ok&&(m.title||m.artist))?m:null;
+  })();
+  await songMetaPromise;
+}
 function _nowTrack(fpp){
+  const meta=_metaStr();
+  if(meta)return meta;
   const pl=fpp.current_playlist?.playlist||fpp.current_playlist?.name||'';
   const seq=_cleanName(fpp.current_sequence||fpp.current_song||'');
   return seq&&seq!==pl?(seq+(pl?' · '+pl:'')):(pl||seq);
@@ -227,6 +243,7 @@ async function _npTick(){
     fetch(AJAX+'&action=get_status').then(r=>r.json()).catch(()=>({})),
   ]);
   const playing=r.status===1||r.status==='playing';
+  await _refreshSongMeta(playing?(r.current_song||''):'');
   const bgMusic=_isBgMusic(r,xr.bg_music_playlist);
   const isShow=playing&&!bgMusic;
   const disabled=!!ov.disabled_until;
@@ -319,7 +336,7 @@ function _heroHtml(fpp,xr){
         <span style="font-weight:800;letter-spacing:.04em;font-size:14px;color:${stateColor}">${state}</span>
       </div>
       <div style="font-size:32px;font-weight:800;letter-spacing:-.02em">${escH(playing?curPl:'Idle')}</div>
-      <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">${playing&&_cleanName(fpp.current_sequence||fpp.current_song||'')?escH(_cleanName(fpp.current_sequence||fpp.current_song||''))+' &nbsp;·&nbsp; ':''}uptime ${escH(fpp.uptime||'—')}</div>
+      <div style="color:var(--sub);font-size:13px;margin-top:6px;font-family:var(--mono)">${(()=>{const nowLine=playing?(_metaStr()||_cleanName(fpp.current_sequence||fpp.current_song||'')):'';return nowLine?escH(nowLine)+' &nbsp;·&nbsp; ':'';})()}uptime ${escH(fpp.uptime||'—')}</div>
     </div>
     <div style="display:flex;gap:30px">
       <div style="text-align:right;min-width:110px">
@@ -442,6 +459,7 @@ async function renderStatus(){
   ]);
   tlBg=bg;tlAnn=ann;
   const {fpp,xr,log}=d;
+  await _refreshSongMeta((fpp.status===1||fpp.status==='playing')?(fpp.current_song||''):'');
   el.innerHTML=`
 <div style="display:flex;flex-direction:column;gap:16px">
   <div id="sm-warnings">${_warnHtml(warn.warnings)}</div>
@@ -505,6 +523,8 @@ async function _tick(){
   if(!document.getElementById('sm-hero'))return;
   const d=await _fetchStatus();
   const {fpp,xr,log}=d;
+  const playing=fpp.status===1||fpp.status==='playing';
+  await _refreshSongMeta(playing?(fpp.current_song||''):'');
   const hero=document.getElementById('sm-hero');if(hero)hero.innerHTML=_heroHtml(fpp,xr);
   const stats=document.getElementById('sm-stats');if(stats)stats.innerHTML=_statsHtml(fpp,xr,d.shows,d.upcoming);
   const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_timelineHtml(d);

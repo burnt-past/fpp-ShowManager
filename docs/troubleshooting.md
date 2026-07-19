@@ -99,6 +99,16 @@ ls -la /tmp/xr18_pause_sync   # watchdog removes it after 5 min; else: rm /tmp/x
 
 ---
 
+## Now-playing shows a filename, not the song title
+
+The title/artist come from the audio file's tags via `ffprobe` (part of ffmpeg). If it shows the bare filename instead:
+
+- The file has no title/artist tags — add them (any tag editor), or the filename is the fallback by design.
+- `ffprobe` isn't installed — `command -v ffprobe` (install ffmpeg: `sudo apt install -y ffmpeg`).
+- FPP reports no media file for the current item (audio embedded in the FSEQ) — there's nothing to read tags from; the sequence name is shown instead.
+
+---
+
 ## Kiosk 3D preview / garland
 
 Both need **fpp-plugin-3DViewer** at `/3dviewer/`. If the preview card doesn't appear, the plugin isn't installed there. Add `&garlanddebug=1` to the kiosk URL for an on-screen readout of the garland's data/feed/model state. The kiosk auto-reconnects the feed and reloads the preview periodically, so brief drops self-heal.
