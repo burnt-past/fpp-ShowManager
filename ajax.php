@@ -119,6 +119,24 @@ function sm_backup_bundle($settings) {
     ], JSON_PRETTY_PRINT);
 }
 
+// List useful ALSA playback devices for the announcement-device picker:
+// `default`, custom PCMs (e.g. an asound.conf "announce" route), and hardware
+// (plughw). Filters out the noisy auto-generated entries.
+function sm_audio_devices() {
+    $raw  = @shell_exec('aplay -L 2>/dev/null') ?: '';
+    $out  = ['default'];
+    $block = ['null','pulse','pulseaudio','jack','oss','speex','speexrate','samplerate','upmix','vdownmix','lavrate'];
+    foreach (explode("\n", $raw) as $line) {
+        if ($line === '' || $line[0] === ' ' || $line[0] === "\t") continue;  // indented = description
+        $name = trim($line);
+        if ($name === '' || strtolower($name) === 'default') continue;
+        if (in_array(strtolower($name), $block, true)) continue;
+        $keep = (strpos($name, ':') === false) || strncmp($name, 'plughw:', 7) === 0;
+        if ($keep) $out[] = $name;
+    }
+    return array_values(array_unique($out));
+}
+
 switch ($_GET['action'] ?? '') {
 
     case 'trigger_playlist':
@@ -353,7 +371,28 @@ switch ($_GET['action'] ?? '') {
         foreach (['announce_ch', 'announce_vol'] as $k) {
             if (!isset($hw[$k]) && isset($legacy[$k])) $hw[$k] = $legacy[$k];
         }
+        $hw['_devices'] = sm_audio_devices();
         echo json_encode($hw);
+        break;
+
+    case 'announce_test':
+        // Play a short test tone (mono) out the announcement device so the
+        // operator can confirm it lands on the right XR18 channel.
+        $dev = $_GET['device'] ?? '';
+        if ($dev === '') {
+            $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
+            $hw = file_exists($hwFile) ? (json_decode(file_get_contents($hwFile), true) ?? []) : [];
+            $dev = $hw['announce_device'] ?? 'default';
+        }
+        if (!trim(shell_exec('command -v ffmpeg 2>/dev/null') ?: '')) {
+            http_response_code(400); echo json_encode(['error' => 'ffmpeg not installed']); break;
+        }
+        $cmd = 'ffmpeg -hide_banner -loglevel error -f lavfi -i '
+             . escapeshellarg('sine=frequency=660:duration=1.2')
+             . ' -af volume=0.25 -ac 1 -f alsa ' . escapeshellarg($dev) . ' 2>&1';
+        $err = trim(shell_exec($cmd) ?: '');
+        if ($err === '') echo json_encode(['ok' => true, 'device' => $dev]);
+        else { http_response_code(400); echo json_encode(['error' => substr($err, 0, 200), 'device' => $dev]); }
         break;
 
     case 'save_hardware':

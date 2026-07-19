@@ -68,7 +68,7 @@ pcm.announce {
 
 Test it: `aplay -D announce some.wav` should come out only on USB 3.
 
-**3. Point the plugin at it.** On the **Hardware** tab set **Announcement audio device** to `announce` (the device name above). Announcements now play, in mono, to USB channel 3; music is untouched.
+**3. Point the plugin at it.** On the **Hardware** tab pick **Announcement audio device** = `announce` from the dropdown (it lists `default`, your custom routes, and the hardware devices). Hit **Test tone** to send a beep out that device and confirm it lands on the right XR18 channel. Announcements now play, in mono, to USB channel 3; music is untouched.
 
 **4. Route it on the XR18.** In X-Air Edit → **Routing → Inputs**, set the **Ch 1–8** input source to **USB In 1–8**. Now mixer channels 1 & 2 carry the music and channel 3 carries the announcement. Set **Announce channel = 3** on the Hardware tab so the plugin holds channel 3 at the **Announce level** and still ducks the music (ch 1/2) underneath while a clip plays.
 
