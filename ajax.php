@@ -161,6 +161,48 @@ switch ($_GET['action'] ?? '') {
         ]);
         break;
 
+    case 'song_meta':
+        // Pull title/artist/album tags from the currently-playing media file
+        // via ffprobe (ships with ffmpeg, already a dependency).
+        $file = $_GET['file'] ?? '';
+        if ($file === '') {
+            $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true]]);
+            $s = @file_get_contents('http://localhost/api/fppd/status', false, $ctx);
+            $j = $s !== false ? json_decode($s, true) : null;
+            $file = $j['current_song'] ?? '';
+        }
+        if ($file === '') { echo json_encode(['ok' => false]); break; }
+        // Resolve to a real file under the media dir (block path traversal)
+        $media = '/home/fpp/media';
+        $base  = basename($file);
+        $path  = null;
+        $cands = [];
+        if ($file[0] === '/') $cands[] = $file;
+        $cands[] = $media . '/' . ltrim($file, '/');
+        $cands[] = $media . '/music/' . $base;
+        $cands[] = $media . '/' . $base;
+        foreach ($cands as $c) {
+            $rp = realpath($c);
+            if ($rp && str_starts_with($rp, $media) && is_file($rp)) { $path = $rp; break; }
+        }
+        if (!$path) { echo json_encode(['ok' => false, 'error' => 'file not found']); break; }
+        if (!trim(shell_exec('command -v ffprobe 2>/dev/null') ?: '')) {
+            echo json_encode(['ok' => false, 'error' => 'ffprobe not installed']); break;
+        }
+        $out  = shell_exec('ffprobe -v quiet -print_format json -show_format ' . escapeshellarg($path) . ' 2>/dev/null');
+        $tags = json_decode($out ?: '', true)['format']['tags'] ?? [];
+        $pick = function($keys) use ($tags) {
+            foreach ($tags as $k => $v) if (in_array(strtolower($k), $keys, true)) return trim($v);
+            return '';
+        };
+        echo json_encode([
+            'ok'     => true,
+            'title'  => $pick(['title']),
+            'artist' => $pick(['artist', 'album_artist', 'author', 'composer']),
+            'album'  => $pick(['album']),
+        ]);
+        break;
+
     case 'get_override':
         $ovFile = $settings['configDirectory'] . "/ShowManagerOverrides.config";
         $ov = file_exists($ovFile) ? (json_decode(file_get_contents($ovFile), true) ?? []) : [];
