@@ -417,18 +417,28 @@ function _updateCountdown(){
   elC.textContent=_fmtCountdown(best);
   if(elL)elL.textContent=nextEv.label+' · '+nextEv.t;
 }
+/* inline line icons (Lucide-style) — no external font dependency, inherit color */
+function _ico(kind){
+  const a='width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"';
+  return {
+    show:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M7 4v16l13-8z"/></svg>',
+    ann:`<svg ${a}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
+    bgm:`<svg ${a}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+    bgf:`<svg ${a}><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`,
+  }[kind]||'';
+}
 function _timelineHtml(d){
   _computeEvents(d);
-  if(d.fullBlackout)return '<div style="font-size:13px;color:var(--red);font-weight:600">⛔ Blackout day — shows and background music suppressed</div>';
+  if(d.fullBlackout)return '<div style="font-size:13px;color:var(--red);font-weight:600">Blackout day — shows and background music suppressed</div>';
   if(!tlEvents.length)return '<div style="font-size:13px;color:var(--mut)">Nothing scheduled today</div>';
   const now=new Date().toTimeString().slice(0,5);
-  const icon={show:'▶',ann:'🔔',bgm:'♪',bgf:'✦'};
+  const iconColor={show:'var(--mint)',ann:'var(--amber)',bgm:'#7c3aed',bgf:'#0e7490'};
   const nextT=(tlEvents.find(ev=>ev.t>=now)||{}).t;
   const rows=tlEvents.map(ev=>{
     const past=ev.t<now,isNext=ev.t===nextT&&!past;
     return `<div style="display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);opacity:${past?.4:1}">
       <span style="font-family:var(--mono);font-size:13px;font-weight:600;width:46px">${escH(ev.t)}</span>
-      <span style="width:16px;text-align:center;color:var(--sub)">${icon[ev.kind]||'·'}</span>
+      <span style="width:16px;display:inline-flex;align-items:center;justify-content:center;color:${iconColor[ev.kind]||'var(--sub)'}">${_ico(ev.kind)}</span>
       <span style="font-size:13px;${isNext?'font-weight:600':''}">${escH(ev.label)}</span>
       ${isNext?'<span class="sm-badge mint" style="margin-left:auto">Next</span>':''}
     </div>`;
