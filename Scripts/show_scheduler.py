@@ -347,16 +347,21 @@ def next_rotation_show(rotation_key, show_ids):
 # Audio playback
 # ---------------------------------------------------------------------------
 
-def _play_audio(path, gain_db, timeout_secs):
-    """Play an MP3/WAV with software gain boost. Tries ffmpeg then mpg123."""
+def _play_audio(path, gain_db, timeout_secs, device="default"):
+    """Play an MP3/WAV with software gain, downmixed to MONO, to a specific
+    ALSA device. Announcements are voice, so mono keeps them centred; the
+    device lets them go out a separate output (e.g. an ALSA route to XR18
+    USB channels 3/4). Tries ffmpeg then mpg123."""
     gain = 10 ** (gain_db / 20.0)
+    dev  = device or "default"
 
-    # ffmpeg (preferred — supports gain + any format)
+    # ffmpeg (preferred — supports gain + mono downmix + any format)
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-i", path,
         "-af", f"volume={gain:.4f}",
-        "-f", "alsa", "default",
+        "-ac", "1",                     # flatten to mono
+        "-f", "alsa", dev,
     ]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -370,12 +375,13 @@ def _play_audio(path, gain_db, timeout_secs):
     except FileNotFoundError:
         pass  # ffmpeg not installed
 
-    # mpg123 fallback (no gain control, but works for MP3)
+    # mpg123 fallback (MP3 only; --mono downmixes, -a targets the ALSA device)
+    mpg = ["mpg123", "-q", "--mono"]
+    if dev and dev != "default":
+        mpg += ["-o", "alsa", "-a", dev]
+    mpg.append(path)
     try:
-        proc = subprocess.Popen(
-            ["mpg123", "-q", path],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        proc = subprocess.Popen(mpg, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             proc.wait(timeout=timeout_secs)
         except subprocess.TimeoutExpired:
@@ -399,6 +405,7 @@ def play_announcement(audio_path, hw_cfg, an_cfg):
     duck_fade    = float(hw_cfg.get("duck_fade_secs", 2.0))
     gain_db      = float(an_cfg.get("gain_db",        6.0))
     max_duration = int(an_cfg.get("max_duration_secs", 300))
+    device       = hw_cfg.get("announce_device", "default")
     xr18_ip = hw_cfg.get("mixer_ip") or hw_cfg.get("xr18_ip") or "192.168.0.1"
     fch = hw_cfg.get("fader_channel")
     if fch is not None:
@@ -420,7 +427,7 @@ def play_announcement(audio_path, hw_cfg, an_cfg):
         open(PAUSE_SYNC_FLAG, "w").close()
 
         _fade_faders(xr18_ip, ch1, ch2, normal_lvl, duck_level, duck_fade)
-        _play_audio(audio_path, gain_db, max_duration)
+        _play_audio(audio_path, gain_db, max_duration, device)
         _fade_faders(xr18_ip, ch1, ch2, duck_level, normal_lvl, duck_fade)
 
     except Exception as e:
