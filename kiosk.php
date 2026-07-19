@@ -56,7 +56,7 @@ option{background:var(--card);color:var(--text)}
 .klabel{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700}
 .btn{background:var(--raise);border:1px solid var(--border);color:var(--text);font-weight:700;font-size:15px;padding:12px 22px;border-radius:12px;min-height:48px}
 .kvbtn{width:54px;height:54px;border-radius:14px;font-size:28px;font-weight:800;background:var(--raise);border:1px solid var(--brdHi);color:var(--text)}
-#k-start{width:100%;border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
+#k-start{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border:none;background:var(--mint);color:var(--mintInk);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
 #k-start:disabled{opacity:.4;filter:grayscale(.7);cursor:default}
 .ksel{width:100%;appearance:none;background:var(--raise);border:1px solid var(--brdHi);color:var(--text);font-family:var(--font);font-weight:600;font-size:15px;padding:12px 40px 12px 14px;border-radius:12px;min-height:48px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='9'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%238aa2ba' stroke-width='2' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
 #k-stop{width:100%;position:relative;overflow:hidden;background:var(--raise);color:var(--text);border:2px solid var(--redBrd);font-weight:800;font-size:19px;padding:15px 20px;border-radius:14px;min-height:56px}
@@ -131,7 +131,7 @@ option{background:var(--card);color:var(--text)}
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;flex:none">
         <select id="k-pl" class="ksel" onchange="kPickShow()"></select>
-        <button id="k-start" onclick="kStart()">▶ Start show</button>
+        <button id="k-start" onclick="kStart()"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M7 4v16l13-8z"/></svg>Start show</button>
         <button id="k-stop">
           <span style="position:absolute;inset:0;opacity:.28"><span id="k-holdbar" style="display:block;width:0%;height:100%;background:var(--red);transition:width .05s linear"></span></span>
           <span style="position:relative">Hold to stop</span>
