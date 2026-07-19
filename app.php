@@ -53,7 +53,7 @@ $plJson = json_encode($playlists);
 /* cards — no outline, soft under-shadow */
 .sm-card{background:var(--card);border:none;border-radius:8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.10),0 6px 16px rgba(0,0,0,.07)}
 /* 3-across responsive card grid (full width) */
-.sm-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+.sm-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}
 @media (max-width:1000px){.sm-grid3{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:640px){.sm-grid3{grid-template-columns:1fr}}
 .sm-ct{font-weight:700;font-size:15px;margin-bottom:10px}
@@ -1208,7 +1208,10 @@ function renderHardware(cfg){
   const idle=escH(cfg.idle_level!=null?String(cfg.idle_level):'0');
   const ach=escH(cfg.announce_ch!=null?String(parseInt(cfg.announce_ch)):'3');
   const avol=escH(cfg.announce_vol!=null?String(cfg.announce_vol):'0.75');
-  const adev=escH(cfg.announce_device||'default');
+  const adevSel=cfg.announce_device||'default';
+  const devs=(cfg._devices||['default']).slice();
+  if(adevSel&&!devs.includes(adevSel))devs.unshift(adevSel);
+  const devOpts=devs.map(d=>`<option value="${escH(d)}"${d===adevSel?' selected':''}>${escH(d)}</option>`).join('');
   el.innerHTML=`<div style="max-width:560px">
     <div class="sm-card" style="padding:22px 24px">
       <div style="font-weight:700;font-size:16px;margin-bottom:4px">Behringer XR18 Mixer</div>
@@ -1223,9 +1226,12 @@ function renderHardware(cfg){
       </div>
       <div class="sm-hint" style="margin-top:12px">Music faders fade to the show level when a show starts, and to the idle level after it ends.</div>
       <label class="sm-lbl" style="margin-top:16px">Announcement audio device
-        <input type="text" id="hw-adev" class="sm-input" value="${adev}" placeholder="default">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+          <select id="hw-adev" class="sm-select" style="flex:1">${devOpts}</select>
+          <button class="sm-btn" type="button" onclick="annTest()">${_ico('play')}Test tone</button>
+        </div>
       </label>
-      <div class="sm-hint" style="margin-top:8px">ALSA device announcements play to (downmixed to mono). Leave <code>default</code> to share FPP's output. To put announcements on their own XR18 channel, set an ALSA device routed to the mixer's USB channels 3/4 — see the Announcements docs.</div>
+      <div class="sm-hint" style="margin-top:8px">ALSA device announcements play to (downmixed to mono). Leave <code>default</code> to share FPP's output. To put announcements on their own XR18 channel, pick an ALSA device routed to the mixer's USB channels 3/4 — see the Announcements docs. <b>Test tone</b> plays a beep out the selected device.</div>
       <button class="sm-btn solid" style="margin-top:18px;font-size:14px;padding:11px 20px" onclick="saveHardware()">Save &amp; restart bridge</button>
     </div>
   </div>`;
@@ -1244,6 +1250,12 @@ async function saveHardware(){
   const j=await r.json();
   if(j.ok)toast('Saved — bridge restarted','ok');
   else toast('Save failed','err');
+}
+async function annTest(){
+  const dev=document.getElementById('hw-adev').value||'default';
+  toast('Test tone → "'+dev+'"…','amber');
+  const j=await fetch(AJAX+'&action=announce_test&device='+encodeURIComponent(dev)).then(r=>r.json()).catch(()=>({error:'network'}));
+  toast(j.ok?('Test tone played on "'+j.device+'"'):(j.error||'Test failed'),j.ok?'ok':'err');
 }
 
 /* ── SYSTEM TAB (backup / restore / diagnostics) ── */
