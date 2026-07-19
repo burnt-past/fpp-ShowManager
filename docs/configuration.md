@@ -121,7 +121,7 @@ Managed by the **Background** tab. Two independent daily windows.
 | `effect.type` | `"eseq"` or `"fseq"` (selects the FPP command used) |
 | `effect.start` / `.end` | daily window `HH:MM`; windows may cross midnight |
 
-Background music plays only when FPP is idle (never over a show) and is silenced by blackouts. The effect is an overlay: suppressed only while a show runs, but it keeps running through blackouts. Both stand down on a system disable or manual stop.
+Background music plays only when FPP is idle (never over a show) and is silenced by blackouts. The effect is an overlay: suppressed only while a show runs, but it keeps running through blackouts. Both stand down on a system disable. A manual **Stop** only ends the current playback — background then resumes per its schedule.
 
 For backward compatibility, an old `background_playlist` in the Announcements config is treated as an always-on music window until this file is configured.
 
@@ -229,7 +229,6 @@ Not configuration — coordination state, safe to delete when the daemons are st
 |---|---|
 | `xr18_pause_sync` | Set while an announcement ducks; pauses the bridge's fader sync |
 | `xr18_current_fader` | Current music fader level, shared bridge → scheduler |
-| `showmanager_manual_stop` | A manual Stop is in effect; background stays down until the next show |
 | `showmanager_bg_status.json` | Live background music/effect status the Status tab reads |
 | `showmanager_run_now` | A Run Show request the scheduler picks up (deleted once consumed) |
 | `showmanager_cloud_backup_day` | Date of the last successful nightly Dropbox backup (de-dupes to once/day) |

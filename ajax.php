@@ -124,8 +124,6 @@ switch ($_GET['action'] ?? '') {
     case 'trigger_playlist':
         $playlist = $_GET['playlist'] ?? '';
         if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
-        // Manual start clears any lingering stop suppression
-        @unlink('/tmp/showmanager_manual_stop');
         $enc = rawurlencode($playlist);
         $url = "http://localhost/api/command/Start%20Playlist/$enc/false";
         $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
@@ -135,9 +133,8 @@ switch ($_GET['action'] ?? '') {
         break;
 
     case 'stop_playlist':
-        // Signal the scheduler that this stop was intentional so it
-        // doesn't immediately restart the background playlist.
-        @touch('/tmp/showmanager_manual_stop');
+        // Stop the current playback only. Background music/effects then resume
+        // per their schedule — use "Disable system" to keep everything off.
         $url = "http://localhost/api/command/Stop%20Now";
         $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
         $body = @file_get_contents($url, false, $ctx);
@@ -219,7 +216,6 @@ switch ($_GET['action'] ?? '') {
         $mode = $_GET['mode'] ?? '';
         if ($mode === 'off') {
             file_put_contents($ovFile, json_encode([]));
-            @unlink('/tmp/showmanager_manual_stop');   // re-enable clears stop suppression
             echo json_encode(['ok' => true, 'disabled_until' => null]);
             break;
         }
@@ -227,8 +223,8 @@ switch ($_GET['action'] ?? '') {
         elseif ($mode === 'tonight') $until = date('c', strtotime('tomorrow 04:00'));
         else { http_response_code(400); echo json_encode(['error' => 'bad mode']); break; }
         file_put_contents($ovFile, json_encode(['disabled_until' => $until], JSON_PRETTY_PRINT));
-        // Stop anything playing, and keep the scheduler from resuming bg music
-        @touch('/tmp/showmanager_manual_stop');
+        // Stop anything playing; disabled_until keeps the scheduler from
+        // resuming background music/effects until it expires or is re-enabled.
         $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
         @file_get_contents("http://localhost/api/command/Stop%20Now", false, $ctx);
         echo json_encode(['ok' => true, 'disabled_until' => $until]);
@@ -401,7 +397,6 @@ switch ($_GET['action'] ?? '') {
         unset($body['_effects']);
         $bgFile = $settings['configDirectory'] . "/ShowManagerBackground.config";
         file_put_contents($bgFile, json_encode($body, JSON_PRETTY_PRINT));
-        @unlink('/tmp/showmanager_manual_stop');   // re-engaging clears stop suppression
         echo json_encode(['ok' => true]);
         break;
 
@@ -474,7 +469,6 @@ switch ($_GET['action'] ?? '') {
         // request to the running scheduler via a file it polls every few seconds.
         $playlist = $_GET['playlist'] ?? '';
         if (!$playlist) { http_response_code(400); echo json_encode(['error' => 'no playlist']); break; }
-        @unlink('/tmp/showmanager_manual_stop');
         $running = (int)shell_exec('pgrep -fc "[s]how_scheduler.py" 2>/dev/null') > 0;
         file_put_contents('/tmp/showmanager_run_now', json_encode(['playlist' => $playlist]));
         echo json_encode(['ok' => $running, 'queued' => true, 'scheduler_running' => $running]);
