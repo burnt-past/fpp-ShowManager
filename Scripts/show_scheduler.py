@@ -1093,19 +1093,46 @@ class ShowScheduler:
 
 LOCK_PATH = "/tmp/showmanager_scheduler.lock"
 
+def _open_lock_file(path):
+    """Open the lock file tolerantly. The file may already exist owned by a
+    different user (e.g. created by root at boot, then reopened by the web
+    user when 'Restart Scheduler' launches us) — so if we can't open it
+    read-write, fall back to read-only, which is still enough for flock().
+    On create, make it world-writable so any launcher can reuse it."""
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o666)
+        try:
+            os.chmod(path, 0o666)   # only succeeds if we own it; harmless otherwise
+        except OSError:
+            pass
+        return os.fdopen(fd, "r+")
+    except PermissionError:
+        try:
+            return open(path, "r")  # flock works on a read-only fd too
+        except OSError:
+            return None
+
 def acquire_single_instance():
     """Exclusive lock so only one scheduler ever runs. Without this, a second
     copy (e.g. a restart racing the boot launch) double-fires every show,
     announcement, and background action. The lock releases automatically when
     the holding process dies."""
-    handle = open(LOCK_PATH, "w")
+    handle = _open_lock_file(LOCK_PATH)
+    if handle is None:
+        log.warning("Could not open lock file %s — starting without a lock", LOCK_PATH)
+        return True   # don't refuse to run just because the lock file is unopenable
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         log.warning("Another scheduler is already running — exiting this copy")
         return None
-    handle.write(str(os.getpid()))
-    handle.flush()
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()))
+        handle.flush()
+    except (OSError, ValueError):
+        pass          # read-only fd (someone else owns the file) — PID is cosmetic
     return handle   # keep the fd open for the process lifetime to hold the lock
 
 

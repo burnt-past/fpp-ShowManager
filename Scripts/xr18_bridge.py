@@ -286,19 +286,45 @@ def _load_cfg(path):
 
 LOCK_PATH = "/tmp/showmanager_bridge.lock"
 
+def _open_lock_file(path):
+    """Open the lock file tolerantly. It may already exist owned by a different
+    user (created by root at boot, reopened by the web user on a restart), so
+    fall back to a read-only fd — which is still enough for flock(). On create,
+    make it world-writable so any launcher can reuse it."""
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o666)
+        try:
+            os.chmod(path, 0o666)
+        except OSError:
+            pass
+        return os.fdopen(fd, "r+")
+    except PermissionError:
+        try:
+            return open(path, "r")
+        except OSError:
+            return None
+
 def acquire_single_instance():
     """Exclusive lock so only one bridge ever runs. Without this, a relaunch
     that races an already-running copy (e.g. a plugin update) leaves two
     bridges fighting over the XR18 faders. The lock releases when the holding
     process dies."""
-    handle = open(LOCK_PATH, "w")
+    handle = _open_lock_file(LOCK_PATH)
+    if handle is None:
+        log.warning("Could not open lock file %s — starting without a lock", LOCK_PATH)
+        return True
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         log.warning("Another bridge is already running — exiting this copy")
         return None
-    handle.write(str(os.getpid()))
-    handle.flush()
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()))
+        handle.flush()
+    except (OSError, ValueError):
+        pass
     return handle   # keep the fd open for the process lifetime to hold the lock
 
 
