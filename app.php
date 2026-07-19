@@ -1208,6 +1208,7 @@ function renderHardware(cfg){
   const idle=escH(cfg.idle_level!=null?String(cfg.idle_level):'0');
   const ach=escH(cfg.announce_ch!=null?String(parseInt(cfg.announce_ch)):'3');
   const avol=escH(cfg.announce_vol!=null?String(cfg.announce_vol):'0.75');
+  const adev=escH(cfg.announce_device||'default');
   el.innerHTML=`<div style="max-width:560px">
     <div class="sm-card" style="padding:22px 24px">
       <div style="font-weight:700;font-size:16px;margin-bottom:4px">Behringer XR18 Mixer</div>
@@ -1221,6 +1222,10 @@ function renderHardware(cfg){
         <label class="sm-lbl">Announce level (0–1)<input type="number" id="hw-avol" class="sm-input" value="${avol}" min="0" max="1" step="0.01"></label>
       </div>
       <div class="sm-hint" style="margin-top:12px">Music faders fade to the show level when a show starts, and to the idle level after it ends.</div>
+      <label class="sm-lbl" style="margin-top:16px">Announcement audio device
+        <input type="text" id="hw-adev" class="sm-input" value="${adev}" placeholder="default">
+      </label>
+      <div class="sm-hint" style="margin-top:8px">ALSA device announcements play to (downmixed to mono). Leave <code>default</code> to share FPP's output. To put announcements on their own XR18 channel, set an ALSA device routed to the mixer's USB channels 3/4 — see the Announcements docs.</div>
       <button class="sm-btn solid" style="margin-top:18px;font-size:14px;padding:11px 20px" onclick="saveHardware()">Save &amp; restart bridge</button>
     </div>
   </div>`;
@@ -1233,6 +1238,7 @@ async function saveHardware(){
     idle_level:numOr(document.getElementById('hw-idle').value,0),
     announce_ch:Math.round(numOr(document.getElementById('hw-ach').value,3)),
     announce_vol:numOr(document.getElementById('hw-avol').value,0.75),
+    announce_device:(document.getElementById('hw-adev').value||'default').trim()||'default',
   };
   const r=await fetch(AJAX+'&action=save_hardware',{method:'POST',body:JSON.stringify(body)});
   const j=await r.json();

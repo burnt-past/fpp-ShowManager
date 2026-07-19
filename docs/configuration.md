@@ -16,8 +16,9 @@ Managed by the **Hardware** tab. Also seeds the XR18 bridge.
   "fader_channel": 1,
   "show_level":    0.75,
   "idle_level":    0.0,
-  "announce_ch":   3,
-  "announce_vol":  0.75
+  "announce_ch":     3,
+  "announce_vol":    0.75,
+  "announce_device": "default"
 }
 ```
 
@@ -29,6 +30,7 @@ Managed by the **Hardware** tab. Also seeds the XR18 bridge.
 | `idle_level` | float | `0.0` | Music fader level applied after a show ends |
 | `announce_ch` | int | `3` | XR18 channel held at a fixed level for a separate announcement source |
 | `announce_vol` | float | `0.75` | Fader level (0–1) held on the announcement channel |
+| `announce_device` | string | `default` | ALSA device announcements play to (mono). Point at a device routed to XR18 USB ch 3/4 to give announcements their own channel — see [announcements.md](announcements.md#announcements-on-their-own-xr18-channel-usb) |
 
 > Ducking settings (`duck_level`, `duck_fade_secs`) live in the Announcements config, below.
 

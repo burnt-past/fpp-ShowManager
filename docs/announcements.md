@@ -39,6 +39,41 @@ When any announcement plays, the music ducks automatically — it never stops:
 | 12 | 4× — noisy environments |
 | 18 | 8× — very prominent |
 
+Announcements are **downmixed to mono** (they're voice — mono keeps them centred and consistent).
+
+---
+
+## Announcements on their own XR18 channel (USB)
+
+By default announcements play out the Pi's **default** audio output — the same output FPP uses for music — and are simply mixed over the ducked music. If you'd rather they arrive on a **separate mixer channel** (their own fader, independent of the music), send them out a different USB channel of the XR18. The XR18's USB port is an 18-in/18-out interface, so the Pi can feed music and announcements to different channels.
+
+Four pieces:
+
+**1. FPP music → USB 1/2.** In FPP's audio settings, set the output device to the XR18 USB card. FPP's stereo lands on USB return channels 1 & 2.
+
+**2. An ALSA device that lands on USB channel 3.** Find the card name with `aplay -l` (e.g. `X18XR18`), then add to `/etc/asound.conf`:
+
+```
+pcm.xr18 { type hw; card X18XR18 }      # ← your card name from `aplay -l`
+
+pcm.announce {
+    type plug
+    slave.pcm {
+        type route
+        slave { pcm "xr18"; channels 18 }
+        ttable.0.2 1        # mono source (ch0) → XR18 USB output channel 3 (index 2)
+    }
+}
+```
+
+Test it: `aplay -D announce some.wav` should come out only on USB 3.
+
+**3. Point the plugin at it.** On the **Hardware** tab set **Announcement audio device** to `announce` (the device name above). Announcements now play, in mono, to USB channel 3; music is untouched.
+
+**4. Route it on the XR18.** In X-Air Edit → **Routing → Inputs**, set the **Ch 1–8** input source to **USB In 1–8**. Now mixer channels 1 & 2 carry the music and channel 3 carries the announcement. Set **Announce channel = 3** on the Hardware tab so the plugin holds channel 3 at the **Announce level** and still ducks the music (ch 1/2) underneath while a clip plays.
+
+The `mpg123` fallback also honours the device and mono; `ffmpeg` is preferred (handles gain + downmix cleanly).
+
 ---
 
 ## Pre-show announcements
