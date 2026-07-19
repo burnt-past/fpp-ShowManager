@@ -82,7 +82,7 @@ Each event fires **at most once per day per slot** — a de-duplication set is c
 2. At show time the background overlay effect is stopped, then brightness snaps to normal.
 3. The show playlist starts; music faders move to the show level.
 4. The scheduler waits for that **playlist by name** to stop (not a fixed timer), with a 2-hour safety cap.
-5. When the show ends, faders return to idle and background resumes per its schedule (unless a manual Stop is in effect, which stays quiet until the next show); the lights snap to 0 and fade back to normal over the post-show fade time.
+5. When the show ends — or is manually stopped — faders return to idle and background resumes per its schedule; the lights snap to 0 and fade back to normal over the post-show fade time. (To keep everything off, use the kiosk's **Disable system**.)
 
 ---
 

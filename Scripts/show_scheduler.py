@@ -45,7 +45,6 @@ BACKGROUND_CONFIG = "/home/fpp/media/config/ShowManagerBackground.config"
 DROPBOX_CONFIG   = "/home/fpp/media/config/ShowManagerDropbox.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
-MANUAL_STOP_FLAG = "/tmp/showmanager_manual_stop"
 BG_STATUS_FILE   = "/tmp/showmanager_bg_status.json"
 RUN_NOW_FILE     = "/tmp/showmanager_run_now"
 LOG_PATH         = "/home/fpp/media/logs/showmanager.log"
@@ -721,12 +720,6 @@ class ShowScheduler:
 
         log.info("--- Show starting: %s at %s ---", playlist, entry.get("time", ""))
         hw_cfg = self._hw()
-        # A scheduled show resumes normal operation — clear any lingering
-        # manual-stop suppression so background returns after the show.
-        try:
-            os.remove(MANUAL_STOP_FLAG)
-        except OSError:
-            pass
         self._in_show.set()
         try:
             # Kill the background overlay effect first — only once it's gone do
@@ -768,9 +761,8 @@ class ShowScheduler:
             self._in_show.clear()
             self._set_level(hw_cfg, hw_cfg.get("idle_level"))
             # Hand back to scheduled background first (no silent gap) so any
-            # overlay effect is running before we fade the lights up. If a
-            # Stop was pressed during the show, MANUAL_STOP_FLAG is now set and
-            # _apply_background keeps things quiet until the next show.
+            # overlay effect is running before we fade the lights up. A manual
+            # Stop ends here too — background simply resumes per its schedule.
             self._apply_background()
             # Snap lights to 0 and fade back to normal over the configured
             # post-show fade time (or snap straight to normal when unset).
@@ -789,14 +781,15 @@ class ShowScheduler:
         suppressed only while a show runs (shows own their lighting). It is NOT
         suppressed by blackouts — the lights stay on during quiet hours.
 
-        Both are suppressed by the system-disable override and a manual stop.
+        Both are suppressed by the system-disable override. A manual Stop only
+        stops the current playback — background then resumes per its schedule.
         Idempotent — safe to call from the loop and from show end."""
         with self._bg_lock:
             cfg = self._bg()
             hw_cfg = self._hw()
             now = datetime.datetime.now()
             today = now.date().isoformat()
-            off = system_disabled() or os.path.exists(MANUAL_STOP_FLAG)  # everything off
+            off = system_disabled()                                      # everything off
             blacked = is_blacked_out(today, now)                          # audio off (quiet hours)
             show = self._in_show.is_set() or is_show_running()
             music  = cfg.get("music", {})

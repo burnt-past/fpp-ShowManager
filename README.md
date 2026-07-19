@@ -33,7 +33,7 @@ Targets **FPP 9.4+**.
 
 - **Calendar scheduler** — schedule shows by date, not just day‑of‑week. Repeating rules (e.g. every Fri/Sat, 7–10 pm, every 30 min) and one‑off entries.
 - **Blackouts = quiet hours** — block a whole day, or a time range. A blackout silences **audio** (shows and background music) but **leaves the lighting effect running** — for venues with quiet hours.
-- **Background music & effects** — during their own daily windows, loop a background playlist (audio) and overlay a background lighting effect. Both stand down while a show runs, on a system‑disable, or a manual stop.
+- **Background music & effects** — during their own daily windows, loop a background playlist (audio) and overlay a background lighting effect. Both stand down while a show runs or on a system‑disable. A manual **Stop** only ends the current playback — background resumes per its schedule.
 - **Pre‑show announcements** — play audio N minutes before each show; music ducks automatically while it plays. Files can come from the plugin's folder or anywhere in FPP's media.
 - **Daytime announcements** — random clips on an interval during configurable hours, suppressed near show times.
 - **Pre/post‑show brightness fade** — before a show, brightness fades to a pre‑show level over a configurable time (starting either the fade time before the show, or when a chosen pre‑show audio begins), then snaps to normal as the show starts (after the background overlay is cleared). When the show ends, brightness snaps to 0 and fades back up to normal over a configurable post‑show fade.

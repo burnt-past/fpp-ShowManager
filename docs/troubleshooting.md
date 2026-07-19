@@ -44,7 +44,7 @@ FPP adds that warning once at boot when its own scheduler is off. The plugin re-
 
 - **Not starting?** Background music runs only when FPP is idle, inside its window, and not blacked-out/disabled/stopped. The **Status** tab's System card shows BG Music / BG Effect as green (active) or amber (idle). The Background tab windows may simply be closed right now.
 - **Effect not appearing?** Effects use FPP's `Effect Start` / `FSEQ Effect Start` commands. During a window, watch the log — a rejected command is logged. Confirm the selected `.eseq`/`.fseq` exists in FPP.
-- **Stopped and won't come back?** A manual **Stop** keeps background down until the next scheduled show (that's intentional — use it as "quiet now"). The kiosk **Disable system** keeps everything off until it expires or you re-enable.
+- **Stopped and won't come back?** A manual **Stop** only ends the current playback — background music/effects resume per their schedule (the effect within ~5 s if a show was stopped, music within one background-loop cycle, ~45 s). To keep everything off, use the kiosk **Disable system**, which stays off until it expires or you re-enable.
 
 ---
 
@@ -133,7 +133,7 @@ Clear coordination state (does not touch config):
 
 ```bash
 pkill -f show_scheduler.py; pkill -f xr18_bridge.py
-rm -f /tmp/xr18_pause_sync /tmp/xr18_current_fader /tmp/showmanager_manual_stop \
+rm -f /tmp/xr18_pause_sync /tmp/xr18_current_fader \
       /tmp/showmanager_run_now /tmp/showmanager_cloud_backup_day \
       /tmp/showmanager_scheduler.lock /tmp/showmanager_bridge.lock
 ```
