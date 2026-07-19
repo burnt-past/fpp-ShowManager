@@ -31,7 +31,7 @@ $plJson = json_encode($playlists);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%}
-body{background:var(--bg);color:var(--text);font-family:var(--font);overflow-x:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);overflow-x:hidden;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 button{font-family:var(--font);cursor:pointer;appearance:none}
 option{background:var(--card);color:var(--text)}
 @keyframes k-pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.55}}
@@ -365,6 +365,9 @@ async function kVol(delta){
       const st=d.createElement('style');
       st.textContent='#hud,#panel,.hint{display:none !important}';
       d.head.appendChild(st);
+      // Block the right-click menu inside the viewer too (same-origin). Orbit
+      // controls' right-drag still works — only the context menu is suppressed.
+      d.addEventListener('contextmenu',e=>e.preventDefault());
     }catch(e){}
   });
   function apply(){
@@ -802,6 +805,9 @@ async function kVol(delta){
   const sel=document.getElementById('k-pl');
   if(sel)sel.innerHTML=PLAYLISTS.map(p=>`<option value="${escH(p)}">${escH(p)}</option>`).join('');
 })();
+
+// Kiosk lock-down: no right-click / long-press context menu on the page.
+document.addEventListener('contextmenu',e=>e.preventDefault());
 
 poll();
 setInterval(pollFast,1000);
