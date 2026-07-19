@@ -58,7 +58,8 @@ $plJson = json_encode($playlists);
 @media (max-width:640px){.sm-grid3{grid-template-columns:1fr}}
 .sm-ct{font-weight:700;font-size:15px;margin-bottom:10px}
 /* buttons — pill shaped, FPP-native */
-.sm-btn{appearance:none;background:var(--raise);border:1px solid var(--border);color:inherit;font-weight:600;font-size:13px;padding:7px 16px;border-radius:999px;white-space:nowrap}
+.sm-btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--raise);border:1px solid var(--border);color:inherit;font-weight:600;font-size:13px;padding:7px 16px;border-radius:999px;white-space:nowrap}
+.sm-btn svg{flex:none}
 .sm-btn:hover{background:var(--high)}
 .sm-btn.ghost{background:transparent;color:var(--sub)}
 .sm-btn.solid{background:var(--mint);border-color:var(--mint);color:var(--mintInk);font-weight:600}
@@ -120,7 +121,7 @@ $plJson = json_encode($playlists);
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
       <h2 style="margin:0;font-size:22px">Show Manager</h2>
       <span style="font-size:12px;color:var(--sub);font-family:var(--mono)"><span id="sm-host"></span></span>
-      <a href="plugin.php?plugin=<?= basename(__DIR__) ?>&page=kiosk.php&nopage=1" target="_blank" style="margin-left:auto;text-decoration:none"><button class="sm-btn">⛶ Kiosk</button></a>
+      <a href="plugin.php?plugin=<?= basename(__DIR__) ?>&page=kiosk.php&nopage=1" target="_blank" style="margin-left:auto;text-decoration:none"><button class="sm-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>Kiosk</button></a>
     </div>
     <div id="sm-nowplaying">
       <span id="sm-np-dot"></span>
@@ -162,7 +163,7 @@ function numOr(v,d){const n=parseFloat(v);return isNaN(n)?d:n;}
 function qlabel(e){
   if(e.type==='blackout'){
     const range=(e.start_time||e.end_time)?` ${e.start_time||'00:00'}–${e.end_time||'23:59'}`:'';
-    return '✖ Blackout'+range;
+    return 'Blackout'+range;
   }
   return e.playlist||(e.playlists||[]).join(' / ')||'(show)';
 }
@@ -420,11 +421,21 @@ function _updateCountdown(){
 /* inline line icons (Lucide-style) — no external font dependency, inherit color */
 function _ico(kind){
   const a='width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"';
+  const fill='width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:block"';
   return {
-    show:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display:block"><path d="M7 4v16l13-8z"/></svg>',
+    show:`<svg ${fill}><path d="M7 4v16l13-8z"/></svg>`,
+    play:`<svg ${fill}><path d="M7 4v16l13-8z"/></svg>`,
     ann:`<svg ${a}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
     bgm:`<svg ${a}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
     bgf:`<svg ${a}><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`,
+    download:`<svg ${a}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    upload:`<svg ${a}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+    cloudup:`<svg ${a}><path d="M12 13v8"/><path d="m8 17 4-4 4 4"/><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.2"/></svg>`,
+    refresh:`<svg ${a}><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>`,
+    warn:`<svg ${a}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    extlink:`<svg ${a}><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
+    ban:`<svg ${a}><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>`,
+    expand:`<svg ${a}><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`,
   }[kind]||'';
 }
 function _timelineHtml(d){
@@ -454,7 +465,7 @@ function _warnHtml(ws){
   if(!ws||!ws.length)return '';
   const hasBad=ws.some(w=>w.level==='bad');
   return `<div class="sm-card" style="border-left:3px solid ${hasBad?'var(--red)':'var(--amber)'}">
-    <div class="sm-ct" style="margin-bottom:8px">⚠ ${ws.length} schedule ${ws.length===1?'warning':'warnings'}</div>
+    <div class="sm-ct" style="margin-bottom:8px;display:flex;align-items:center;gap:7px"><span style="color:${hasBad?'var(--red)':'var(--amber)'};display:inline-flex">${_ico('warn')}</span>${ws.length} schedule ${ws.length===1?'warning':'warnings'}</div>
     ${ws.map(w=>`<div style="display:flex;gap:8px;padding:4px 0;font-size:13px;align-items:flex-start"><span style="color:${w.level==='bad'?'var(--red)':'var(--amber)'};line-height:1.5">●</span><span>${escH(w.text)}</span></div>`).join('')}
   </div>`;
 }
@@ -484,7 +495,7 @@ async function renderStatus(){
         <p style="font-size:12px;color:var(--sub);margin:0 0 12px"><b>Run Show</b> uses the full pipeline (dim, fader levels, post-show fade). <b>Start</b> is a raw FPP start for testing.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <select id="trig-pl" class="sm-select" style="flex:1;min-width:140px">${plOptions('')}</select>
-          <button class="sm-btn solid" onclick="runShow()">▶ Run Show</button>
+          <button class="sm-btn solid" onclick="runShow()">${_ico('play')}Run Show</button>
           <button class="sm-btn" onclick="triggerPlaylist()">Start</button>
           <button class="sm-btn" onclick="stopPlaylist()">Stop</button>
         </div>
@@ -498,7 +509,7 @@ async function renderStatus(){
       <div class="sm-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
           <div class="sm-ct" style="margin-bottom:0">System</div>
-          <button class="sm-btn ghost sm" onclick="restartScheduler()">↻ Restart Scheduler</button>
+          <button class="sm-btn ghost sm" onclick="restartScheduler()">${_ico('refresh')}Restart Scheduler</button>
         </div>
         <div id="sm-sys">${_sysHtml(fpp,xr,log.running)}</div>
       </div>
@@ -653,7 +664,7 @@ function renderMonthView(){
     const isTd=ds===today;
     html+=`<div class="cal-cell${fullBlk?' bo':''}${isTd?' today':''}" onclick="openDayModal('${ds}')">`;
     html+=`<div class="cal-day">${d}</div>`;
-    if(fullBlk)html+='<div style="font-size:10px;color:var(--red);font-weight:700">✖ Blackout</div>';
+    if(fullBlk)html+='<div style="font-size:10px;color:var(--red);font-weight:700;display:flex;align-items:center;gap:3px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>Blackout</div>';
     else{
       ents.slice(0,3).forEach(e=>html+=`<div class="sm-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
       if(ents.length>3)html+=`<div style="font-size:10px;color:var(--mut)">+${ents.length-3} more</div>`;
@@ -678,7 +689,7 @@ function renderWeekView(){
     const fullBlk=ents.some(e=>e.type==='blackout'&&!e.start_time&&!e.end_time);
     hd+=`<div class="cal-dow" style="${isTd?'color:var(--mint)':''}">${DAYS[d.getDay()]}<br><span style="font-family:var(--mono);font-weight:400">${ds.slice(5)}</span></div>`;
     bd+=`<div class="cal-cell${fullBlk?' bo':''}${isTd?' today':''}" style="min-height:150px" onclick="openDayModal('${ds}')">`;
-    if(fullBlk)bd+='<div style="font-size:10px;color:var(--red);font-weight:700">✖ Blackout</div>';
+    if(fullBlk)bd+='<div style="font-size:10px;color:var(--red);font-weight:700;display:flex;align-items:center;gap:3px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>Blackout</div>';
     else{
       ents.slice(0,5).forEach(e=>bd+=`<div class="sm-chip${e.type==='blackout'?' blk':e.rule_id?' rule':''}">${escH(e.time||'')} ${escH(qlabel(e))}</div>`);
       const bw=_bgWindows();
@@ -1045,7 +1056,7 @@ function renderAnnouncements(){
       <div class="sm-ct">Files</div>
       <label class="sm-lbl" style="margin-bottom:10px">Destination<select id="ann-dest" class="sm-select"><option value="main">Main (pre-show)</option><option value="daytime">Daytime</option></select></label>
       <label style="display:flex;align-items:center;justify-content:center;gap:8px;padding:16px;border:1px dashed var(--border);border-radius:11px;color:var(--sub);font-size:13px;cursor:pointer;margin-bottom:12px">
-        ⬆ Upload audio (MP3/WAV/OGG)
+        ${_ico('upload')} Upload audio (MP3/WAV/OGG)
         <input type="file" id="ann-file" accept=".mp3,.wav,.ogg" style="display:none" onchange="annUpload()">
       </label>
       ${fileRows||'<div style="font-size:13px;color:var(--mut)">No announcement files uploaded yet.</div>'}
@@ -1238,8 +1249,8 @@ function loadSystem(){
       <div class="sm-ct" style="margin-bottom:6px">Backup &amp; Restore</div>
       <p style="font-size:12px;color:var(--sub);margin:0 0 14px">Download every Show Manager setting as one file, or restore from a previous backup. Restoring overwrites current settings and restarts the daemons.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button class="sm-btn solid" onclick="exportConfig()">⬇ Download backup</button>
-        <button class="sm-btn" onclick="document.getElementById('sm-restore-file').click()">⬆ Restore from file…</button>
+        <button class="sm-btn solid" onclick="exportConfig()">${_ico('download')}Download backup</button>
+        <button class="sm-btn" onclick="document.getElementById('sm-restore-file').click()">${_ico('upload')}Restore from file…</button>
         <input type="file" id="sm-restore-file" accept="application/json,.json" style="display:none" onchange="importConfig(this)">
       </div>
       <div class="sm-hint" style="margin-top:10px">Backup includes schedule, background, announcements, hardware and overrides.</div>
@@ -1253,7 +1264,7 @@ function loadSystem(){
         <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
         <div style="display:flex;gap:6px">
           <button class="sm-btn ghost sm" onclick="brightnessFlash()">Flash lights</button>
-          <button class="sm-btn ghost sm" onclick="runDiag()">↻ Re-check</button>
+          <button class="sm-btn ghost sm" onclick="runDiag()">${_ico('refresh')}Re-check</button>
         </div>
       </div>
       <p style="font-size:12px;color:var(--sub);margin:0 0 12px">A quick pre-show health check of the rig.</p>
@@ -1280,7 +1291,7 @@ function renderDropbox(){
   let out=setup;
   if(c.app_key&&c.has_secret&&!c.connected){
     out+=`<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
-      <div style="font-size:12px;color:var(--sub);margin-bottom:8px"><b>1.</b> <a href="${escH(c.auth_url||'#')}" target="_blank" rel="noopener">Authorize in Dropbox ↗</a> — approve, then copy the code Dropbox shows you.</div>
+      <div style="font-size:12px;color:var(--sub);margin-bottom:8px"><b>1.</b> <a href="${escH(c.auth_url||'#')}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;vertical-align:bottom">Authorize in Dropbox ${_ico('extlink')}</a> — approve, then copy the code Dropbox shows you.</div>
       <div style="font-size:12px;color:var(--sub);margin-bottom:8px"><b>2.</b> Paste the code:</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="dbx-code" class="sm-input" style="flex:1;min-width:160px" placeholder="paste code">
@@ -1292,7 +1303,7 @@ function renderDropbox(){
     out+=`<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><span class="sm-pill ok">Connected</span><span style="font-size:12px;color:var(--sub)">Last backup: ${escH(last)}</span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <button class="sm-btn solid" onclick="backupDropbox()">⬆ Back up now</button>
+        <button class="sm-btn solid" onclick="backupDropbox()">${_ico('cloudup')}Back up now</button>
         <button class="sm-btn ghost sm" onclick="testDropbox()">Test</button>
         <button class="sm-btn danger sm" onclick="disconnectDropbox()">Disconnect</button>
       </div>
