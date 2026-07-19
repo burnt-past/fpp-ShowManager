@@ -26,6 +26,10 @@ Errors are labelled `ERROR`, warnings `WARNING`.
 
 Two scheduler copies were running. Both daemons now hold a single-instance `flock` lock, so a second copy exits on startup — and a plugin **update** stops the old daemons before starting the new code (`fpp_install.sh`), so updates no longer leave duplicates. If you still see two, restart the daemons once (**Restart Scheduler**, or Plugin Setup → Restart Daemons) and confirm with `pgrep -af show_scheduler.py` / `pgrep -af xr18_bridge.py` (one line each).
 
+### "Permission denied" on the lock file when restarting
+
+The daemons keep a single-instance lock at `/tmp/showmanager_scheduler.lock` (and `…_bridge.lock`). If the file was created by one user (root, at boot) and the restart runs as another (the web user), older versions crashed opening it. The lock now falls back to a read-only handle in that case (still enough to enforce single-instance) and creates the file world-writable, so this self-heals — a reboot clears the stale file entirely. If you ever want to force it: as root, `rm -f /tmp/showmanager_*.lock` then restart.
+
 ### A show starts but ends instantly
 
 The scheduler tracks the show **by playlist name**. Confirm the scheduled playlist name matches FPP exactly (case-sensitive) and plays cleanly when started from FPP directly.
