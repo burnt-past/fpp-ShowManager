@@ -66,12 +66,15 @@ log = logging.getLogger(__name__)
 # Config helpers
 # ---------------------------------------------------------------------------
 
+_warned_bad_configs = set()   # paths we've already warned about (avoid log spam)
+
 def load_json(path, default=None):
     fallback = {} if default is None else default
     try:
         with open(path) as f:
             data = json.load(f)
     except FileNotFoundError:
+        _warned_bad_configs.discard(path)
         return fallback
     except Exception as e:
         log.error("Config load error %s: %s", path, e)
@@ -79,9 +82,12 @@ def load_json(path, default=None):
     # Every config here is a JSON object; guard against a file that somehow
     # holds an array (or other type) so callers can safely .get() on it.
     if not isinstance(data, dict):
-        log.error("Config %s is not a JSON object (got %s) — ignoring it",
-                  path, type(data).__name__)
+        if path not in _warned_bad_configs:   # log once, not every cycle
+            log.warning("Config %s is not a JSON object (got %s) — ignoring it; "
+                        "reset it with: echo '{}' > %s", path, type(data).__name__, path)
+            _warned_bad_configs.add(path)
         return fallback
+    _warned_bad_configs.discard(path)          # recovered — allow future warnings
     return data
 
 def save_json(path, data):
