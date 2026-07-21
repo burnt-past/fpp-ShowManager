@@ -851,6 +851,11 @@ class ShowScheduler:
                 if self._bg_effect != (kind, eff):
                     if self._bg_effect:
                         fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
+                    # Stop any existing copy of this effect first — a background
+                    # effect keeps running in fppd across scheduler restarts, so
+                    # starting without stopping would stack two instances.
+                    fpp_stop_effect(eff, kind)
+                    time.sleep(0.3)   # let fppd drop the old instance before restart
                     fpp_start_effect(eff, kind)
                     self._bg_effect = (kind, eff)
                 status["effect"] = eff
