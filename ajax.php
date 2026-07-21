@@ -224,7 +224,7 @@ switch ($_GET['action'] ?? '') {
         $du = $ov['disabled_until'] ?? null;
         if ($du && strtotime($du) <= time()) {   // expired — clean up
             $du = null;
-            file_put_contents($ovFile, json_encode([]));
+            file_put_contents($ovFile, '{}');   // JSON object, not [] (which breaks .get() in the scheduler)
         }
         echo json_encode(['disabled_until' => $du]);
         break;
@@ -233,7 +233,7 @@ switch ($_GET['action'] ?? '') {
         $ovFile = $settings['configDirectory'] . "/ShowManagerOverrides.config";
         $mode = $_GET['mode'] ?? '';
         if ($mode === 'off') {
-            file_put_contents($ovFile, json_encode([]));
+            file_put_contents($ovFile, '{}');   // JSON object, not [] (breaks .get() in the scheduler)
             echo json_encode(['ok' => true, 'disabled_until' => null]);
             break;
         }
