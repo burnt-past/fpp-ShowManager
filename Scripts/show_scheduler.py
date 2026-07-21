@@ -67,14 +67,22 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def load_json(path, default=None):
+    fallback = {} if default is None else default
     try:
         with open(path) as f:
-            return json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
-        return {} if default is None else default
+        return fallback
     except Exception as e:
         log.error("Config load error %s: %s", path, e)
-        return {} if default is None else default
+        return fallback
+    # Every config here is a JSON object; guard against a file that somehow
+    # holds an array (or other type) so callers can safely .get() on it.
+    if not isinstance(data, dict):
+        log.error("Config %s is not a JSON object (got %s) — ignoring it",
+                  path, type(data).__name__)
+        return fallback
+    return data
 
 def save_json(path, data):
     try:
