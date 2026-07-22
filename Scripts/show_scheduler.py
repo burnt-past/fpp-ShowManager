@@ -126,13 +126,20 @@ def _send_osc(ip, address, *args):
     except Exception as e:
         log.warning("OSC send failed %s: %s", address, e)
 
-def _fade_faders(ip, ch1, ch2, from_lvl, to_lvl, duration_secs, steps=20):
+def _fade_faders(ip, ch1, ch2, from_lvl, to_lvl, duration_secs, rate_hz=50):
+    """Ramp the two music faders smoothly. Step count is derived from the
+    duration at a fixed update rate (default 50 Hz), so the fade stays fine
+    at any length instead of a fixed 20 chunky steps."""
+    duration_secs = max(0.0, float(duration_secs))
+    steps = max(1, int(round(duration_secs * rate_hz)))
     delay = duration_secs / steps
+    a1 = f"/ch/{ch1.zfill(2)}/mix/fader"
+    a2 = f"/ch/{ch2.zfill(2)}/mix/fader"
     for i in range(steps + 1):
-        t = i / steps
+        t   = i / steps
         lvl = float(from_lvl + (to_lvl - from_lvl) * t)
-        _send_osc(ip, f"/ch/{ch1.zfill(2)}/mix/fader", lvl)
-        _send_osc(ip, f"/ch/{ch2.zfill(2)}/mix/fader", lvl)
+        _send_osc(ip, a1, lvl)
+        _send_osc(ip, a2, lvl)
         if i < steps:
             time.sleep(delay)
 
