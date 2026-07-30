@@ -346,7 +346,7 @@ function _heroHtml(fpp,xr){
         <div style="height:5px;border-radius:3px;background:var(--high);margin-top:8px;overflow:hidden"><div style="width:${volPct}%;height:100%;border-radius:3px;background:var(--mint)"></div></div>
       </div>
       <div style="text-align:right;min-width:110px">
-        <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700">XR18 Fader</div>
+        <div style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);font-weight:700">Mixer Fader</div>
         <div style="font-size:30px;font-weight:800;font-family:var(--mono);margin-top:4px">${fader!=null?fader.toFixed(2):'—'}</div>
         <div style="height:5px;border-radius:3px;background:var(--high);margin-top:8px;overflow:hidden"><div style="width:${fadPct}%;height:100%;border-radius:3px;background:var(--mint)"></div></div>
       </div>
@@ -369,7 +369,7 @@ function _sysHtml(fpp,xr,running){
   // state: 'ok' green · 'idle' amber · 'bad' red
   const rows=[
     ['FPP Daemon',fpp.fppd==='running'?'ok':'bad',fpp.fppd==='running'?'Running':'Stopped'],
-    ['XR18 Mixer',xr.xr18_fader!=null?'ok':'bad',xr.xr18_fader!=null?('Fader '+xr.xr18_fader.toFixed(2)):'N/A'],
+    ['Mixer',xr.xr18_fader!=null?'ok':'bad',xr.xr18_fader!=null?('Fader '+xr.xr18_fader.toFixed(2)):'N/A'],
     ['Scheduler',running?'ok':'bad',running?'Active':'Stopped'],
   ];
   const bg=xr.background||null;
@@ -1214,7 +1214,7 @@ function renderHardware(cfg){
   const devOpts=devs.map(d=>`<option value="${escH(d)}"${d===adevSel?' selected':''}>${escH(d)}</option>`).join('');
   el.innerHTML=`<div style="max-width:560px">
     <div class="sm-card" style="padding:22px 24px">
-      <div style="font-weight:700;font-size:16px;margin-bottom:4px">Behringer XR18 Mixer</div>
+      <div style="font-weight:700;font-size:16px;margin-bottom:4px">Behringer X-Air Mixer</div>
       <div style="font-size:12.5px;color:var(--sub);margin-bottom:20px">Saving restarts the OSC bridge automatically.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <label class="sm-lbl">Mixer IP<input type="text" id="hw-ip" class="sm-input" value="${ip}" placeholder="192.168.1.x"></label>
@@ -1231,7 +1231,7 @@ function renderHardware(cfg){
           <button class="sm-btn" type="button" onclick="annTest()">${_ico('play')}Test tone</button>
         </div>
       </label>
-      <div class="sm-hint" style="margin-top:8px">ALSA device announcements play to (downmixed to mono). Leave <code>default</code> to share FPP's output. To put announcements on their own XR18 channel, pick an ALSA device routed to the mixer's USB channels 3/4 — see the Announcements docs. <b>Test tone</b> plays a beep out the selected device.</div>
+      <div class="sm-hint" style="margin-top:8px">ALSA device announcements play to (downmixed to mono). Leave <code>default</code> to share FPP's output. To put announcements on their own mixer channel, pick an ALSA device routed to a separate mixer input (an XR18 USB channel, or a USB adapter into a line input on an XR12/XR16) — see the Announcements docs. <b>Test tone</b> plays a beep out the selected device.</div>
       <button class="sm-btn solid" style="margin-top:18px;font-size:14px;padding:11px 20px" onclick="saveHardware()">Save &amp; restart bridge</button>
     </div>
   </div>`;
