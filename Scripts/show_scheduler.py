@@ -369,35 +369,44 @@ def next_rotation_show(rotation_key, show_ids):
 # ---------------------------------------------------------------------------
 
 def _play_audio(path, gain_db, timeout_secs, device="default"):
-    """Play an MP3/WAV with software gain, downmixed to MONO, to a specific
-    ALSA device. Announcements are voice, so mono keeps them centred; the
-    device lets them go out a separate output (e.g. an ALSA route to XR18
-    USB channels 3/4). Tries ffmpeg then mpg123."""
+    """Play an MP3/WAV with software gain to a specific ALSA device, flattened
+    to MONO but emitted as DUAL-MONO (the mono content on BOTH L and R). Voice
+    stays centred, and it doesn't matter which side of the output feeds the
+    mixer input — a plain `-ac 1` lands on only one channel on some codecs.
+    Tries ffmpeg then mpg123."""
     gain = 10 ** (gain_db / 20.0)
     dev  = device or "default"
 
-    # ffmpeg (preferred — supports gain + mono downmix + any format)
+    # ffmpeg (preferred). Chain: gain → normalise to stereo → sum to dual-mono.
+    # aformat first so a mono *or* stereo source both become 2-channel before
+    # the pan sums them onto both outputs.
+    af = (f"volume={gain:.4f},aformat=channel_layouts=stereo,"
+          "pan=stereo|c0<c0+c1|c1<c0+c1")
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-i", path,
-        "-af", f"volume={gain:.4f}",
-        "-ac", "1",                     # flatten to mono
+        "-af", af,
         "-f", "alsa", dev,
     ]
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         try:
-            proc.wait(timeout=timeout_secs)
-            return
+            _, err = proc.communicate(timeout=timeout_secs)
         except subprocess.TimeoutExpired:
             proc.kill()
             log.warning("Announcement timed out (ffmpeg): %s", path)
             return
+        if proc.returncode == 0:
+            return
+        # Non-zero exit (e.g. device busy or a bad filter) — log and try mpg123
+        log.warning("ffmpeg announcement failed (%s): %s", proc.returncode,
+                    (err or b"").decode(errors="replace").strip()[:200])
     except FileNotFoundError:
         pass  # ffmpeg not installed
 
-    # mpg123 fallback (MP3 only; --mono downmixes, -a targets the ALSA device)
-    mpg = ["mpg123", "-q", "--mono"]
+    # mpg123 fallback (MP3 only). Play stereo so both channels carry audio;
+    # -a targets the ALSA device.
+    mpg = ["mpg123", "-q"]
     if dev and dev != "default":
         mpg += ["-o", "alsa", "-a", dev]
     mpg.append(path)
