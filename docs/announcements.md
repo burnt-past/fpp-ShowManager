@@ -49,15 +49,22 @@ By default announcements play out the Pi's **default** audio output — the same
 
 > **Why a separate device (not another channel of the mixer's USB):** FPP opens the mixer's USB audio card **exclusively** while it's the audio output. A second program (the announcement player) can't independently open the *same* card at the same time — you'll get "device busy / host is down." So the reliable approach is to give announcements their **own** audio device.
 
-The clean, universal way — works with **any** X-Air (XR12/16/18):
+The plugin needs a **second, independent output** so it never contends with FPP's card:
 
-**1. Add a cheap USB audio adapter** (~$10) to the box. It shows up as its own ALSA card (check `aplay -l`). FPP keeps the mixer's USB card for music (USB 1/2); the adapter is untouched by FPP.
+- **On an x86 box (mini-PC/server):** use the machine's **built-in audio** — no extra hardware. It's a separate ALSA card (e.g. `plughw:CARD=PCH,DEV=0`), untouched by FPP. Run its 3.5 mm output into a mixer line input.
+- **On a Raspberry Pi** (no usable line-out): add a **cheap USB audio adapter** (~$10); it shows up as its own ALSA card.
 
-**2. Wire the adapter's output into a physical line input** on the mixer — e.g. **input 3**.
+Then:
 
-**3. Point the plugin at the adapter.** On the **Hardware** tab pick **Announcement audio device** = the adapter (e.g. `plughw:CARD=Device`) from the dropdown, and hit **Test tone** — you should see **channel 3** meter, music untouched. Announcements play in mono to the adapter → line input 3.
+**1. Wire that output into a physical line input** on the mixer — e.g. **input 3**.
 
-**4. Set Announce channel = 3.** The plugin holds channel 3 at the **Announce level** over OSC and ducks the music (ch 1/2) underneath while a clip plays.
+**2. Point the plugin at it.** On the **Hardware** tab pick **Announcement audio device** = the onboard card / adapter (e.g. `plughw:CARD=PCH,DEV=0`) from the dropdown, and hit **Test tone** — you should see **channel 3** meter, music untouched.
+
+**3. Set Announce channel = 3.** The plugin holds channel 3 at the **Announce level** over OSC and ducks the music (ch 1/2) underneath while a clip plays.
+
+Announcements are emitted as **dual-mono** (the same mono content on both L and R of the output), so it doesn't matter which side of the 3.5 mm feeds the mixer input.
+
+> Trying to route to a spare *USB channel of the mixer's own card* (e.g. XR18 USB 3/4) does **not** work while FPP is using that card — FPP opens it exclusively. Use a separate device as above.
 
 *(On an XR18 you could instead route to a spare USB channel via an ALSA `route` device — but only if FPP is **not** using that same card as its output. Since FPP normally owns the whole card, the separate-adapter route above is the dependable option.)*
 
