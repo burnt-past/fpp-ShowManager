@@ -1225,6 +1225,8 @@ function renderHardware(cfg){
         <label class="sm-lbl">Announce level (0–1)<input type="number" id="hw-avol" class="sm-input" value="${avol}" min="0" max="1" step="0.01"></label>
       </div>
       <div class="sm-hint" style="margin-top:12px">Music faders fade to the show level when a show starts, and to the idle level after it ends.</div>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px"><input type="checkbox" id="hw-vsync" ${cfg.volume_sync?'checked':''}>Sync FPP volume ↔ mixer fader</label>
+      <div class="sm-hint" style="margin-top:6px">Off (recommended): the plugin owns the music fader — show/idle/duck levels hold and mixer trims stick; use the mixer's <b>Main</b> fader as your master. On: FPP's volume slider drives the fader both ways (it will override the show/idle levels).</div>
       <label class="sm-lbl" style="margin-top:16px">Announcement audio device
         <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
           <select id="hw-adev" class="sm-select" style="flex:1">${devOpts}</select>
@@ -1245,6 +1247,7 @@ async function saveHardware(){
     announce_ch:Math.round(numOr(document.getElementById('hw-ach').value,3)),
     announce_vol:numOr(document.getElementById('hw-avol').value,0.75),
     announce_device:(document.getElementById('hw-adev').value||'default').trim()||'default',
+    volume_sync:document.getElementById('hw-vsync').checked,
   };
   const r=await fetch(AJAX+'&action=save_hardware',{method:'POST',body:JSON.stringify(body)});
   const j=await r.json();

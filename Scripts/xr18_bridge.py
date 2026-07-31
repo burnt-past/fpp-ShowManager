@@ -143,6 +143,9 @@ class XR18Bridge:
             self.music_ch2 = str(cfg.get("music_ch2", "02"))
         self.announce_ch = str(cfg.get("announce_ch", "03"))
         self.announce_vol = float(cfg.get("announce_vol", "0.75"))
+        # When off (default), the plugin owns the music fader (show/idle/duck
+        # levels). When on, FPP volume ↔ music fader sync bidirectionally.
+        self.volume_sync = bool(cfg.get("volume_sync", False))
 
         self._music_addrs = {
             ch_fader_addr(self.music_ch1),
@@ -261,12 +264,22 @@ class XR18Bridge:
         except Exception as e:
             log.warning("Initial announce channel set failed: %s", e)
 
+        # The announce-channel hold always runs. The FPP↔fader volume sync only
+        # runs when explicitly enabled — otherwise the scheduler owns the music
+        # fader and the sync would fight it (overriding show/idle levels, and
+        # snapping manual mixer moves back to FPP's volume).
         threads = [
-            threading.Thread(target=self._xremote_heartbeat, daemon=True, name="xremote"),
-            threading.Thread(target=self._poll_fpp,          daemon=True, name="poll-fpp"),
-            threading.Thread(target=self._listen_xr18,       daemon=True, name="xr18-listener"),
             threading.Thread(target=self._maintain_announce, daemon=True, name="announce"),
         ]
+        if self.volume_sync:
+            log.info("Volume sync ON — FPP volume ↔ music fader")
+            threads += [
+                threading.Thread(target=self._xremote_heartbeat, daemon=True, name="xremote"),
+                threading.Thread(target=self._poll_fpp,          daemon=True, name="poll-fpp"),
+                threading.Thread(target=self._listen_xr18,       daemon=True, name="xr18-listener"),
+            ]
+        else:
+            log.info("Volume sync OFF — plugin owns the music fader")
         for t in threads:
             t.start()
         for t in threads:

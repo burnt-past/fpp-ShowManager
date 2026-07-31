@@ -571,6 +571,7 @@ class ShowScheduler:
         self._last_daytime_announce = 0.0
         self._bg_effect = None       # (kind, name) of the effect we started, or None
         self._bg_lock   = threading.Lock()
+        self._music_level = None     # current music-fader level we've set (plugin owns it)
 
     # ---- helpers -----------------------------------------------------------
 
@@ -622,12 +623,23 @@ class ShowScheduler:
         else:
             ch1 = str(hw_cfg.get("music_ch1", "1"))
             ch2 = str(hw_cfg.get("music_ch2", "2"))
+        # The plugin owns the music fader, so trust our own tracked level as the
+        # starting point (the bridge no longer pushes FPP volume onto it). Fall
+        # back to the shared fader file / FPP volume only if we don't know yet.
+        cur = self._music_level
+        if cur is None:
+            try:
+                cur = float(open(FADER_STATE_FILE).read().strip())
+            except Exception:
+                cur = fpp_get_volume() / 100.0
+        _fade_faders(ip, ch1, ch2, cur, level, 2.0)
+        self._music_level = level
         try:
-            cur = float(open(FADER_STATE_FILE).read().strip())
+            with open(FADER_STATE_FILE, "w") as f:
+                f.write(f"{level:.4f}")   # keep the Status/kiosk fader readout live
         except Exception:
-            cur = fpp_get_volume() / 100.0
-        _fade_faders(ip, ch1, ch2, cur, float(level), 2.0)
-        log.info("Music fader level set to %.2f", float(level))
+            pass
+        log.info("Music fader level set to %.2f", level)
 
     # ---- pre-show brightness fade ------------------------------------------
 
