@@ -387,9 +387,11 @@ switch ($_GET['action'] ?? '') {
         if (!trim(shell_exec('command -v ffmpeg 2>/dev/null') ?: '')) {
             http_response_code(400); echo json_encode(['error' => 'ffmpeg not installed']); break;
         }
+        // Dual-mono (both L and R) to match how announcements actually play,
+        // so the test exercises whichever side feeds the mixer input.
         $cmd = 'ffmpeg -hide_banner -loglevel error -f lavfi -i '
              . escapeshellarg('sine=frequency=660:duration=1.2')
-             . ' -af volume=0.25 -ac 1 -f alsa ' . escapeshellarg($dev) . ' 2>&1';
+             . ' -af volume=0.25 -ac 2 -f alsa ' . escapeshellarg($dev) . ' 2>&1';
         $err = trim(shell_exec($cmd) ?: '');
         if ($err === '') echo json_encode(['ok' => true, 'device' => $dev]);
         else { http_response_code(400); echo json_encode(['error' => substr($err, 0, 200), 'device' => $dev]); }
