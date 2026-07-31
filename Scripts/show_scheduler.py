@@ -632,15 +632,13 @@ class ShowScheduler:
         else:
             ch1 = str(hw_cfg.get("music_ch1", "1"))
             ch2 = str(hw_cfg.get("music_ch2", "2"))
-        # The plugin owns the music fader, so trust our own tracked level as the
-        # starting point (the bridge no longer pushes FPP volume onto it). Fall
-        # back to the shared fader file / FPP volume only if we don't know yet.
-        cur = self._music_level
-        if cur is None:
-            try:
-                cur = float(open(FADER_STATE_FILE).read().strip())
-            except Exception:
-                cur = fpp_get_volume() / 100.0
+        # The plugin owns the music fader. The shared fader file is the source of
+        # truth for the current level — both this scheduler and the Status page's
+        # live slider write it — so a fade starts from wherever it actually is.
+        try:
+            cur = float(open(FADER_STATE_FILE).read().strip())
+        except Exception:
+            cur = self._music_level if self._music_level is not None else fpp_get_volume() / 100.0
         _fade_faders(ip, ch1, ch2, cur, level, 2.0)
         self._music_level = level
         try:

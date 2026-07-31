@@ -239,12 +239,16 @@ class XR18Bridge:
     def _maintain_announce(self):
         """Periodically restore the announcement channel to its configured level.
 
-        This prevents the announcement channel from being left silent if the
-        XR18 is power-cycled or reset between shows.
+        Re-reads the config each cycle so the Status page's live announce slider
+        (which writes announce_vol) is honoured without restarting the bridge,
+        and so the channel isn't left silent if the mixer is power-cycled.
         """
         while True:
             try:
-                self._send(ch_fader_addr(self.announce_ch), self.announce_vol)
+                cfg = {**_load_cfg(LEGACY_CONFIG_PATH), **_load_cfg(CONFIG_PATH)}
+                ch  = str(cfg.get("announce_ch", self.announce_ch))
+                vol = float(cfg.get("announce_vol", self.announce_vol))
+                self._send(ch_fader_addr(ch), vol)
             except Exception as e:
                 log.warning("Announce channel update error: %s", e)
             time.sleep(ANNOUNCE_SYNC_INTERVAL)
