@@ -31,7 +31,6 @@ Managed by the **Hardware** tab. Also seeds the XR18 bridge.
 | `announce_ch` | int | `3` | XR18 channel held at a fixed level for a separate announcement source |
 | `announce_vol` | float | `0.75` | Fader level (0–1) held on the announcement channel |
 | `announce_device` | string | `default` | ALSA device announcements play to (mono). Point at a separate device (a USB adapter into a mixer line input) to give announcements their own channel — see [announcements.md](announcements.md#announcements-on-their-own-mixer-channel) |
-| `volume_sync` | bool | `false` | `false` (recommended): the plugin owns the music fader (show/idle/duck levels hold; use the mixer's Main fader as master). `true`: FPP volume ↔ the music fader sync bidirectionally (overrides the show/idle levels) |
 
 > Ducking settings (`duck_level`, `duck_fade_secs`) live in the Announcements config, below.
 

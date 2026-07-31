@@ -37,7 +37,7 @@ Targets **FPP 9.4+**.
 - **Pre‑show announcements** — play audio N minutes before each show; music ducks automatically while it plays. Files can come from the plugin's folder or anywhere in FPP's media.
 - **Daytime announcements** — random clips on an interval during configurable hours, suppressed near show times.
 - **Pre/post‑show brightness fade** — before a show, brightness fades to a pre‑show level over a configurable time (starting either the fade time before the show, or when a chosen pre‑show audio begins), then snaps to normal as the show starts (after the background overlay is cleared). When the show ends, brightness snaps to 0 and fades back up to normal over a configurable post‑show fade.
-- **Bidirectional XR18 volume sync** — FPP master volume ↔ XR18 music faders over OSC; a separate announcement channel is held at its own level. Show, idle, and background‑music fader levels are applied automatically.
+- **Plugin‑owned mixer levels** — the plugin drives the X‑Air music faders over OSC (show / idle / background / duck levels, plus live sliders on the Status tab), and **syncs both ways**: move a fader on the mixer and the Status page follows. A separate announcement channel is held at its own level. FPP's own volume is not involved.
 - **Run Show on demand** — fire any playlist through the full show pipeline (dim, fader levels, effect kill, end detection, post‑show fade) straight from the Status tab, without editing the schedule.
 - **Diagnostics & backup** — the System tab health‑checks the whole rig before an event and exports/restores every setting as one file, or backs up to **Dropbox** on demand or automatically each night.
 - **Kiosk** — the wall‑tablet control surface described above.
@@ -87,7 +87,7 @@ See **[docs/setup.md](docs/setup.md)** for the full guide.
 
 Two daemons run alongside FPP:
 
-- **`xr18_bridge.py`** — keeps FPP master volume and the XR18 music faders in sync over OSC (UDP 10024), holds the announcement channel at its own level, and shares the current fader level with the scheduler.
+- **`xr18_bridge.py`** — holds the announcement channel at its own level and listens to the mixer over OSC (UDP 10024), mirroring manual music‑fader moves into the shared fader state so the UI and ducking track the real board. (The scheduler and Status sliders drive the fader outward; FPP volume is not used.)
 - **`show_scheduler.py`** — five loops: the **schedule** loop (shows, pre‑show announcements, brightness fade), the **daytime** announcer, the **background** loop (music/effect windows), a **watchdog**, and a **run‑now** loop (the Status tab's Run Show). It drives FPP through its HTTP API and the brightness plugin.
 
 They coordinate through small files in `/tmp` (a pause‑sync flag during announcements, the current fader level, a manual‑stop flag, and the background status the UI reads).
