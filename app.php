@@ -75,6 +75,7 @@ $plJson = json_encode($playlists);
 .sm-input:focus,.sm-select:focus{border-color:var(--mint);outline:none}
 /* FPP's own input styling stretches checkboxes into bars — force native */
 #sm input[type=checkbox]{appearance:auto;-webkit-appearance:auto;width:16px;height:16px;min-width:16px;flex:none;margin:0;padding:0;accent-color:var(--mint)}
+#sm input[type=range]{accent-color:var(--mint);height:20px;cursor:pointer}
 .sm-lbl{display:block;font-size:12px;color:var(--sub)}
 .sm-lbl .sm-input,.sm-lbl .sm-select{margin-top:4px}
 .sm-hint{font-size:12px;color:var(--mut)}
@@ -470,6 +471,31 @@ function _warnHtml(ws){
   </div>`;
 }
 
+/* ── live volume sliders (plugin owns the mixer faders) ── */
+let volTouched={music:0,ann:0},volTimers={music:null,ann:null};
+function _volRow(id,label,pct){
+  pct=Math.max(0,Math.min(100,pct|0));
+  return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+    <span style="width:74px;font-size:13px;color:var(--sub)">${label}</span>
+    <input type="range" id="vol-${id}" min="0" max="100" value="${pct}" oninput="onVol('${id}',this.value)" style="flex:1">
+    <span id="vol-${id}-v" style="width:40px;text-align:right;font-family:var(--mono);font-size:13px">${pct}%</span>
+  </div>`;
+}
+function onVol(id,v){
+  const lab=document.getElementById('vol-'+id+'-v');if(lab)lab.textContent=v+'%';
+  volTouched[id]=Date.now();
+  clearTimeout(volTimers[id]);
+  volTimers[id]=setTimeout(()=>{
+    const action=id==='music'?'set_music_level':'set_announce_level';
+    fetch(AJAX+'&action='+action+'&level='+(v/100)).catch(()=>{});
+  },120);
+}
+function _volSync(id,pct){
+  if(Date.now()-volTouched[id]<1500)return;   // don't fight a live drag
+  const s=document.getElementById('vol-'+id),l=document.getElementById('vol-'+id+'-v');
+  if(s&&document.activeElement!==s){s.value=pct;if(l)l.textContent=pct+'%';}
+}
+
 async function renderStatus(){
   const el=document.getElementById('sm-status');
   const [d,bg,ann,warn]=await Promise.all([
@@ -490,6 +516,12 @@ async function renderStatus(){
   <div id="sm-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">${_statsHtml(fpp,xr,d.shows,d.upcoming)}</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start">
     <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="sm-card">
+        <div class="sm-ct" style="margin-bottom:14px">Volume</div>
+        ${_volRow('music','Music',Math.round((xr.xr18_fader??0)*100))}
+        ${_volRow('ann','Announce',Math.round((xr.announce_vol??0.75)*100))}
+        <div class="sm-hint" style="margin-top:4px">Live mixer levels. Music resets to the show/idle level at the next cue; the mixer's Main fader is your overall master.</div>
+      </div>
       <div class="sm-card">
         <div class="sm-ct" style="margin-bottom:4px">Manual Trigger</div>
         <p style="font-size:12px;color:var(--sub);margin:0 0 12px"><b>Run Show</b> uses the full pipeline (dim, fader levels, post-show fade). <b>Start</b> is a raw FPP start for testing.</p>
@@ -551,6 +583,8 @@ async function _tick(){
   const scEl=document.getElementById('sm-sched');if(scEl)scEl.innerHTML=_timelineHtml(d);
   _updateCountdown();
   const sysEl=document.getElementById('sm-sys');if(sysEl)sysEl.innerHTML=_sysHtml(fpp,xr,log.running);
+  _volSync('music',Math.round((xr.xr18_fader??0)*100));
+  _volSync('ann',Math.round((xr.announce_vol??0.75)*100));
   if(!logPaused){const lc=document.getElementById('sm-log-content');if(lc){lc.textContent=log.lines.join('\n')||'(empty)';lc.scrollTop=lc.scrollHeight;}}
 }
 

@@ -12,7 +12,7 @@ Targets **FPP 9.4+**.
 
 | Tab | What it does |
 |---|---|
-| **Status** | Live now‑playing (song **title/artist from the file's tags**), FPP/XR18 meters, schedule‑sanity warnings, a manual trigger (**Run Show** through the full pipeline, or a raw start/stop), **tonight's timeline** with a live countdown to the next event, system health (daemons, background music/effect), and the scheduler log. |
+| **Status** | Live now‑playing (song **title/artist from the file's tags**), FPP/mixer meters, **live volume sliders** (music + announce, sent straight to the mixer over OSC), schedule‑sanity warnings, a manual trigger (**Run Show** through the full pipeline, or a raw start/stop), **tonight's timeline** with a live countdown to the next event, system health, and the scheduler log. |
 | **Schedule** | Month/Week/Day calendar. One‑off shows, repeating rules, and blackouts (whole‑day or a time range). Background music/effect windows are shown on the calendar too. |
 | **Background** | Two independent daily schedules — background **music** (a looping playlist, with its own volume level) and a background **effect** (a `.eseq` or `.fseq` overlay), each with its own window. |
 | **Announcements** | Pre‑show announcements, daytime announcements, audio ducking, and the pre/post‑show lighting fade. |

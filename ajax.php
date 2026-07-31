@@ -119,6 +119,23 @@ function sm_backup_bundle($settings) {
     ], JSON_PRETTY_PRINT);
 }
 
+// Send one OSC float message to the X-Air mixer (UDP 10024) — for the live
+// volume sliders. Minimal encoder: address + ",f" typetag + big-endian float.
+function sm_osc_send($ip, $addr, $float) {
+    $a = $addr . "\0";
+    $a .= str_repeat("\0", (4 - strlen($a) % 4) % 4);   // pad address to 4 bytes
+    $pkt = $a . ",f\0\0" . pack('G', (float)$float);      // G = float32 big-endian
+    $fp = @fsockopen("udp://$ip", 10024, $e, $s, 1);
+    if (!$fp) return false;
+    @fwrite($fp, $pkt);
+    @fclose($fp);
+    return true;
+}
+function sm_hw_cfg($settings) {
+    $f = $settings['configDirectory'] . "/ShowManagerHardware.config";
+    return file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+}
+
 // List useful ALSA playback devices for the announcement-device picker:
 // `default`, custom PCMs (e.g. an asound.conf "announce" route), and hardware
 // (plughw). Filters out the noisy auto-generated entries.
@@ -169,11 +186,43 @@ switch ($_GET['action'] ?? '') {
         // playlists). Cheap file read — no /api/effects here.
         $bgcfgFile = $settings['configDirectory'] . '/ShowManagerBackground.config';
         $bgcfg = file_exists($bgcfgFile) ? (json_decode(file_get_contents($bgcfgFile), true) ?? []) : [];
+        $hwcfg = sm_hw_cfg($settings);
         echo json_encode([
             'xr18_fader'        => $faderRaw !== false ? (float)trim($faderRaw) : null,
             'background'        => $bg,
             'bg_music_playlist' => $bgcfg['music']['playlist'] ?? '',
+            'announce_vol'      => isset($hwcfg['announce_vol']) ? (float)$hwcfg['announce_vol'] : 0.75,
         ]);
+        break;
+
+    case 'set_music_level':
+        // Live music-fader control from the Status slider (plugin owns the fader).
+        $level = (float)($_GET['level'] ?? -1);
+        if ($level < 0 || $level > 1) { http_response_code(400); echo json_encode(['error' => 'level 0-1']); break; }
+        $hw = sm_hw_cfg($settings);
+        $ip = $hw['mixer_ip'] ?? ($hw['xr18_ip'] ?? '');
+        if (!$ip) { http_response_code(400); echo json_encode(['error' => 'no mixer IP']); break; }
+        $chs = isset($hw['fader_channel'])
+            ? [(int)$hw['fader_channel']]
+            : [(int)($hw['music_ch1'] ?? 1), (int)($hw['music_ch2'] ?? 2)];
+        foreach ($chs as $c) sm_osc_send($ip, sprintf('/ch/%02d/mix/fader', $c), $level);
+        // Shared "current music level" — scheduler reads this for ducking restore
+        file_put_contents('/tmp/xr18_current_fader', sprintf('%.4f', $level));
+        echo json_encode(['ok' => true, 'level' => $level]);
+        break;
+
+    case 'set_announce_level':
+        $level = (float)($_GET['level'] ?? -1);
+        if ($level < 0 || $level > 1) { http_response_code(400); echo json_encode(['error' => 'level 0-1']); break; }
+        $hwFile = $settings['configDirectory'] . "/ShowManagerHardware.config";
+        $hw = sm_hw_cfg($settings);
+        $ip = $hw['mixer_ip'] ?? ($hw['xr18_ip'] ?? '');
+        if (!$ip) { http_response_code(400); echo json_encode(['error' => 'no mixer IP']); break; }
+        sm_osc_send($ip, sprintf('/ch/%02d/mix/fader', (int)($hw['announce_ch'] ?? 3)), $level);
+        // Persist so the bridge's periodic announce-channel hold keeps it there
+        $hw['announce_vol'] = $level;
+        file_put_contents($hwFile, json_encode($hw, JSON_PRETTY_PRINT));
+        echo json_encode(['ok' => true, 'level' => $level]);
         break;
 
     case 'song_meta':
