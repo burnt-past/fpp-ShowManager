@@ -43,34 +43,23 @@ Announcements are **downmixed to mono** (they're voice — mono keeps them centr
 
 ---
 
-## Announcements on their own XR18 channel (USB)
+## Announcements on their own mixer channel
 
-By default announcements play out the Pi's **default** audio output — the same output FPP uses for music — and are simply mixed over the ducked music. If you'd rather they arrive on a **separate mixer channel** (their own fader, independent of the music), send them out a different USB channel of the XR18. The XR18's USB port is an 18-in/18-out interface, so the Pi can feed music and announcements to different channels.
+By default announcements play out the Pi's **default** audio output — the same output FPP uses for music — and are simply mixed over the ducked music. If you'd rather they arrive on a **separate mixer channel** (their own fader, independent of the music), they need a **separate audio output device**.
 
-Four pieces:
+> **Why a separate device (not another channel of the mixer's USB):** FPP opens the mixer's USB audio card **exclusively** while it's the audio output. A second program (the announcement player) can't independently open the *same* card at the same time — you'll get "device busy / host is down." So the reliable approach is to give announcements their **own** audio device.
 
-**1. FPP music → USB 1/2.** In FPP's audio settings, set the output device to the XR18 USB card. FPP's stereo lands on USB return channels 1 & 2.
+The clean, universal way — works with **any** X-Air (XR12/16/18):
 
-**2. An ALSA device that lands on USB channel 3.** Find the card name with `aplay -l` (e.g. `X18XR18`), then add to `/etc/asound.conf`:
+**1. Add a cheap USB audio adapter** (~$10) to the box. It shows up as its own ALSA card (check `aplay -l`). FPP keeps the mixer's USB card for music (USB 1/2); the adapter is untouched by FPP.
 
-```
-pcm.xr18 { type hw; card X18XR18 }      # ← your card name from `aplay -l`
+**2. Wire the adapter's output into a physical line input** on the mixer — e.g. **input 3**.
 
-pcm.announce {
-    type plug
-    slave.pcm {
-        type route
-        slave { pcm "xr18"; channels 18 }
-        ttable.0.2 1        # mono source (ch0) → XR18 USB output channel 3 (index 2)
-    }
-}
-```
+**3. Point the plugin at the adapter.** On the **Hardware** tab pick **Announcement audio device** = the adapter (e.g. `plughw:CARD=Device`) from the dropdown, and hit **Test tone** — you should see **channel 3** meter, music untouched. Announcements play in mono to the adapter → line input 3.
 
-Test it: `aplay -D announce some.wav` should come out only on USB 3.
+**4. Set Announce channel = 3.** The plugin holds channel 3 at the **Announce level** over OSC and ducks the music (ch 1/2) underneath while a clip plays.
 
-**3. Point the plugin at it.** On the **Hardware** tab pick **Announcement audio device** = `announce` from the dropdown (it lists `default`, your custom routes, and the hardware devices). Hit **Test tone** to send a beep out that device and confirm it lands on the right XR18 channel. Announcements now play, in mono, to USB channel 3; music is untouched.
-
-**4. Route it on the XR18.** In X-Air Edit → **Routing → Inputs**, set the **Ch 1–8** input source to **USB In 1–8**. Now mixer channels 1 & 2 carry the music and channel 3 carries the announcement. Set **Announce channel = 3** on the Hardware tab so the plugin holds channel 3 at the **Announce level** and still ducks the music (ch 1/2) underneath while a clip plays.
+*(On an XR18 you could instead route to a spare USB channel via an ALSA `route` device — but only if FPP is **not** using that same card as its output. Since FPP normally owns the whole card, the separate-adapter route above is the dependable option.)*
 
 The `mpg123` fallback also honours the device and mono; `ffmpeg` is preferred (handles gain + downmix cleanly).
 
