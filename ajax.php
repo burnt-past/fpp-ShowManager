@@ -136,6 +136,23 @@ function sm_hw_cfg($settings) {
     return file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
 }
 
+// Names of FSEQ effects FPP is actually running right now (ground truth for the
+// BG Effect status — matches FPP's "Running Effects" panel). Handles the couple
+// of shapes getRunningEffects can return; empty array if none / unreachable.
+function sm_running_effects() {
+    $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true]]);
+    $raw = @file_get_contents('http://localhost/fppjson.php?command=getRunningEffects', false, $ctx);
+    $j = $raw !== false ? json_decode($raw, true) : null;
+    if (!is_array($j)) return [];
+    $list = $j['effects'] ?? $j;          // {"effects":[...]} or a bare array/object
+    $names = [];
+    foreach ((array)$list as $e) {
+        if (is_array($e)) { if (!empty($e['name'])) $names[] = $e['name']; }
+        elseif (is_string($e) && trim($e) !== '') { $names[] = trim($e); }
+    }
+    return array_values(array_unique($names));
+}
+
 // List useful ALSA playback devices for the announcement-device picker:
 // `default`, custom PCMs (e.g. an asound.conf "announce" route), and hardware
 // (plughw). Filters out the noisy auto-generated entries.
@@ -192,6 +209,7 @@ switch ($_GET['action'] ?? '') {
             'background'        => $bg,
             'bg_music_playlist' => $bgcfg['music']['playlist'] ?? '',
             'announce_vol'      => isset($hwcfg['announce_vol']) ? (float)$hwcfg['announce_vol'] : 0.75,
+            'running_effects'   => sm_running_effects(),
         ]);
         break;
 
