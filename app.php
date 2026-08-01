@@ -368,7 +368,10 @@ function _sysHtml(fpp,xr,running){
   ];
   const bg=xr.background||null;
   if(bg&&bg.music_enabled) rows.push(['BG Music',bg.music?'ok':'idle',bg.music||'Idle']);
-  if(bg&&bg.effect_enabled) rows.push(['BG Effect',bg.effect?'ok':'idle',bg.effect||'Idle']);
+  // BG Effect from FPP's actual running-effects list (ground truth), so it
+  // matches FPP even for orphaned/manually-started effects.
+  const runEff=(xr.running_effects&&xr.running_effects.length)?xr.running_effects.join(', '):'';
+  if((bg&&bg.effect_enabled)||runEff) rows.push(['BG Effect',runEff?'ok':'idle',runEff||'Idle']);
   return rows.map(([l,st,txt])=>`
   <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
     <span style="font-size:14px">${l}</span>
