@@ -292,11 +292,40 @@ def fpp_start_effect(name, kind="eseq", start_channel=1, loop=True, background=T
     log.info("Started background %s '%s' — response: %s", kind, name, result)
     return True
 
+def _fpp_effects_raw():
+    """Running effects FPP reports (list of dicts), or [] — /api/fppd/effects."""
+    data = _fpp("/api/fppd/effects")
+    if isinstance(data, dict):
+        data = data.get("effects", [])
+    return data if isinstance(data, list) else []
+
+def fpp_running_effects():
+    """Names of effects FPP is actually running right now (ground truth)."""
+    out = []
+    for e in _fpp_effects_raw():
+        if isinstance(e, dict):
+            n = e.get("name") or e.get("effect") or e.get("effectName")
+            if n:
+                out.append(n)
+        elif isinstance(e, str) and e.strip():
+            out.append(e.strip())
+    return out
+
 def fpp_stop_effect(name, kind="eseq"):
+    """Stop a running effect by name and VERIFY it's gone. FPP has no
+    'FSEQ Effect Stop' — 'Effect Stop' stops a running effect regardless of how
+    it was started. We then confirm against /api/fppd/effects and, if it's
+    still listed, stop it by id (belt and suspenders), and log truthfully."""
     enc = urllib.parse.quote(name, safe='')
-    cmd = "FSEQ%20Effect%20Stop" if kind == "fseq" else "Effect%20Stop"
-    _fpp(f"/api/command/{cmd}/{enc}")
-    log.info("Stopped background %s '%s'", kind, name)
+    _fpp(f"/api/command/Effect%20Stop/{enc}")
+    time.sleep(0.2)
+    for e in _fpp_effects_raw():
+        if isinstance(e, dict) and (e.get("name") or e.get("effect")) == name and e.get("id") is not None:
+            _fpp(f"/api/fppd/effects/{e['id']}", method="DELETE")
+    if name in fpp_running_effects():
+        log.warning("Effect '%s' still running after stop attempt", name)
+    else:
+        log.info("Stopped background %s '%s'", kind, name)
 
 
 # ---------------------------------------------------------------------------
@@ -895,9 +924,17 @@ class ShowScheduler:
                     fpp_start_effect(eff, kind)
                     self._bg_effect = (kind, eff)
                 status["effect"] = eff
-            elif self._bg_effect:
-                fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
-                self._bg_effect = None
+            else:
+                # Not wanted now — stop what we started, and also clear an
+                # orphaned copy of our configured effect that fppd is still
+                # running (e.g. left over from a restart or a failed stop) so it
+                # doesn't stay on past its window.
+                if self._bg_effect:
+                    fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
+                    self._bg_effect = None
+                elif eff and not show and eff in fpp_running_effects():
+                    log.info("Stopping orphaned background effect '%s' (out of window)", eff)
+                    fpp_stop_effect(eff, kind)
 
             save_json(BG_STATUS_FILE, status)
 
