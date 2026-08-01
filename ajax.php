@@ -141,14 +141,19 @@ function sm_hw_cfg($settings) {
 // of shapes getRunningEffects can return; empty array if none / unreachable.
 function sm_running_effects() {
     $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true]]);
-    $raw = @file_get_contents('http://localhost/fppjson.php?command=getRunningEffects', false, $ctx);
+    $raw = @file_get_contents('http://localhost/api/fppd/effects', false, $ctx);
     $j = $raw !== false ? json_decode($raw, true) : null;
     if (!is_array($j)) return [];
-    $list = $j['effects'] ?? $j;          // {"effects":[...]} or a bare array/object
+    $list = $j['effects'] ?? $j;          // {"effects":[...]} or a bare array
     $names = [];
     foreach ((array)$list as $e) {
-        if (is_array($e)) { if (!empty($e['name'])) $names[] = $e['name']; }
-        elseif (is_string($e) && trim($e) !== '') { $names[] = trim($e); }
+        if (is_array($e)) {
+            foreach (['name', 'effect', 'effectName'] as $k) {
+                if (!empty($e[$k])) { $names[] = $e[$k]; break; }
+            }
+        } elseif (is_string($e) && trim($e) !== '') {
+            $names[] = trim($e);
+        }
     }
     return array_values(array_unique($names));
 }
