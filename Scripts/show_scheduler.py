@@ -248,8 +248,18 @@ def fpp_get_volume():
     return int(data.get("volume", 75)) if isinstance(data, dict) else 75
 
 def is_show_running():
-    """True only when an FSEQ sequence is actively playing (not background music)."""
-    return bool(fpp_status().get("current_sequence", ""))
+    """True when FPP is playing an actual SHOW playlist — i.e. a playlist that
+    is neither idle nor the looping background-music playlist.
+
+    We key off the *playlist*, not current_sequence: a background FSEQ effect
+    plays a sequence as an overlay with no playlist, so keying off the sequence
+    made the standby effect look like a show — reporting the effect as 'Idle',
+    suppressing background music, and blocking announcements."""
+    cur = fpp_current_playlist()
+    if not cur:
+        return False
+    music = load_json(BACKGROUND_CONFIG).get("music") or {}
+    return cur != music.get("playlist", "")
 
 def fpp_current_playlist():
     """Name of the playlist FPP is currently playing, or '' when idle."""
