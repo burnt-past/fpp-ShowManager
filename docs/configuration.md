@@ -223,6 +223,49 @@ Managed by the **System** tab (Dropbox Backup). Holds the credentials for upload
 
 ---
 
+## ShowManagerPublish.config — Website link
+
+Managed by the **System** tab (Website Link). Configures publishing the public schedule feed to an external website. Written mode `0600`, and **never included in a backup bundle** (so the upload auth token doesn't leave the box). This file ships empty — no hostnames or credentials are baked into the plugin; everything here is entered by the operator.
+
+```json
+{
+  "enabled": true,
+  "url": "https://your-host.example/upload/schedule.json",
+  "method": "PUT",
+  "auth_header": "Authorization",
+  "auth_value": "Bearer …",
+  "interval_mins": 5,
+  "allow_origin": "*",
+  "paused": false,
+  "status_note": "",
+  "events": [
+    { "name": "Opening Night", "when": "2026-11-27T18:00", "label": "", "desc": "The plaza lights up for the first time." }
+  ],
+  "last_publish": "2026-11-20T17:05:00-08:00",
+  "last_status": "ok"
+}
+```
+
+| Key | Description |
+|---|---|
+| `enabled` | When true, the scheduler pushes the feed to `url` every `interval_mins` |
+| `url` | Where to upload the feed on your static host (the site then serves it) |
+| `method` | `PUT` or `POST` — how your host accepts the upload |
+| `auth_header` / `auth_value` | Header sent with the upload (e.g. `Authorization: Bearer …`); `auth_value` is write-only — the UI never reads it back |
+| `interval_mins` | Auto-publish period, 1–1440 minutes |
+| `allow_origin` | `Access-Control-Allow-Origin` on the read-only feed endpoint (default `*`; the feed is public, no-secret data) |
+| `paused` / `status_note` | Flip the site to its paused banner and show a note (e.g. "Shows paused for high winds"). The site is also paused automatically while the system is disabled |
+| `events` | Optional special-event cards. Each has a `name`, a `desc`, and either a `when` (datetime → ISO `iso` + human `date`) or a free-text `label` for open-ended entries like "All season" |
+| `last_publish` / `last_status` / `last_error` | Result of the last push (auto-set) |
+
+The feed itself (the contract with the website) is served read-only at
+`plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule`
+with `Cache-Control: public, max-age=60` and the CORS header above. See
+[website-integration.md](website-integration.md) for the response shape and the
+two network topologies (push vs. Cloudflare tunnel).
+
+---
+
 ## Runtime files (`/tmp`)
 
 Not configuration — coordination state, safe to delete when the daemons are stopped.

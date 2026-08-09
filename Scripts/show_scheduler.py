@@ -43,6 +43,7 @@ ROTATION_STATE   = "/home/fpp/media/config/ShowManagerRotation.config"
 OVERRIDES_CONFIG = "/home/fpp/media/config/ShowManagerOverrides.config"
 BACKGROUND_CONFIG = "/home/fpp/media/config/ShowManagerBackground.config"
 DROPBOX_CONFIG   = "/home/fpp/media/config/ShowManagerDropbox.config"
+PUBLISH_CONFIG   = "/home/fpp/media/config/ShowManagerPublish.config"
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
 BG_STATUS_FILE   = "/tmp/showmanager_bg_status.json"
@@ -1111,6 +1112,36 @@ class ShowScheduler:
             except Exception as e:
                 log.error("Cloud backup loop error: %s", e)
 
+    # ---- website feed auto-publish -----------------------------------------
+
+    def _publish_loop(self):
+        """If website auto-publish is enabled, periodically push the public
+        schedule feed to the configured static host by calling the plugin's own
+        publish_now endpoint — reusing the PHP implementation (and its auth
+        token, which never has to leave the config file) so the logic lives in
+        one place. This is the 'Push' model: nothing inbound is ever opened."""
+        plugin_name = os.path.basename(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        last_run = 0.0
+        while not self._stop.wait(30):
+            try:
+                cfg = load_json(PUBLISH_CONFIG)
+                if not cfg.get("enabled") or not cfg.get("url"):
+                    continue
+                interval = max(60, int(cfg.get("interval_mins", 5)) * 60)
+                if time.time() - last_run < interval:
+                    continue
+                last_run = time.time()
+                url = ("http://localhost/plugin.php?plugin=%s&page=ajax.php"
+                       "&nopage=1&action=publish_now" % plugin_name)
+                try:
+                    resp = urllib.request.urlopen(url, timeout=60).read().decode()[:200]
+                    log.info("Published schedule feed: %s", resp)
+                except Exception as e:
+                    log.warning("Schedule feed publish failed: %s", e)
+            except Exception as e:
+                log.error("Publish loop error: %s", e)
+
     # ---- stale flag watchdog -----------------------------------------------
 
     def _watchdog_loop(self):
@@ -1176,6 +1207,7 @@ class ShowScheduler:
             threading.Thread(target=self._watchdog_loop,   daemon=True, name="watchdog"),
             threading.Thread(target=self._runnow_loop,     daemon=True, name="runnow"),
             threading.Thread(target=self._cloud_backup_loop, daemon=True, name="cloudbackup"),
+            threading.Thread(target=self._publish_loop,    daemon=True, name="publish"),
         ]
         for t in threads:
             t.start()
