@@ -110,7 +110,8 @@ function sm_dropbox_access_token($settings) {
 function sm_backup_bundle($settings) {
     $files = [];
     foreach (glob($settings['configDirectory'] . '/ShowManager*.config') as $f) {
-        if (basename($f) === 'ShowManagerDropbox.config') continue;
+        // Skip files holding secrets so a backup never carries them off the box.
+        if (in_array(basename($f), ['ShowManagerDropbox.config', 'ShowManagerPublish.config'], true)) continue;
         $files[basename($f)] = json_decode(file_get_contents($f), true);
     }
     return json_encode([
@@ -174,6 +175,111 @@ function sm_audio_devices() {
         if ($keep) $out[] = $name;
     }
     return array_values(array_unique($out));
+}
+
+// ── Website-link (public schedule feed) ─────────────────────────────────────
+// The feed is the contract with the external public website: it renders the
+// countdown, tonight's show list, the status banner and special-event cards
+// from this one JSON document. It carries only show *times* — no secrets — so
+// it is safe to serve publicly and to push to a static host.
+//
+// Everything site-specific (the destination URL, the auth token, the allowed
+// origin) is operator-entered config, never committed — this plugin ships with
+// no hostnames or credentials baked in.
+function sm_publish_path($settings) {
+    return $settings['configDirectory'] . '/ShowManagerPublish.config';
+}
+function sm_publish_cfg($settings) {
+    $f = sm_publish_path($settings);
+    return file_exists($f) ? (json_decode(file_get_contents($f), true) ?: []) : [];
+}
+function sm_publish_save($settings, $cfg) {
+    $f = sm_publish_path($settings);
+    file_put_contents($f, json_encode($cfg, JSON_PRETTY_PRINT));
+    @chmod($f, 0600);   // holds the upload auth token
+}
+
+// Build the public schedule feed in the shape the website expects. Covers
+// tonight through the next 7 days (past shows are harmless — the site ignores
+// them). Every timestamp is ISO-8601 with the server's local UTC offset, so it
+// reads correctly regardless of the visitor's timezone.
+function sm_build_public_schedule($settings, $schedule) {
+    $cfg  = sm_publish_cfg($settings);
+    $now  = time();
+    $horizonDays = 7;
+    $end  = strtotime('+' . $horizonDays . ' days 23:59:59', $now);
+
+    // Collect show entries (manual + rule-generated) for every month the window
+    // touches, then keep those inside the window. A show still "counts" briefly
+    // after its start, so include from a little before now.
+    $floor = $now - 1800;   // keep a just-started show in the list
+    $months = [];
+    for ($t = $now; $t <= $end; $t = strtotime('+1 day', $t)) $months[date('Y-m', $t)] = true;
+
+    $rows = [];
+    foreach (($schedule['entries'] ?? []) as $e) {
+        if (($e['type'] ?? 'show') === 'show') $rows[] = $e;
+    }
+    foreach (array_keys($months) as $prefix) {
+        foreach (($schedule['rules'] ?? []) as $rule) {
+            $rows = array_merge($rows, expand_rule_for_month($rule, $prefix));
+        }
+    }
+
+    $shows = [];
+    $seen  = [];
+    foreach ($rows as $e) {
+        $date = $e['date'] ?? '';
+        $time = $e['time'] ?? '';
+        if ($date === '' || $time === '') continue;
+        $ts = strtotime("$date $time");
+        if ($ts === false || $ts < $floor || $ts > $end) continue;
+        $iso = date('c', $ts);
+        if (isset($seen[$iso])) continue;     // de-dupe manual + rule overlap
+        $seen[$iso] = true;
+        $name = $e['playlist'] ?? '';
+        if ($name === '' && !empty($e['playlists'])) $name = $e['playlists'][0];
+        $shows[] = ['name' => $name !== '' ? $name : 'Light Show', 'start' => $iso, '_ts' => $ts];
+    }
+    usort($shows, fn($a, $b) => $a['_ts'] <=> $b['_ts']);
+    foreach ($shows as &$s) unset($s['_ts']);
+    unset($s);
+
+    // Status: paused when the operator flips it, or when the system is disabled
+    // (an active "Disable system" override). Otherwise "ok".
+    $ovFile = $settings['configDirectory'] . '/ShowManagerOverrides.config';
+    $ov = file_exists($ovFile) ? (json_decode(file_get_contents($ovFile), true) ?: []) : [];
+    $du = $ov['disabled_until'] ?? null;
+    $disabled = $du && strtotime($du) > $now;
+    $paused = !empty($cfg['paused']) || $disabled;
+
+    $feed = [
+        'status'     => $paused ? 'paused' : 'ok',
+        'statusNote' => $paused ? (string)($cfg['status_note'] ?? '') : '',
+        'shows'      => $shows,
+    ];
+
+    // Special-event cards (operator-curated). Each: name + desc, plus either a
+    // datetime (→ ISO "iso" + human "date") or a free-text label for open-ended
+    // entries like "All season" (no "iso", so the site skips "Add to calendar").
+    $events = [];
+    foreach (($cfg['events'] ?? []) as $ev) {
+        $name = trim($ev['name'] ?? '');
+        if ($name === '') continue;
+        $row = ['name' => $name];
+        $when = trim($ev['when'] ?? '');
+        if ($when !== '' && ($ts = strtotime($when)) !== false) {
+            $row['iso']  = date('c', $ts);
+            $row['date'] = date('D, M j', $ts);
+        } elseif (($lbl = trim($ev['label'] ?? '')) !== '') {
+            $row['date'] = $lbl;
+        }
+        if (($d = trim($ev['desc'] ?? '')) !== '') $row['desc'] = $d;
+        $events[] = $row;
+    }
+    if ($events) $feed['events'] = $events;
+
+    return $feed;
 }
 
 switch ($_GET['action'] ?? '') {
@@ -828,6 +934,96 @@ switch ($_GET['action'] ?? '') {
             if (!file_exists($path)) $warn[] = ['bad', "Pre-show audio missing: " . basename($file)];
         }
         echo json_encode(['warnings' => array_map(fn($w) => ['level' => $w[0], 'text' => $w[1]], $warn)]);
+        break;
+
+    case 'public_schedule':
+        // The public, read-only feed itself. Serve it with permissive CORS and a
+        // short cache so the external site (or a Cloudflare tunnel in front of it)
+        // can fetch it cross-origin. Contains show times only — no secrets.
+        $pcfg = sm_publish_cfg($settings);
+        $origin = trim($pcfg['allow_origin'] ?? '*') ?: '*';
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Cache-Control: public, max-age=60');
+        echo json_encode(sm_build_public_schedule($settings, $schedule));
+        break;
+
+    case 'get_publish':
+        $c = sm_publish_cfg($settings);
+        echo json_encode([
+            'enabled'       => !empty($c['enabled']),
+            'url'           => $c['url'] ?? '',
+            'method'        => $c['method'] ?? 'PUT',
+            'auth_header'   => $c['auth_header'] ?? 'Authorization',
+            'has_auth'      => !empty($c['auth_value']),
+            'interval_mins' => (int)($c['interval_mins'] ?? 5),
+            'allow_origin'  => $c['allow_origin'] ?? '*',
+            'paused'        => !empty($c['paused']),
+            'status_note'   => $c['status_note'] ?? '',
+            'events'        => array_values($c['events'] ?? []),
+            'last_publish'  => $c['last_publish'] ?? null,
+            'last_status'   => $c['last_status'] ?? null,
+            'last_error'    => $c['last_error'] ?? null,
+            // The local feed path — for the pull / Cloudflare-tunnel option and
+            // for previewing. Site config points at wherever it's published.
+            'feed_url'      => 'plugin.php?plugin=' . rawurlencode(basename(__DIR__))
+                             . '&page=ajax.php&nopage=1&action=public_schedule',
+        ]);
+        break;
+
+    case 'save_publish':
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $c = sm_publish_cfg($settings);
+        $c['enabled']       = !empty($body['enabled']);
+        $c['url']           = trim($body['url'] ?? '');
+        $m = strtoupper(trim($body['method'] ?? 'PUT'));
+        $c['method']        = in_array($m, ['PUT', 'POST'], true) ? $m : 'PUT';
+        $c['auth_header']   = trim($body['auth_header'] ?? 'Authorization') ?: 'Authorization';
+        // Blank auth means "keep the saved token" (the UI never receives it back)
+        if (array_key_exists('auth_value', $body) && trim($body['auth_value']) !== '')
+            $c['auth_value'] = trim($body['auth_value']);
+        if (!empty($body['clear_auth'])) unset($c['auth_value']);
+        $iv = (int)($body['interval_mins'] ?? 5);
+        $c['interval_mins'] = max(1, min(1440, $iv));
+        $c['allow_origin']  = trim($body['allow_origin'] ?? '*') ?: '*';
+        $c['paused']        = !empty($body['paused']);
+        $c['status_note']   = trim($body['status_note'] ?? '');
+        // Sanitize the events list
+        $evs = [];
+        foreach ((array)($body['events'] ?? []) as $ev) {
+            if (!is_array($ev)) continue;
+            $name = trim($ev['name'] ?? '');
+            if ($name === '') continue;
+            $evs[] = [
+                'name'  => $name,
+                'when'  => trim($ev['when'] ?? ''),
+                'label' => trim($ev['label'] ?? ''),
+                'desc'  => trim($ev['desc'] ?? ''),
+            ];
+        }
+        $c['events'] = $evs;
+        sm_publish_save($settings, $c);
+        echo json_encode(['ok' => true]);
+        break;
+
+    case 'publish_now':
+        // Build the feed and push it to the configured static host (the "Push"
+        // model — nothing inbound is ever opened on this box). Also used by the
+        // scheduler's auto-publish loop.
+        $c = sm_publish_cfg($settings);
+        $url = trim($c['url'] ?? '');
+        if ($url === '') { http_response_code(400); echo json_encode(['ok' => false, 'error' => 'No publish URL configured']); break; }
+        $json = json_encode(sm_build_public_schedule($settings, $schedule), JSON_PRETTY_PRINT);
+        $headers = ['Content-Type: application/json'];
+        if (!empty($c['auth_value']))
+            $headers[] = ($c['auth_header'] ?: 'Authorization') . ': ' . $c['auth_value'];
+        [$hc, $resp, $err] = sm_http($c['method'] ?? 'PUT', $url, $headers, $json);
+        $ok = $hc >= 200 && $hc < 300;
+        $c['last_publish'] = date('c');
+        $c['last_status']  = $ok ? 'ok' : 'err';
+        $c['last_error']   = $ok ? null : ($err ?: ('HTTP ' . $hc . ' ' . substr((string)$resp, 0, 160)));
+        sm_publish_save($settings, $c);
+        if ($ok) echo json_encode(['ok' => true, 'http' => $hc]);
+        else { http_response_code(502); echo json_encode(['ok' => false, 'error' => $c['last_error']]); }
         break;
 
     default:

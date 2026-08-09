@@ -17,7 +17,7 @@ Targets **FPP 9.4+**.
 | **Background** | Two independent daily schedules — background **music** (a looping playlist, with its own volume level) and a background **effect** (a `.eseq` or `.fseq` overlay), each with its own window. |
 | **Announcements** | Pre‑show announcements, daytime announcements, audio ducking, and the pre/post‑show lighting fade. |
 | **Hardware** | XR18 mixer IP, channels, and show/idle music levels. |
-| **System** | One‑click **diagnostics** (rig health check + light‑flash test), **backup / restore** of all settings (download a file, or upload to **Dropbox** manually or nightly). |
+| **System** | One‑click **diagnostics** (rig health check + light‑flash test), **backup / restore** of all settings (download a file, or upload to **Dropbox** manually or nightly), and a **Website Link** that publishes tonight's show times to a public site. |
 
 **Kiosk** (`kiosk.php`, opened from the header or bookmarked) — a full‑screen, touch‑first page for helpers:
 
@@ -40,6 +40,7 @@ Targets **FPP 9.4+**.
 - **Plugin‑owned mixer levels** — the plugin drives the X‑Air music faders over OSC (show / idle / background / duck levels, plus live sliders on the Status tab), and **syncs both ways**: move a fader on the mixer and the Status page follows. A separate announcement channel is held at its own level. FPP's own volume is not involved.
 - **Run Show on demand** — fire any playlist through the full show pipeline (dim, fader levels, effect kill, end detection, post‑show fade) straight from the Status tab, without editing the schedule.
 - **Diagnostics & backup** — the System tab health‑checks the whole rig before an event and exports/restores every setting as one file, or backs up to **Dropbox** on demand or automatically each night.
+- **Website link** — publish a small, public JSON feed of tonight's show times, a status banner, and special‑event cards to an external site. The plugin **pushes** it to a static host on a schedule (nothing inbound is ever opened), or you can point a tunnel at the read‑only feed. Show times only — no settings or secrets — and no hostnames or credentials are baked into the plugin. See [docs/website-integration.md](docs/website-integration.md).
 - **Kiosk** — the wall‑tablet control surface described above.
 - **Robust by design** — a single‑instance lock prevents duplicate schedulers; each thread catches its own exceptions; a watchdog clears stale coordination flags; logs rotate automatically; feeds auto‑reconnect. The plugin also re‑enables FPP's native scheduler when its schedule is empty, clearing the "FPP Scheduler is disabled" warning.
 
@@ -127,6 +128,7 @@ The Status tab shows a live tail of `showmanager.log` with pause/copy/clear. Bot
 - [Scheduling](docs/scheduling.md)
 - [Announcements](docs/announcements.md)
 - [Configuration](docs/configuration.md)
+- [Website integration](docs/website-integration.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
 ---

@@ -433,6 +433,10 @@ function _ico(kind){
     extlink:`<svg ${a}><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`,
     ban:`<svg ${a}><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>`,
     expand:`<svg ${a}><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>`,
+    link:`<svg ${a}><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>`,
+    copy:`<svg ${a}><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+    trash:`<svg ${a}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    plus:`<svg ${a}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
   }[kind]||'';
 }
 function _timelineHtml(d){
@@ -1307,6 +1311,10 @@ function loadSystem(){
       <div class="sm-ct" style="margin-bottom:6px">Dropbox Backup</div>
       <div id="sm-dropbox"><div class="sm-skel" style="height:120px"></div></div>
     </div>
+    <div class="sm-card" style="grid-column:1/-1">
+      <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ico('link')}Website Link</div>
+      <div id="sm-publish"><div class="sm-skel" style="height:160px"></div></div>
+    </div>
     <div class="sm-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
         <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
@@ -1321,6 +1329,7 @@ function loadSystem(){
   </div>`;
   runDiag();
   loadDropbox();
+  loadPublish();
 }
 let dbxCfg={};
 async function loadDropbox(){
@@ -1390,6 +1399,120 @@ function disconnectDropbox(){
   smConfirm('Disconnect Dropbox?','Removes the stored Dropbox connection from this Pi. Your uploaded backups are not deleted.','Disconnect',async()=>{
     await fetch(AJAX+'&action=dropbox_disconnect');toast('Dropbox disconnected','mut');loadDropbox();
   });
+}
+/* ── Website Link (public schedule feed) ── */
+let pubCfg={};
+async function loadPublish(){
+  pubCfg=await fetch(AJAX+'&action=get_publish').then(r=>r.json()).catch(()=>({}));
+  if(!Array.isArray(pubCfg.events))pubCfg.events=[];
+  renderPublish();
+}
+function _pubStatus(){
+  const c=pubCfg;
+  if(!c.last_publish)return `<span class="sm-pill idle">Never published</span>`;
+  const when=new Date(c.last_publish).toLocaleString();
+  if(c.last_status==='ok')return `<span class="sm-pill ok">Published</span><span style="font-size:12px;color:var(--sub)">${escH(when)}</span>`;
+  return `<span class="sm-pill bad">Failed</span><span style="font-size:12px;color:var(--sub)">${escH(when)}${c.last_error?' — '+escH(c.last_error):''}</span>`;
+}
+function _eventRows(){
+  return (pubCfg.events||[]).map((ev,i)=>`
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;display:grid;gap:6px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input class="sm-input" style="flex:1" placeholder="Event name (e.g. Opening Night)" value="${escH(ev.name||'')}" oninput="pubCfg.events[${i}].name=this.value">
+        <button class="sm-btn danger sm" title="Remove" onclick="pubCfg.events.splice(${i},1);renderPublish()">${_ico('trash')}</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <label class="sm-lbl" style="margin:0">Date &amp; time<input type="datetime-local" class="sm-input" value="${escH(ev.when||'')}" oninput="pubCfg.events[${i}].when=this.value"></label>
+        <label class="sm-lbl" style="margin:0">…or open-ended label<input class="sm-input" placeholder="All season" value="${escH(ev.label||'')}" oninput="pubCfg.events[${i}].label=this.value"></label>
+      </div>
+      <input class="sm-input" placeholder="Short description" value="${escH(ev.desc||'')}" oninput="pubCfg.events[${i}].desc=this.value">
+    </div>`).join('');
+}
+function renderPublish(){
+  const box=document.getElementById('sm-publish');if(!box)return;
+  const c=pubCfg;
+  const feedAbs=c.feed_url?new URL(c.feed_url,location.href).href:'';
+  box.innerHTML=`
+    <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Publish tonight's show times to your public website. The plugin <b>pushes</b> a small JSON feed to your static host every few minutes — nothing on this box is ever exposed to the internet. The feed carries show times only, no settings or secrets.</p>
+
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
+
+    <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:end">
+      <label class="sm-lbl" style="margin:0">Method
+        <select id="pub-method" class="sm-input">
+          <option value="PUT" ${c.method==='PUT'?'selected':''}>PUT</option>
+          <option value="POST" ${c.method==='POST'?'selected':''}>POST</option>
+        </select></label>
+      <label class="sm-lbl" style="margin:0">Upload URL (your static host)<input type="url" id="pub-url" class="sm-input" value="${escH(c.url||'')}" placeholder="https://your-host.example/upload/schedule.json"></label>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <label class="sm-lbl" style="margin:0">Auth header<input type="text" id="pub-ahdr" class="sm-input" value="${escH(c.auth_header||'Authorization')}" placeholder="Authorization"></label>
+      <label class="sm-lbl" style="margin:0">Auth token<input type="password" id="pub-aval" class="sm-input" placeholder="${c.has_auth?'•••••••• (saved — leave blank to keep)':'Bearer … / API key'}"></label>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <label class="sm-lbl" style="margin:0">Publish every (minutes)<input type="number" id="pub-int" class="sm-input" min="1" max="1440" value="${(c.interval_mins||5)}"></label>
+      <label class="sm-lbl" style="margin:0">Allowed origin (CORS)<input type="text" id="pub-origin" class="sm-input" value="${escH(c.allow_origin||'*')}" placeholder="*"></label>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:12px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="pub-paused" ${c.paused?'checked':''}>Show a "paused" banner on the site</label>
+      <label class="sm-lbl" style="margin:0">Pause note (shown to visitors)<input type="text" id="pub-note" class="sm-input" value="${escH(c.status_note||'')}" placeholder="Shows paused for high winds."></label>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="sm-ct" style="margin:0;font-size:13px">Special-event cards <span style="color:var(--mut);font-weight:400">(optional)</span></div>
+        <button class="sm-btn ghost sm" onclick="pubCfg.events.push({name:'',when:'',label:'',desc:''});renderPublish()">${_ico('plus')}Add</button>
+      </div>
+      <div id="pub-events">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:4px 0">No special events. These appear as cards on the site (e.g. "Opening Night & Tree Lighting").</div>'}</div>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <button class="sm-btn solid" onclick="savePublish()">Save</button>
+      <button class="sm-btn" onclick="publishNow()">${_ico('cloudup')}Publish now</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">${_pubStatus()}</div>
+
+    <div class="sm-hint" style="margin-top:14px">
+      Prefer a live feed instead? Point a Cloudflare Tunnel at this read-only URL and skip the upload settings:
+      <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
+        <input class="sm-input" readonly value="${escH(feedAbs)}" onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
+        <button class="sm-btn ghost sm" onclick="copyFeedUrl(${JSON.stringify(feedAbs)})">${_ico('copy')}Copy</button>
+        <a class="sm-btn ghost sm" href="${escH(feedAbs)}" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+      </div>
+    </div>`;
+}
+async function savePublish(){
+  const body={
+    enabled:document.getElementById('pub-enabled').checked,
+    method:document.getElementById('pub-method').value,
+    url:document.getElementById('pub-url').value.trim(),
+    auth_header:document.getElementById('pub-ahdr').value.trim(),
+    auth_value:document.getElementById('pub-aval').value,
+    interval_mins:parseInt(document.getElementById('pub-int').value,10)||5,
+    allow_origin:document.getElementById('pub-origin').value.trim()||'*',
+    paused:document.getElementById('pub-paused').checked,
+    status_note:document.getElementById('pub-note').value.trim(),
+    events:(pubCfg.events||[]).filter(e=>(e.name||'').trim()),
+  };
+  const j=await fetch(AJAX+'&action=save_publish',{method:'POST',body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>({}));
+  if(j.ok){toast('Website link saved','ok');loadPublish();}else toast('Save failed','err');
+}
+async function publishNow(){
+  // Persist the current form first so we push exactly what's on screen.
+  await savePublish();
+  toast('Publishing…','amber');
+  const j=await fetch(AJAX+'&action=publish_now').then(r=>r.json()).catch(()=>({error:'network'}));
+  if(j.ok){toast('Published to the website','ok');}else toast(j.error||'Publish failed','err');
+  loadPublish();
+}
+function copyFeedUrl(u){
+  if(!u)return;
+  (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject())
+    .then(()=>toast('Feed URL copied','ok'))
+    .catch(()=>toast('Copy failed — select and copy manually','mut'));
 }
 async function exportConfig(){
   try{
