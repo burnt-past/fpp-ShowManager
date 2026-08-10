@@ -937,12 +937,23 @@ switch ($_GET['action'] ?? '') {
         break;
 
     case 'public_schedule':
-        // The public, read-only feed itself. Serve it with permissive CORS and a
-        // short cache so the external site (or a Cloudflare tunnel in front of it)
-        // can fetch it cross-origin. Contains show times only — no secrets.
+        // The read-only feed itself. Meant to be fetched server-to-server by the
+        // website's proxy through a tunnel — the box is never exposed directly.
+        // If a feed key is configured, it must be supplied as ?key=… : the key
+        // rides along on the server-side fetch and never reaches any visitor's
+        // browser, so a scanner that stumbles onto the tunnel can't read it.
+        // Contains show times only — no settings, no secrets.
         $pcfg = sm_publish_cfg($settings);
-        $origin = trim($pcfg['allow_origin'] ?? '*') ?: '*';
-        header('Access-Control-Allow-Origin: ' . $origin);
+        $key  = (string)($pcfg['feed_key'] ?? '');
+        if ($key !== '' && !hash_equals($key, (string)($_GET['key'] ?? ''))) {
+            http_response_code(403);
+            echo json_encode(['error' => 'forbidden']);
+            break;
+        }
+        // CORS is only needed if a browser ever fetches this directly; the proxy
+        // model doesn't. Send it only when an origin is configured.
+        $origin = trim($pcfg['allow_origin'] ?? '');
+        if ($origin !== '') header('Access-Control-Allow-Origin: ' . $origin);
         header('Cache-Control: public, max-age=60');
         echo json_encode(sm_build_public_schedule($settings, $schedule));
         break;
@@ -956,17 +967,19 @@ switch ($_GET['action'] ?? '') {
             'auth_header'   => $c['auth_header'] ?? 'Authorization',
             'has_auth'      => !empty($c['auth_value']),
             'interval_mins' => (int)($c['interval_mins'] ?? 5),
-            'allow_origin'  => $c['allow_origin'] ?? '*',
+            'allow_origin'  => $c['allow_origin'] ?? '',
             'paused'        => !empty($c['paused']),
             'status_note'   => $c['status_note'] ?? '',
             'events'        => array_values($c['events'] ?? []),
             'last_publish'  => $c['last_publish'] ?? null,
             'last_status'   => $c['last_status'] ?? null,
             'last_error'    => $c['last_error'] ?? null,
-            // The local feed path — for the pull / Cloudflare-tunnel option and
-            // for previewing. Site config points at wherever it's published.
-            'feed_url'      => 'plugin.php?plugin=' . rawurlencode(basename(__DIR__))
+            // The read-only feed path (the site's proxy fetches this through a
+            // tunnel). The UI appends ?key=… client-side so the full URL stays
+            // in sync as the key changes without a save.
+            'feed_base'     => 'plugin.php?plugin=' . rawurlencode(basename(__DIR__))
                              . '&page=ajax.php&nopage=1&action=public_schedule',
+            'feed_key'      => $c['feed_key'] ?? '',
         ]);
         break;
 
@@ -984,7 +997,11 @@ switch ($_GET['action'] ?? '') {
         if (!empty($body['clear_auth'])) unset($c['auth_value']);
         $iv = (int)($body['interval_mins'] ?? 5);
         $c['interval_mins'] = max(1, min(1440, $iv));
-        $c['allow_origin']  = trim($body['allow_origin'] ?? '*') ?: '*';
+        $c['allow_origin']  = trim($body['allow_origin'] ?? '');
+        // Feed key: an unguessable token required on the read-only feed URL.
+        // Keep it to URL-safe characters so it can't break the query string.
+        if (array_key_exists('feed_key', $body))
+            $c['feed_key'] = preg_replace('/[^A-Za-z0-9_-]/', '', (string)$body['feed_key']);
         $c['paused']        = !empty($body['paused']);
         $c['status_note']   = trim($body['status_note'] ?? '');
         // Sanitize the events list
