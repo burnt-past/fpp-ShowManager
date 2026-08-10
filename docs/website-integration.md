@@ -1,30 +1,56 @@
 # Website Integration
 
-Show Manager can feed a **public website** with tonight's show times, a status
-banner, and special-event cards. The website renders everything from one small
-JSON document — the *contract* between the plugin and the site.
+Show Manager can feed a **public website** with tonight's show times and a
+status banner. The website renders the countdown and tonight's list from one
+small JSON document — the *contract* between the plugin and the site.
 
-The feed carries **show times only** — no settings, no credentials, no anything
-that could compromise the box. Everything site-specific (the destination URL,
-the auth token, the allowed origin) is entered on the **System → Website Link**
-card and stored in `ShowManagerPublish.config` (mode `0600`, excluded from
-backups). Nothing is hardcoded in the plugin.
+The feed carries **show times only** — no settings, no credentials, nothing that
+could compromise the box. Everything site-specific (the feed key, the allowed
+origin) is entered on the **System → Website Link** card and stored in
+`ShowManagerPublish.config` (mode `0600`, excluded from backups). Nothing is
+hardcoded in the plugin.
 
-> **Security:** never expose the show controller to the internet. Both supported
-> topologies keep it off the public net — the recommended one opens nothing
-> inbound at all.
+> **Security model:** the show controller never goes on the public internet.
+> The website's own server-side proxy fetches the feed, so visitors never touch
+> the box, and the feed URL carries a secret key that never reaches a browser.
+
+## How it works (recommended)
+
+1. The website has a **server-side proxy** (e.g. a Cloudflare Worker) that
+   fetches your feed on an interval and caches it (~30s). Visitors hit the
+   proxy, never your box.
+2. You expose **only the feed path** to that proxy through a **Cloudflare
+   Tunnel** (or similar) — the rest of the box stays private.
+3. Because the fetch is server-to-server, **no CORS is needed**, and the secret
+   **key travels on that fetch only** — it never appears in any visitor's
+   browser.
+
+### Set it up
+
+1. On **System → Website Link**, click **Generate** to create a secret key,
+   then **Save**.
+2. Copy the **Public feed URL** shown there. It looks like:
+   ```
+   https://<your-tunnel-host>/plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule&key=<secret>
+   ```
+   (Point the tunnel's public hostname at `http://localhost:80`; the path and
+   query stay the same, so just swap the host into the copied URL.)
+3. In the site admin → **Schedule → Live schedule source**, paste that URL,
+   **Save**, then **Test**.
+
+Without the key (or with the wrong key) the endpoint returns **403** — a scanner
+that stumbles onto the tunnel can't read the feed.
 
 ## The feed
 
 Served read-only at:
 
 ```
-plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule
+plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule&key=<secret>
 ```
 
-Response headers: `Content-Type: application/json`,
-`Cache-Control: public, max-age=60`, and
-`Access-Control-Allow-Origin: <allow_origin>` (default `*`).
+Headers: `Content-Type: application/json`, `Cache-Control: public, max-age=60`
+(and `Access-Control-Allow-Origin` only if you set an allowed origin).
 
 ### Response shape
 
@@ -35,64 +61,39 @@ Response headers: `Content-Type: application/json`,
   "shows": [
     { "name": "Light & Snow Show", "start": "2026-12-05T18:00:00-08:00" },
     { "name": "Light & Snow Show", "start": "2026-12-05T18:30:00-08:00" }
-  ],
-  "events": [
-    {
-      "name": "Opening Night & Tree Lighting",
-      "iso": "2026-11-27T18:00:00-08:00",
-      "date": "Fri, Nov 27",
-      "desc": "The plaza lights up for the first time this season."
-    }
   ]
 }
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `shows[].start` | yes | ISO-8601 **with an explicit UTC offset** (from the box's local timezone), so it reads correctly for any visitor. Drives the countdown, tonight's list, and the banner. |
+| `shows[].start` | yes | ISO-8601 **with an explicit UTC offset** (from the box's local timezone), so it reads correctly for any visitor. |
 | `shows[].name` | no | The playlist name; defaults to `"Light Show"`. |
-| `status` | no | Anything other than `"ok"` flips the site to its paused banner. |
-| `statusNote` | no | Shown verbatim when paused, e.g. "Shows paused for high winds." |
-| `events[]` | no | Special-event cards. `iso` powers "Add to calendar"; omit it (use a `date` label like "All season") for open-ended entries. |
+| `status` | no | Anything other than `"ok"` shows the site's paused state. |
+| `statusNote` | no | Shown when paused, e.g. "Shows paused for high winds." |
+| `events[]` | no | Optional special-event cards (`name` + `desc`, plus a `when`→`iso`/`date` or a free-text `label`). Some sites render them; others ignore them. |
 
 **Horizon:** the feed covers tonight through the next 7 days. Past shows are
 dropped automatically, except a just-started one lingers briefly so the site can
 still show it as live.
 
-**Status** is `paused` when the operator ticks the pause box on the Website Link
-card *or* while the system is disabled ("Disable system"); otherwise `ok`.
+**Status** is `paused` when you tick the pause box on the Website Link card *or*
+while the system is disabled ("Disable system"); otherwise `ok`.
 
-## Network topology
+## Alternative: push to a static host
 
-### A · Push (recommended)
-
-The scheduler builds the feed and **uploads it to your static host** every few
-minutes. Nothing inbound is ever opened, and a plaza-network outage leaves the
-last-known schedule online. The **Publish now** button uses the same path.
-
-On the Website Link card set: **Auto-publish on**, the **Upload URL** on your
-host, the **method** it accepts (`PUT`/`POST`), and an **auth header/token** if
-your host needs one. Requires outbound HTTPS from the box.
-
-### B · Pull through a tunnel
-
-Point a **Cloudflare Tunnel** (or similar) at the read-only feed URL above and
-have the site fetch it directly. Truly live, but the site then depends on the
-box being reachable. Use the **Copy** button on the card to grab the URL; leave
-the upload settings blank.
-
-## Special events
-
-The card has a small editor for the `events[]` cards. Give each a name and a
-short description, then either pick a date & time (becomes `iso` + a human
-`date`) or type an open-ended label like "All season" (no `iso`, so the site
-omits its "Add to calendar" link).
+If your site serves its own copy of the feed instead of pulling, the plugin can
+**upload** it to a static host every few minutes (opens nothing inbound). On the
+Website Link card, open **Alternative: push to a static host**, set the upload
+URL, method, and any auth header, tick **Auto-publish**, and **Save**. **Publish
+now** sends it immediately.
 
 ## Checklist
 
-- [ ] Feed returns valid JSON with a `200` and the CORS header
+- [ ] A secret key is generated and saved
+- [ ] Only the feed path is exposed (tunnel), not the whole box
+- [ ] The feed URL returns valid JSON with a `200`; wrong/missing key returns `403`
 - [ ] Every timestamp carries a UTC offset
 - [ ] Tonight's times on the site match the controller exactly
-- [ ] Setting the site to paused changes its banner within one refresh
-- [ ] Stopping the feed degrades the site to placeholder times, not an error
+- [ ] Setting the site to paused changes its banner within a minute
 - [ ] Verified on a phone over cellular, not just plaza wifi

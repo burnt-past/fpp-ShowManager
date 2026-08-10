@@ -229,40 +229,50 @@ Managed by the **System** tab (Website Link). Configures publishing the public s
 
 ```json
 {
-  "enabled": true,
+  "feed_key": "9f2c…",
+  "paused": false,
+  "status_note": "",
+  "allow_origin": "",
+  "events": [
+    { "name": "Opening Night", "when": "2026-11-27T18:00", "label": "", "desc": "The plaza lights up for the first time." }
+  ],
+
+  "enabled": false,
   "url": "https://your-host.example/upload/schedule.json",
   "method": "PUT",
   "auth_header": "Authorization",
   "auth_value": "Bearer …",
   "interval_mins": 5,
-  "allow_origin": "*",
-  "paused": false,
-  "status_note": "",
-  "events": [
-    { "name": "Opening Night", "when": "2026-11-27T18:00", "label": "", "desc": "The plaza lights up for the first time." }
-  ],
   "last_publish": "2026-11-20T17:05:00-08:00",
   "last_status": "ok"
 }
 ```
 
+**Primary path — the site pulls the feed:**
+
+| Key | Description |
+|---|---|
+| `feed_key` | Unguessable token required on the feed URL (`&key=…`). The site's proxy sends it on a server-to-server fetch, so it never reaches a visitor's browser. Leave empty to serve the feed unauthenticated (not recommended). URL-safe chars only |
+| `paused` / `status_note` | Flip the site to its paused banner and show a note (e.g. "Shows paused for high winds"). The site is also paused automatically while the system is disabled |
+| `allow_origin` | `Access-Control-Allow-Origin` on the feed. Empty by default (no header) — CORS isn't needed for a server-to-server pull; set it only if a browser fetches the feed directly |
+| `events` | Optional special-event cards. Each has a `name`, a `desc`, and either a `when` (datetime → ISO `iso` + human `date`) or a free-text `label` for open-ended entries like "All season". Some sites render these; others ignore them |
+
+**Alternative path — the plugin pushes to a static host** (used only if your site serves its own copy instead of pulling):
+
 | Key | Description |
 |---|---|
 | `enabled` | When true, the scheduler pushes the feed to `url` every `interval_mins` |
-| `url` | Where to upload the feed on your static host (the site then serves it) |
+| `url` | Where to upload the feed on your static host |
 | `method` | `PUT` or `POST` — how your host accepts the upload |
-| `auth_header` / `auth_value` | Header sent with the upload (e.g. `Authorization: Bearer …`); `auth_value` is write-only — the UI never reads it back |
+| `auth_header` / `auth_value` | Header sent with the upload; `auth_value` is write-only — the UI never reads it back |
 | `interval_mins` | Auto-publish period, 1–1440 minutes |
-| `allow_origin` | `Access-Control-Allow-Origin` on the read-only feed endpoint (default `*`; the feed is public, no-secret data) |
-| `paused` / `status_note` | Flip the site to its paused banner and show a note (e.g. "Shows paused for high winds"). The site is also paused automatically while the system is disabled |
-| `events` | Optional special-event cards. Each has a `name`, a `desc`, and either a `when` (datetime → ISO `iso` + human `date`) or a free-text `label` for open-ended entries like "All season" |
 | `last_publish` / `last_status` / `last_error` | Result of the last push (auto-set) |
 
-The feed itself (the contract with the website) is served read-only at
-`plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule`
-with `Cache-Control: public, max-age=60` and the CORS header above. See
-[website-integration.md](website-integration.md) for the response shape and the
-two network topologies (push vs. Cloudflare tunnel).
+The feed (the contract with the website) is served read-only at
+`plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule[&key=…]`
+with `Cache-Control: public, max-age=60`. See
+[website-integration.md](website-integration.md) for the response shape and how
+to expose only this path via a tunnel without putting the box on the internet.
 
 ---
 

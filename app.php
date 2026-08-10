@@ -1428,32 +1428,50 @@ function _eventRows(){
       <input class="sm-input" placeholder="Short description" value="${escH(ev.desc||'')}" oninput="pubCfg.events[${i}].desc=this.value">
     </div>`).join('');
 }
+function _feedUrl(){
+  const base=pubCfg.feed_base?new URL(pubCfg.feed_base,location.href).href:'';
+  const el=document.getElementById('pub-key');
+  const key=el?el.value.trim():(pubCfg.feed_key||'');
+  return base+(key?'&key='+encodeURIComponent(key):'');
+}
+function updateFeedUrl(){
+  const f=document.getElementById('pub-feedurl');if(!f)return;
+  const u=_feedUrl();
+  f.value=u;
+  const open=document.getElementById('pub-open');if(open)open.href=u;
+  const warn=document.getElementById('pub-keywarn');
+  if(warn)warn.style.display=(document.getElementById('pub-key').value.trim())?'none':'block';
+}
+function genFeedKey(){
+  const b=new Uint8Array(24);(crypto||window.crypto).getRandomValues(b);
+  const hex=Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+  document.getElementById('pub-key').value=hex;
+  updateFeedUrl();
+  toast('Key generated — click Save to apply','ok');
+}
 function renderPublish(){
   const box=document.getElementById('sm-publish');if(!box)return;
   const c=pubCfg;
-  const feedAbs=c.feed_url?new URL(c.feed_url,location.href).href:'';
   box.innerHTML=`
-    <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Publish tonight's show times to your public website. The plugin <b>pushes</b> a small JSON feed to your static host every few minutes — nothing on this box is ever exposed to the internet. The feed carries show times only, no settings or secrets.</p>
+    <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Give your public website tonight's show times. The website fetches this small read-only feed <b>server-to-server</b> (through a tunnel) — visitors never touch this box, and the feed carries show times only, no settings or secrets.</p>
 
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
+    <div style="border:1px solid var(--brdHi,var(--border));border-radius:12px;padding:14px">
+      <div class="sm-ct" style="margin:0 0 4px;font-size:13px">Public feed URL</div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 10px">Paste this into the website admin's <i>Live schedule source</i>. Keep the box off the public internet — expose <b>only this path</b> via a Cloudflare Tunnel (or similar). The secret key travels on the server-to-server fetch and never reaches a visitor's browser.</p>
 
-    <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:end">
-      <label class="sm-lbl" style="margin:0">Method
-        <select id="pub-method" class="sm-input">
-          <option value="PUT" ${c.method==='PUT'?'selected':''}>PUT</option>
-          <option value="POST" ${c.method==='POST'?'selected':''}>POST</option>
-        </select></label>
-      <label class="sm-lbl" style="margin:0">Upload URL (your static host)<input type="url" id="pub-url" class="sm-input" value="${escH(c.url||'')}" placeholder="https://your-host.example/upload/schedule.json"></label>
-    </div>
+      <label class="sm-lbl" style="margin:0">Secret key (required on the URL)
+        <div style="display:flex;gap:6px">
+          <input type="text" id="pub-key" class="sm-input" style="flex:1;font-family:var(--mono);font-size:12px" value="${escH(c.feed_key||'')}" placeholder="none set — generate one" oninput="updateFeedUrl()">
+          <button class="sm-btn ghost sm" onclick="genFeedKey()">${_ico('refresh')}Generate</button>
+        </div></label>
+      <div id="pub-keywarn" style="display:${(c.feed_key||'')?'none':'block'};font-size:12px;color:var(--amber);margin-top:6px">${_ico('warn')} No key set — anyone who finds the tunnel URL can read the feed. Generate one.</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-      <label class="sm-lbl" style="margin:0">Auth header<input type="text" id="pub-ahdr" class="sm-input" value="${escH(c.auth_header||'Authorization')}" placeholder="Authorization"></label>
-      <label class="sm-lbl" style="margin:0">Auth token<input type="password" id="pub-aval" class="sm-input" placeholder="${c.has_auth?'•••••••• (saved — leave blank to keep)':'Bearer … / API key'}"></label>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-      <label class="sm-lbl" style="margin:0">Publish every (minutes)<input type="number" id="pub-int" class="sm-input" min="1" max="1440" value="${(c.interval_mins||5)}"></label>
-      <label class="sm-lbl" style="margin:0">Allowed origin (CORS)<input type="text" id="pub-origin" class="sm-input" value="${escH(c.allow_origin||'*')}" placeholder="*"></label>
+      <div style="display:flex;gap:6px;align-items:center;margin-top:10px">
+        <input class="sm-input" id="pub-feedurl" readonly value="${escH(c.feed_base?new URL(c.feed_base,location.href).href+(c.feed_key?'&key='+encodeURIComponent(c.feed_key):''):'')}" onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
+        <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
+        <a class="sm-btn ghost sm" id="pub-open" href="${escH(c.feed_base?new URL(c.feed_base,location.href).href+(c.feed_key?'&key='+encodeURIComponent(c.feed_key):''):'')}" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+      </div>
+      <div class="sm-hint" style="margin-top:8px">Tunnel example: <code>cloudflared tunnel</code> mapping a public hostname to <code>http://localhost:80</code>, then use the matching public URL here in place of <code>plugin.php…</code>. Click <b>Save</b> after changing the key.</div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:12px">
@@ -1466,35 +1484,52 @@ function renderPublish(){
         <div class="sm-ct" style="margin:0;font-size:13px">Special-event cards <span style="color:var(--mut);font-weight:400">(optional)</span></div>
         <button class="sm-btn ghost sm" onclick="pubCfg.events.push({name:'',when:'',label:'',desc:''});renderPublish()">${_ico('plus')}Add</button>
       </div>
-      <div id="pub-events">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:4px 0">No special events. These appear as cards on the site (e.g. "Opening Night & Tree Lighting").</div>'}</div>
+      <div id="pub-events">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:4px 0">No special events. Some sites show these as cards (e.g. "Opening Night & Tree Lighting"); others ignore them.</div>'}</div>
     </div>
 
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
       <button class="sm-btn solid" onclick="savePublish()">Save</button>
-      <button class="sm-btn" onclick="publishNow()">${_ico('cloudup')}Publish now</button>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">${_pubStatus()}</div>
 
-    <div class="sm-hint" style="margin-top:14px">
-      Prefer a live feed instead? Point a Cloudflare Tunnel at this read-only URL and skip the upload settings:
-      <div style="display:flex;gap:6px;align-items:center;margin-top:6px">
-        <input class="sm-input" readonly value="${escH(feedAbs)}" onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
-        <button class="sm-btn ghost sm" onclick="copyFeedUrl(${JSON.stringify(feedAbs)})">${_ico('copy')}Copy</button>
-        <a class="sm-btn ghost sm" href="${escH(feedAbs)}" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+    <details style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Alternative: push to a static host</summary>
+      <p style="font-size:12px;color:var(--sub);margin:10px 0">Instead of the site pulling, the plugin can <b>upload</b> the feed to a static host on a schedule (opens nothing inbound). Use this only if your site serves its own copy rather than fetching the URL above.</p>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:end">
+        <label class="sm-lbl" style="margin:0">Method
+          <select id="pub-method" class="sm-input">
+            <option value="PUT" ${c.method==='PUT'?'selected':''}>PUT</option>
+            <option value="POST" ${c.method==='POST'?'selected':''}>POST</option>
+          </select></label>
+        <label class="sm-lbl" style="margin:0">Upload URL (your static host)<input type="url" id="pub-url" class="sm-input" value="${escH(c.url||'')}" placeholder="https://your-host.example/upload/schedule.json"></label>
       </div>
-    </div>`;
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <label class="sm-lbl" style="margin:0">Auth header<input type="text" id="pub-ahdr" class="sm-input" value="${escH(c.auth_header||'Authorization')}" placeholder="Authorization"></label>
+        <label class="sm-lbl" style="margin:0">Auth token<input type="password" id="pub-aval" class="sm-input" placeholder="${c.has_auth?'•••••••• (saved — leave blank to keep)':'Bearer … / API key'}"></label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <label class="sm-lbl" style="margin:0">Publish every (minutes)<input type="number" id="pub-int" class="sm-input" min="1" max="1440" value="${(c.interval_mins||5)}"></label>
+        <label class="sm-lbl" style="margin:0">Allowed origin (CORS, optional)<input type="text" id="pub-origin" class="sm-input" value="${escH(c.allow_origin||'')}" placeholder="leave blank — not needed for proxy"></label>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+        <button class="sm-btn" onclick="publishNow()">${_ico('cloudup')}Publish now</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">${_pubStatus()}</div>
+    </details>`;
 }
 async function savePublish(){
+  const g=id=>document.getElementById(id);
   const body={
-    enabled:document.getElementById('pub-enabled').checked,
-    method:document.getElementById('pub-method').value,
-    url:document.getElementById('pub-url').value.trim(),
-    auth_header:document.getElementById('pub-ahdr').value.trim(),
-    auth_value:document.getElementById('pub-aval').value,
-    interval_mins:parseInt(document.getElementById('pub-int').value,10)||5,
-    allow_origin:document.getElementById('pub-origin').value.trim()||'*',
-    paused:document.getElementById('pub-paused').checked,
-    status_note:document.getElementById('pub-note').value.trim(),
+    feed_key:g('pub-key').value.trim(),
+    enabled:g('pub-enabled').checked,
+    method:g('pub-method').value,
+    url:g('pub-url').value.trim(),
+    auth_header:g('pub-ahdr').value.trim(),
+    auth_value:g('pub-aval').value,
+    interval_mins:parseInt(g('pub-int').value,10)||5,
+    allow_origin:g('pub-origin').value.trim(),
+    paused:g('pub-paused').checked,
+    status_note:g('pub-note').value.trim(),
     events:(pubCfg.events||[]).filter(e=>(e.name||'').trim()),
   };
   const j=await fetch(AJAX+'&action=save_publish',{method:'POST',body:JSON.stringify(body)}).then(r=>r.json()).catch(()=>({}));
@@ -1508,8 +1543,8 @@ async function publishNow(){
   if(j.ok){toast('Published to the website','ok');}else toast(j.error||'Publish failed','err');
   loadPublish();
 }
-function copyFeedUrl(u){
-  if(!u)return;
+function copyFeedUrl(){
+  const u=_feedUrl();if(!u)return;
   (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject())
     .then(()=>toast('Feed URL copied','ok'))
     .catch(()=>toast('Copy failed — select and copy manually','mut'));
