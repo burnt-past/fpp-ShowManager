@@ -1296,7 +1296,7 @@ async function annTest(){
 function loadSystem(){
   const el=document.getElementById('sm-system');
   el.innerHTML=`
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:stretch">
     <div class="sm-card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
         <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
@@ -1324,8 +1324,7 @@ function loadSystem(){
     </div>
   </div>
   <div class="sm-card" style="margin-top:16px">
-    <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ico('link')}Website Link</div>
-    <div id="sm-publish"><div class="sm-skel" style="height:160px"></div></div>
+    <div id="sm-publish"><div class="sm-skel" style="height:160px;max-width:760px;margin:0 auto"></div></div>
   </div>`;
   runDiag();
   loadDropbox();
@@ -1469,9 +1468,11 @@ function renderPublish(){
   const c=pubCfg;
   const nEv=(c.events||[]).length;
   box.innerHTML=`
-    <p style="font-size:12px;color:var(--sub);margin:0 0 16px;max-width:720px">Your public website fetches this read-only feed <b>server-to-server</b> through a tunnel — visitors never touch this box, and it carries show times only. Set a key, point a tunnel at the dedicated port, and paste the URL into the site.</p>
+   <div style="max-width:760px;margin:0 auto">
+    <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ico('link')}Website Link</div>
+    <p style="font-size:12px;color:var(--sub);margin:0 0 16px">Your public website fetches this read-only feed <b>server-to-server</b> through a tunnel — visitors never touch this box, and it carries show times only. Set a key, point a tunnel at the dedicated port, and paste the URL into the site.</p>
 
-    <div style="display:grid;gap:14px;max-width:720px">
+    <div style="display:grid;gap:14px">
 
       <label class="sm-lbl" style="margin:0">Secret key <span style="color:var(--mut);font-weight:400">— required on the feed URL</span>
         <div style="display:flex;gap:6px">
@@ -1504,7 +1505,7 @@ function renderPublish(){
       </div>
     </div>
 
-    <details style="margin-top:14px;max-width:720px" ${nEv?'open':''}>
+    <details style="margin-top:14px" ${nEv?'open':''}>
       <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Special-event cards${nEv?' ('+nEv+')':''} <span style="color:var(--mut)">— optional</span></summary>
       <div style="margin-top:10px">
         <div id="pub-events" style="margin-bottom:8px">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:2px 0 8px">Cards some sites show (e.g. "Opening Night & Tree Lighting").</div>'}</div>
@@ -1512,7 +1513,7 @@ function renderPublish(){
       </div>
     </details>
 
-    <details style="margin-top:10px;max-width:720px" ${(c.enabled||c.url)?'open':''}>
+    <details style="margin-top:10px" ${(c.enabled||c.url)?'open':''}>
       <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Alternative: push to a static host</summary>
       <p style="font-size:12px;color:var(--sub);margin:10px 0">Only if your site serves its own copy instead of fetching the URL above. The plugin uploads the feed on a schedule (opens nothing inbound).</p>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
@@ -1541,7 +1542,8 @@ function renderPublish(){
     <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
       <button class="sm-btn solid" onclick="savePublish()">Save website link</button>
       <span class="sm-hint" style="margin-left:10px">Saves the key, port, paused state and events.</span>
-    </div>`;
+    </div>
+   </div>`;
   updateFeedUrl();
 }
 async function savePublish(){
