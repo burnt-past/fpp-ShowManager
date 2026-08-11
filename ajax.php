@@ -199,10 +199,31 @@ function sm_publish_save($settings, $cfg) {
     @chmod($f, 0600);   // holds the upload auth token
 }
 
+// Resolve the box's local timezone so each show's ISO offset is correct across
+// the PST/PDT change (e.g. -08:00 in December, -07:00 in summer) rather than a
+// fixed value — and never a silent UTC fallback. Prefers the OS zone name
+// (/etc/timezone on Debian), then PHP's default, then UTC.
+function sm_local_tz() {
+    static $tz = null;
+    if ($tz !== null) return $tz;
+    $name = @trim(@file_get_contents('/etc/timezone'));
+    if ($name === '' || $name === false) $name = @date_default_timezone_get() ?: 'UTC';
+    try { $tz = new DateTimeZone($name); }
+    catch (Exception $e) { $tz = new DateTimeZone('UTC'); }
+    return $tz;
+}
+// Parse a local "Y-m-d H:i" / ISO-ish string in the box's zone and return a
+// DateTime (with the right DST-aware offset), or null if unparseable.
+function sm_local_dt($str) {
+    try { return new DateTime($str, sm_local_tz()); }
+    catch (Exception $e) { return null; }
+}
+
 // Build the public schedule feed in the shape the website expects. Covers
 // tonight through the next 7 days (past shows are harmless — the site ignores
-// them). Every timestamp is ISO-8601 with the server's local UTC offset, so it
-// reads correctly regardless of the visitor's timezone.
+// them). Every timestamp is ISO-8601 with the box's Pacific offset for that
+// date, so it reads correctly regardless of the visitor's timezone and stays
+// correct across the winter DST change.
 function sm_build_public_schedule($settings, $schedule) {
     $cfg  = sm_publish_cfg($settings);
     $now  = time();
@@ -232,9 +253,11 @@ function sm_build_public_schedule($settings, $schedule) {
         $date = $e['date'] ?? '';
         $time = $e['time'] ?? '';
         if ($date === '' || $time === '') continue;
-        $ts = strtotime("$date $time");
-        if ($ts === false || $ts < $floor || $ts > $end) continue;
-        $iso = date('c', $ts);
+        $dt = sm_local_dt("$date $time");
+        if ($dt === null) continue;
+        $ts = $dt->getTimestamp();
+        if ($ts < $floor || $ts > $end) continue;
+        $iso = $dt->format('c');               // e.g. 2026-12-05T19:00:00-08:00
         if (isset($seen[$iso])) continue;     // de-dupe manual + rule overlap
         $seen[$iso] = true;
         $name = $e['playlist'] ?? '';
@@ -268,9 +291,9 @@ function sm_build_public_schedule($settings, $schedule) {
         if ($name === '') continue;
         $row = ['name' => $name];
         $when = trim($ev['when'] ?? '');
-        if ($when !== '' && ($ts = strtotime($when)) !== false) {
-            $row['iso']  = date('c', $ts);
-            $row['date'] = date('D, M j', $ts);
+        if ($when !== '' && ($dt = sm_local_dt($when)) !== null) {
+            $row['iso']  = $dt->format('c');
+            $row['date'] = $dt->format('D, M j');
         } elseif (($lbl = trim($ev['label'] ?? '')) !== '') {
             $row['date'] = $lbl;
         }
