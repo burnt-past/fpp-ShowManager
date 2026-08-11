@@ -18,6 +18,8 @@ Config files (all in /home/fpp/media/config/):
 import datetime
 import fcntl
 import glob
+import hmac
+import http.server
 import json
 import logging
 import logging.handlers
@@ -44,6 +46,7 @@ OVERRIDES_CONFIG = "/home/fpp/media/config/ShowManagerOverrides.config"
 BACKGROUND_CONFIG = "/home/fpp/media/config/ShowManagerBackground.config"
 DROPBOX_CONFIG   = "/home/fpp/media/config/ShowManagerDropbox.config"
 PUBLISH_CONFIG   = "/home/fpp/media/config/ShowManagerPublish.config"
+FEED_PORT_DEFAULT = 8088
 PAUSE_SYNC_FLAG  = "/tmp/xr18_pause_sync"
 FADER_STATE_FILE = "/tmp/xr18_current_fader"
 BG_STATUS_FILE   = "/tmp/showmanager_bg_status.json"
@@ -608,6 +611,61 @@ def get_show_def(show_id):
 
 
 # ---------------------------------------------------------------------------
+# Public-feed HTTP server (for a Cloudflare tunnel)
+# ---------------------------------------------------------------------------
+#
+# A tiny localhost-only server whose ONLY job is to return the public schedule
+# feed. A tunnel points at this port, so it can physically reach nothing else on
+# the box — FPP's unauthenticated web UI is never exposed. The request's ?key=
+# (if a feed key is set) is checked here, then the feed is fetched from the
+# plugin's own PHP endpoint over localhost. The upstream URL is hardcoded to the
+# one read-only action, so a caller can't steer it at any other FPP endpoint.
+
+PLUGIN_NAME = os.path.basename(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+class _FeedHandler(http.server.BaseHTTPRequestHandler):
+    server_version = "ShowManagerFeed"
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *a):
+        pass  # keep FPP's log clean; failures are logged where they matter
+
+    def _send(self, code, body, ctype="application/json"):
+        payload = body if isinstance(body, bytes) else body.encode()
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(payload)))
+        if code == 200:
+            self.send_header("Cache-Control", "public, max-age=60")
+        self.end_headers()
+        try:
+            self.wfile.write(payload)
+        except Exception:
+            pass
+
+    def do_GET(self):
+        try:
+            cfg = load_json(PUBLISH_CONFIG)
+            key = str(cfg.get("feed_key") or "")
+            given = (urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                     .get("key", [""])[0])
+            if key and not hmac.compare_digest(key, given):
+                return self._send(403, '{"error":"forbidden"}')
+            url = ("http://127.0.0.1/plugin.php?plugin=%s&page=ajax.php"
+                   "&nopage=1&action=public_schedule" % urllib.parse.quote(PLUGIN_NAME))
+            if key:
+                url += "&key=" + urllib.parse.quote(key)
+            body = urllib.request.urlopen(url, timeout=10).read()
+            self._send(200, body)
+        except Exception as e:
+            log.warning("Feed server request failed: %s", e)
+            self._send(502, '{"error":"upstream unavailable"}')
+
+    def do_HEAD(self):
+        self._send(200, b"")
+
+
+# ---------------------------------------------------------------------------
 # Main scheduler class
 # ---------------------------------------------------------------------------
 
@@ -1142,6 +1200,44 @@ class ShowScheduler:
             except Exception as e:
                 log.error("Publish loop error: %s", e)
 
+    # ---- public-feed HTTP server (for a tunnel) ----------------------------
+
+    def _feed_server_loop(self):
+        """Manage the localhost-only feed server: bind it when enabled, rebind
+        on a port change, drop it when disabled. Bound to 127.0.0.1 so only a
+        locally-running tunnel can reach it — never the LAN or the internet."""
+        server = None
+        cur_port = None
+        first = True
+        while first or not self._stop.wait(15):
+            first = False
+            try:
+                cfg  = load_json(PUBLISH_CONFIG)
+                want = bool(cfg.get("feed_server"))
+                port = int(cfg.get("feed_port") or FEED_PORT_DEFAULT)
+                if server and (not want or port != cur_port):
+                    server.shutdown(); server.server_close()
+                    server, cur_port = None, None
+                    log.info("Feed server stopped")
+                if want and not server:
+                    try:
+                        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), _FeedHandler)
+                    except OSError as e:
+                        log.warning("Feed server can't bind 127.0.0.1:%d: %s", port, e)
+                        server = None
+                    else:
+                        cur_port = port
+                        threading.Thread(target=server.serve_forever,
+                                         daemon=True, name="feedhttp").start()
+                        log.info("Feed server listening on 127.0.0.1:%d", port)
+            except Exception as e:
+                log.error("Feed server loop error: %s", e)
+        if server:
+            try:
+                server.shutdown(); server.server_close()
+            except Exception:
+                pass
+
     # ---- stale flag watchdog -----------------------------------------------
 
     def _watchdog_loop(self):
@@ -1208,6 +1304,7 @@ class ShowScheduler:
             threading.Thread(target=self._runnow_loop,     daemon=True, name="runnow"),
             threading.Thread(target=self._cloud_backup_loop, daemon=True, name="cloudbackup"),
             threading.Thread(target=self._publish_loop,    daemon=True, name="publish"),
+            threading.Thread(target=self._feed_server_loop, daemon=True, name="feedserver"),
         ]
         for t in threads:
             t.start()

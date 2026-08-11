@@ -1428,19 +1428,34 @@ function _eventRows(){
       <input class="sm-input" placeholder="Short description" value="${escH(ev.desc||'')}" oninput="pubCfg.events[${i}].desc=this.value">
     </div>`).join('');
 }
-function _feedUrl(){
+function _pubKey(){const el=document.getElementById('pub-key');return el?el.value.trim():(pubCfg.feed_key||'');}
+function _pubPort(){const el=document.getElementById('pub-fport');return el?(el.value.trim()||'8088'):(pubCfg.feed_port||8088);}
+function _pubDedicated(){const el=document.getElementById('pub-fsrv');return el?el.checked:!!pubCfg.feed_server;}
+// The local, reachable endpoint (for the Open/test button) — always plugin.php.
+function _localFeedUrl(){
   const base=pubCfg.feed_base?new URL(pubCfg.feed_base,location.href).href:'';
-  const el=document.getElementById('pub-key');
-  const key=el?el.value.trim():(pubCfg.feed_key||'');
+  const key=_pubKey();
   return base+(key?'&key='+encodeURIComponent(key):'');
+}
+// The URL to paste into the site — goes through the operator's tunnel host,
+// which we can't know, so it's a template they complete.
+function _pasteUrl(){
+  const key=_pubKey(),q=key?'?key='+encodeURIComponent(key):'';
+  if(_pubDedicated())return 'https://YOUR-TUNNEL-HOST/'+q;
+  const u=pubCfg.feed_base?new URL(pubCfg.feed_base,location.href):null;
+  const path=u?u.pathname+u.search:'';
+  return 'https://YOUR-TUNNEL-HOST'+path+(key?'&key='+encodeURIComponent(key):'');
 }
 function updateFeedUrl(){
   const f=document.getElementById('pub-feedurl');if(!f)return;
-  const u=_feedUrl();
-  f.value=u;
-  const open=document.getElementById('pub-open');if(open)open.href=u;
+  f.value=_pasteUrl();
+  const open=document.getElementById('pub-open');if(open)open.href=_localFeedUrl();
   const warn=document.getElementById('pub-keywarn');
-  if(warn)warn.style.display=(document.getElementById('pub-key').value.trim())?'none':'block';
+  if(warn)warn.style.display=_pubKey()?'none':'block';
+  const tt=document.getElementById('pub-tunnel-target');
+  if(tt)tt.innerHTML=_pubDedicated()
+    ? `In the tunnel's <b>Public Hostname</b>, set Service → <b>HTTP</b> → <code>localhost:${escH(_pubPort())}</code>. Replace <code>YOUR-TUNNEL-HOST</code> above with that hostname.`
+    : `${_ico('warn')} Off: the tunnel must target <code>localhost:80</code>, which exposes all of FPP. Turn this on unless you're locking it down another way.`;
 }
 function genFeedKey(){
   const b=new Uint8Array(24);(crypto||window.crypto).getRandomValues(b);
@@ -1457,7 +1472,7 @@ function renderPublish(){
 
     <div style="border:1px solid var(--brdHi,var(--border));border-radius:12px;padding:14px">
       <div class="sm-ct" style="margin:0 0 4px;font-size:13px">Public feed URL</div>
-      <p style="font-size:12px;color:var(--sub);margin:0 0 10px">Paste this into the website admin's <i>Live schedule source</i>. Keep the box off the public internet — expose <b>only this path</b> via a Cloudflare Tunnel (or similar). The secret key travels on the server-to-server fetch and never reaches a visitor's browser.</p>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 10px">The website fetches this server-to-server through a tunnel. The secret key travels on that fetch and never reaches a visitor's browser.</p>
 
       <label class="sm-lbl" style="margin:0">Secret key (required on the URL)
         <div style="display:flex;gap:6px">
@@ -1466,12 +1481,20 @@ function renderPublish(){
         </div></label>
       <div id="pub-keywarn" style="display:${(c.feed_key||'')?'none':'block'};font-size:12px;color:var(--amber);margin-top:6px">${_ico('warn')} No key set — anyone who finds the tunnel URL can read the feed. Generate one.</div>
 
-      <div style="display:flex;gap:6px;align-items:center;margin-top:10px">
-        <input class="sm-input" id="pub-feedurl" readonly value="${escH(c.feed_base?new URL(c.feed_base,location.href).href+(c.feed_key?'&key='+encodeURIComponent(c.feed_key):''):'')}" onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
-        <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
-        <a class="sm-btn ghost sm" id="pub-open" href="${escH(c.feed_base?new URL(c.feed_base,location.href).href+(c.feed_key?'&key='+encodeURIComponent(c.feed_key):''):'')}" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+      <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:12px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="pub-fsrv" ${c.feed_server?'checked':''} onchange="updateFeedUrl()">Serve on a dedicated port for the tunnel <span style="color:var(--mint);font-weight:600">(recommended)</span></label>
+        <p style="font-size:12px;color:var(--sub);margin:8px 0 8px">Isolates the feed from FPP's admin — the tunnel reaches <b>only</b> this port, nothing else on the box. Requires the scheduler daemon running.</p>
+        <label class="sm-lbl" style="margin:0;max-width:160px">Port<input type="number" id="pub-fport" class="sm-input" min="1024" max="65535" value="${(c.feed_port||8088)}" oninput="updateFeedUrl()"></label>
+        <div id="pub-tunnel-target" class="sm-hint" style="margin-top:8px"></div>
       </div>
-      <div class="sm-hint" style="margin-top:8px">Tunnel example: <code>cloudflared tunnel</code> mapping a public hostname to <code>http://localhost:80</code>, then use the matching public URL here in place of <code>plugin.php…</code>. Click <b>Save</b> after changing the key.</div>
+
+      <div style="font-size:12px;color:var(--sub);margin:12px 0 4px">Paste this into the website admin's <i>Live schedule source</i>:</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input class="sm-input" id="pub-feedurl" readonly onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
+        <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
+        <a class="sm-btn ghost sm" id="pub-open" href="#" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+      </div>
+      <div class="sm-hint" style="margin-top:8px">Click <b>Save</b> after changing the key, port, or server toggle.</div>
     </div>
 
     <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:12px">
@@ -1516,11 +1539,14 @@ function renderPublish(){
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">${_pubStatus()}</div>
     </details>`;
+  updateFeedUrl();
 }
 async function savePublish(){
   const g=id=>document.getElementById(id);
   const body={
     feed_key:g('pub-key').value.trim(),
+    feed_server:g('pub-fsrv').checked,
+    feed_port:parseInt(g('pub-fport').value,10)||8088,
     enabled:g('pub-enabled').checked,
     method:g('pub-method').value,
     url:g('pub-url').value.trim(),

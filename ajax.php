@@ -980,6 +980,10 @@ switch ($_GET['action'] ?? '') {
             'feed_base'     => 'plugin.php?plugin=' . rawurlencode(basename(__DIR__))
                              . '&page=ajax.php&nopage=1&action=public_schedule',
             'feed_key'      => $c['feed_key'] ?? '',
+            // Dedicated localhost feed server (for a tunnel) — served by the
+            // scheduler daemon, isolated from FPP's web UI.
+            'feed_server'   => !empty($c['feed_server']),
+            'feed_port'     => (int)($c['feed_port'] ?? 8088),
         ]);
         break;
 
@@ -1002,6 +1006,8 @@ switch ($_GET['action'] ?? '') {
         // Keep it to URL-safe characters so it can't break the query string.
         if (array_key_exists('feed_key', $body))
             $c['feed_key'] = preg_replace('/[^A-Za-z0-9_-]/', '', (string)$body['feed_key']);
+        $c['feed_server']   = !empty($body['feed_server']);
+        $c['feed_port']     = max(1024, min(65535, (int)($body['feed_port'] ?? 8088)));
         $c['paused']        = !empty($body['paused']);
         $c['status_note']   = trim($body['status_note'] ?? '');
         // Sanitize the events list
