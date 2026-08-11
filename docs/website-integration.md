@@ -19,27 +19,41 @@ hardcoded in the plugin.
 1. The website has a **server-side proxy** (e.g. a Cloudflare Worker) that
    fetches your feed on an interval and caches it (~30s). Visitors hit the
    proxy, never your box.
-2. You expose **only the feed path** to that proxy through a **Cloudflare
-   Tunnel** (or similar) — the rest of the box stays private.
-3. Because the fetch is server-to-server, **no CORS is needed**, and the secret
-   **key travels on that fetch only** — it never appears in any visitor's
-   browser.
+2. The plugin runs a **dedicated, localhost-only feed server** on its own port.
+   Its only job is to return the schedule JSON — it can't reach FPP's admin.
+3. A **Cloudflare Tunnel** points at *that port*, so the tunnel is physically
+   limited to the feed. FPP's unauthenticated web UI is never exposed.
+4. The fetch is server-to-server (**no CORS needed**) and the secret **key
+   travels on that fetch only** — it never appears in a visitor's browser.
+
+> **Do not** point the tunnel at `localhost:80`. That is FPP's web UI, which has
+> no authentication — it would put the whole show controller (including
+> disable/trigger actions) on the internet. Use the dedicated port below.
 
 ### Set it up
 
-1. On **System → Website Link**, click **Generate** to create a secret key,
-   then **Save**.
-2. Copy the **Public feed URL** shown there. It looks like:
+1. On **System → Website Link**:
+   - Click **Generate** for a secret key.
+   - Tick **Serve on a dedicated port for the tunnel** (default `8088`).
+   - **Save**. (The feed server starts within ~15s; the scheduler daemon must be
+     running.)
+2. Install the tunnel on the FPP box (from the Cloudflare dashboard's
+   *Create a Tunnel* screen — pick **Debian / 64-bit** and run the
+   `cloudflared service install <token>` command it gives you).
+3. In the tunnel's **Public Hostname** page, add a hostname (e.g.
+   `schedule.yourdomain.com`) with **Service → HTTP → `localhost:8088`**
+   (match the port above). Leave the path empty.
+4. Your feed URL is then:
    ```
-   https://<your-tunnel-host>/plugin.php?plugin=fpp-ShowManager&page=ajax.php&nopage=1&action=public_schedule&key=<secret>
+   https://schedule.yourdomain.com/?key=<secret>
    ```
-   (Point the tunnel's public hostname at `http://localhost:80`; the path and
-   query stay the same, so just swap the host into the copied URL.)
-3. In the site admin → **Schedule → Live schedule source**, paste that URL,
-   **Save**, then **Test**.
+   In the site admin → **Schedule → Live schedule source**, paste it, **Save**,
+   then **Test**.
 
 Without the key (or with the wrong key) the endpoint returns **403** — a scanner
-that stumbles onto the tunnel can't read the feed.
+that stumbles onto the tunnel can't read the feed. The **Open** button on the
+card tests the local endpoint directly (reachable on your LAN) so you can
+confirm the JSON before wiring the tunnel.
 
 ## The feed
 

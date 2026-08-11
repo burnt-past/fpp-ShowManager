@@ -230,6 +230,8 @@ Managed by the **System** tab (Website Link). Configures publishing the public s
 ```json
 {
   "feed_key": "9f2c…",
+  "feed_server": true,
+  "feed_port": 8088,
   "paused": false,
   "status_note": "",
   "allow_origin": "",
@@ -253,6 +255,8 @@ Managed by the **System** tab (Website Link). Configures publishing the public s
 | Key | Description |
 |---|---|
 | `feed_key` | Unguessable token required on the feed URL (`&key=…`). The site's proxy sends it on a server-to-server fetch, so it never reaches a visitor's browser. Leave empty to serve the feed unauthenticated (not recommended). URL-safe chars only |
+| `feed_server` | When true, the scheduler daemon runs a **localhost-only** HTTP server that returns *only* the feed. Point a tunnel at it so the tunnel can't reach FPP's admin. Its only upstream call is the one read-only feed action, hardcoded — a caller can't steer it elsewhere |
+| `feed_port` | Port for that server on `127.0.0.1` (default `8088`). Changing it restarts the server within ~15s |
 | `paused` / `status_note` | Flip the site to its paused banner and show a note (e.g. "Shows paused for high winds"). The site is also paused automatically while the system is disabled |
 | `allow_origin` | `Access-Control-Allow-Origin` on the feed. Empty by default (no header) — CORS isn't needed for a server-to-server pull; set it only if a browser fetches the feed directly |
 | `events` | Optional special-event cards. Each has a `name`, a `desc`, and either a `when` (datetime → ISO `iso` + human `date`) or a free-text `label` for open-ended entries like "All season". Some sites render these; others ignore them |
