@@ -1466,84 +1466,93 @@ function genFeedKey(){
 function renderPublish(){
   const box=document.getElementById('sm-publish');if(!box)return;
   const c=pubCfg;
-  const nEv=(c.events||[]).length;
   box.innerHTML=`
-   <div style="max-width:760px;margin:0 auto">
-    <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ico('link')}Website Link</div>
-    <p style="font-size:12px;color:var(--sub);margin:0 0 16px">Your public website fetches this read-only feed <b>server-to-server</b> through a tunnel — visitors never touch this box, and it carries show times only. Set a key, point a tunnel at the dedicated port, and paste the URL into the site.</p>
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin:0">${_ico('link')}Website Link</div>
+      <span style="font-size:12px;color:var(--sub)">Your public website fetches this read-only feed <b>server-to-server</b> through a tunnel — visitors never touch this box, and it carries show times only.</span>
+    </div>
 
-    <div style="display:grid;gap:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px;align-items:start">
 
-      <label class="sm-lbl" style="margin:0">Secret key <span style="color:var(--mut);font-weight:400">— required on the feed URL</span>
-        <div style="display:flex;gap:6px">
-          <input type="text" id="pub-key" class="sm-input" style="flex:1;font-family:var(--mono);font-size:12px" value="${escH(c.feed_key||'')}" placeholder="none set — click Generate" oninput="updateFeedUrl()">
-          <button class="sm-btn ghost sm" onclick="genFeedKey()">${_ico('refresh')}Generate</button>
-        </div>
-        <div id="pub-keywarn" style="display:${(c.feed_key||'')?'none':'block'};font-size:12px;color:var(--amber);margin-top:6px">${_ico('warn')} No key set — anyone who finds the tunnel URL can read the feed.</div>
-      </label>
+      <div style="display:grid;gap:14px;align-content:start">
+        <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:6px">1 · Connect the site</div>
 
-      <div>
-        <label style="display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap">
-          <input type="checkbox" id="pub-fsrv" ${c.feed_server?'checked':''} onchange="updateFeedUrl()">
-          <span>Serve on a dedicated port <span style="color:var(--mint);font-weight:600">(recommended)</span></span>
-          <span style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--sub)">Port <input type="number" id="pub-fport" class="sm-input" min="1024" max="65535" style="width:92px" value="${(c.feed_port||8088)}" oninput="updateFeedUrl()"></span>
+        <label class="sm-lbl" style="margin:0">Secret key <span style="color:var(--mut);font-weight:400">— required on the feed URL</span>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="pub-key" class="sm-input" style="flex:1;font-family:var(--mono);font-size:12px" value="${escH(c.feed_key||'')}" placeholder="none set — click Generate" oninput="updateFeedUrl()">
+            <button class="sm-btn ghost sm" onclick="genFeedKey()">${_ico('refresh')}Generate</button>
+          </div>
+          <div id="pub-keywarn" style="display:${(c.feed_key||'')?'none':'block'};font-size:12px;color:var(--amber);margin-top:6px">${_ico('warn')} No key set — anyone who finds the tunnel URL can read the feed.</div>
         </label>
-        <div id="pub-tunnel-target" class="sm-hint" style="margin-top:6px"></div>
-      </div>
 
-      <label class="sm-lbl" style="margin:0">Feed URL <span style="color:var(--mut);font-weight:400">— paste into the site's <i>Live schedule source</i></span>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input class="sm-input" id="pub-feedurl" readonly onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
-          <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
-          <a class="sm-btn ghost sm" id="pub-open" href="#" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+        <div>
+          <label style="display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap">
+            <input type="checkbox" id="pub-fsrv" ${c.feed_server?'checked':''} onchange="updateFeedUrl()">
+            <span>Serve on a dedicated port <span style="color:var(--mint);font-weight:600">(recommended)</span></span>
+            <span style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--sub)">Port <input type="number" id="pub-fport" class="sm-input" min="1024" max="65535" style="width:92px" value="${(c.feed_port||8088)}" oninput="updateFeedUrl()"></span>
+          </label>
+          <div id="pub-tunnel-target" class="sm-hint" style="margin-top:6px"></div>
         </div>
-      </label>
 
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap"><input type="checkbox" id="pub-paused" ${c.paused?'checked':''}>Show "paused" banner</label>
-        <input type="text" id="pub-note" class="sm-input" style="flex:1;min-width:220px" value="${escH(c.status_note||'')}" placeholder="Pause note — e.g. Shows paused for high winds">
+        <label class="sm-lbl" style="margin:0">Feed URL <span style="color:var(--mut);font-weight:400">— paste into the site's <i>Live schedule source</i></span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="sm-input" id="pub-feedurl" readonly onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
+            <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
+            <a class="sm-btn ghost sm" id="pub-open" href="#" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+          </div>
+        </label>
+      </div>
+
+      <div style="display:grid;gap:14px;align-content:start">
+        <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:700;border-bottom:1px solid var(--border);padding-bottom:6px">2 · What the site shows</div>
+
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap"><input type="checkbox" id="pub-paused" ${c.paused?'checked':''}>Show "paused" banner</label>
+          <input type="text" id="pub-note" class="sm-input" style="flex:1;min-width:200px" value="${escH(c.status_note||'')}" placeholder="Pause note — e.g. Shows paused for high winds">
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+            <span style="font-size:13px;font-weight:600">Special-event cards <span style="color:var(--mut);font-weight:400">— optional</span></span>
+            <button class="sm-btn ghost sm" onclick="pubCfg.events.push({name:'',when:'',label:'',desc:''});renderPublish()">${_ico('plus')}Add event</button>
+          </div>
+          <div id="pub-events">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:2px 0">Cards some sites show (e.g. "Opening Night &amp; Tree Lighting").</div>'}</div>
+        </div>
       </div>
     </div>
 
-    <details style="margin-top:14px" ${nEv?'open':''}>
-      <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Special-event cards${nEv?' ('+nEv+')':''} <span style="color:var(--mut)">— optional</span></summary>
-      <div style="margin-top:10px">
-        <div id="pub-events" style="margin-bottom:8px">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:2px 0 8px">Cards some sites show (e.g. "Opening Night & Tree Lighting").</div>'}</div>
-        <button class="sm-btn ghost sm" onclick="pubCfg.events.push({name:'',when:'',label:'',desc:''});renderPublish()">${_ico('plus')}Add event</button>
-      </div>
-    </details>
-
-    <details style="margin-top:10px" ${(c.enabled||c.url)?'open':''}>
+    <details style="margin-top:18px" ${(c.enabled||c.url)?'open':''}>
       <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Alternative: push to a static host</summary>
-      <p style="font-size:12px;color:var(--sub);margin:10px 0">Only if your site serves its own copy instead of fetching the URL above. The plugin uploads the feed on a schedule (opens nothing inbound).</p>
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
-      <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:end">
-        <label class="sm-lbl" style="margin:0">Method
-          <select id="pub-method" class="sm-input">
-            <option value="PUT" ${c.method==='PUT'?'selected':''}>PUT</option>
-            <option value="POST" ${c.method==='POST'?'selected':''}>POST</option>
-          </select></label>
-        <label class="sm-lbl" style="margin:0">Upload URL (your static host)<input type="url" id="pub-url" class="sm-input" value="${escH(c.url||'')}" placeholder="https://your-host.example/upload/schedule.json"></label>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <label class="sm-lbl" style="margin:0">Auth header<input type="text" id="pub-ahdr" class="sm-input" value="${escH(c.auth_header||'Authorization')}" placeholder="Authorization"></label>
-        <label class="sm-lbl" style="margin:0">Auth token<input type="password" id="pub-aval" class="sm-input" placeholder="${c.has_auth?'•••••••• (saved — leave blank to keep)':'Bearer … / API key'}"></label>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <label class="sm-lbl" style="margin:0">Publish every (minutes)<input type="number" id="pub-int" class="sm-input" min="1" max="1440" value="${(c.interval_mins||5)}"></label>
-        <label class="sm-lbl" style="margin:0">Allowed origin (CORS, optional)<input type="text" id="pub-origin" class="sm-input" value="${escH(c.allow_origin||'')}" placeholder="leave blank — not needed for proxy"></label>
-      </div>
-      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
-        <button class="sm-btn" onclick="publishNow()">${_ico('cloudup')}Publish now</button>
-        ${_pubStatus()}
+      <p style="font-size:12px;color:var(--sub);margin:10px 0;max-width:720px">Only if your site serves its own copy instead of fetching the URL above. The plugin uploads the feed on a schedule (opens nothing inbound).</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:8px 24px;max-width:960px">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;grid-column:1/-1"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
+        <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:end">
+          <label class="sm-lbl" style="margin:0">Method
+            <select id="pub-method" class="sm-input">
+              <option value="PUT" ${c.method==='PUT'?'selected':''}>PUT</option>
+              <option value="POST" ${c.method==='POST'?'selected':''}>POST</option>
+            </select></label>
+          <label class="sm-lbl" style="margin:0">Upload URL (your static host)<input type="url" id="pub-url" class="sm-input" value="${escH(c.url||'')}" placeholder="https://your-host.example/upload/schedule.json"></label>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="sm-lbl" style="margin:0">Auth header<input type="text" id="pub-ahdr" class="sm-input" value="${escH(c.auth_header||'Authorization')}" placeholder="Authorization"></label>
+          <label class="sm-lbl" style="margin:0">Auth token<input type="password" id="pub-aval" class="sm-input" placeholder="${c.has_auth?'•••••••• (saved — leave blank to keep)':'Bearer … / API key'}"></label>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <label class="sm-lbl" style="margin:0">Publish every (minutes)<input type="number" id="pub-int" class="sm-input" min="1" max="1440" value="${(c.interval_mins||5)}"></label>
+          <label class="sm-lbl" style="margin:0">Allowed origin (CORS, optional)<input type="text" id="pub-origin" class="sm-input" value="${escH(c.allow_origin||'')}" placeholder="leave blank — not needed for proxy"></label>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button class="sm-btn" onclick="publishNow()">${_ico('cloudup')}Publish now</button>
+          ${_pubStatus()}
+        </div>
       </div>
     </details>
 
-    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <button class="sm-btn solid" onclick="savePublish()">Save website link</button>
-      <span class="sm-hint" style="margin-left:10px">Saves the key, port, paused state and events.</span>
-    </div>
-   </div>`;
+      <span class="sm-hint">Saves the key, port, paused state and events.</span>
+    </div>`;
   updateFeedUrl();
 }
 async function savePublish(){
