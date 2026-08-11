@@ -1296,7 +1296,18 @@ async function annTest(){
 function loadSystem(){
   const el=document.getElementById('sm-system');
   el.innerHTML=`
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;align-items:start">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">
+    <div class="sm-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+        <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
+        <div style="display:flex;gap:6px">
+          <button class="sm-btn ghost sm" onclick="brightnessFlash()">Flash lights</button>
+          <button class="sm-btn ghost sm" onclick="runDiag()">${_ico('refresh')}Re-check</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">A quick pre-show health check of the rig.</p>
+      <div id="sm-diag"><div class="sm-skel" style="height:160px"></div></div>
+    </div>
     <div class="sm-card">
       <div class="sm-ct" style="margin-bottom:6px">Backup &amp; Restore</div>
       <p style="font-size:12px;color:var(--sub);margin:0 0 14px">Download every Show Manager setting as one file, or restore from a previous backup. Restoring overwrites current settings and restarts the daemons.</p>
@@ -1311,21 +1322,10 @@ function loadSystem(){
       <div class="sm-ct" style="margin-bottom:6px">Dropbox Backup</div>
       <div id="sm-dropbox"><div class="sm-skel" style="height:120px"></div></div>
     </div>
-    <div class="sm-card" style="grid-column:1/-1">
-      <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ico('link')}Website Link</div>
-      <div id="sm-publish"><div class="sm-skel" style="height:160px"></div></div>
-    </div>
-    <div class="sm-card">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
-        <div class="sm-ct" style="margin-bottom:0">Diagnostics</div>
-        <div style="display:flex;gap:6px">
-          <button class="sm-btn ghost sm" onclick="brightnessFlash()">Flash lights</button>
-          <button class="sm-btn ghost sm" onclick="runDiag()">${_ico('refresh')}Re-check</button>
-        </div>
-      </div>
-      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">A quick pre-show health check of the rig.</p>
-      <div id="sm-diag"><div class="sm-skel" style="height:180px"></div></div>
-    </div>
+  </div>
+  <div class="sm-card" style="margin-top:16px">
+    <div class="sm-ct" style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${_ico('link')}Website Link</div>
+    <div id="sm-publish"><div class="sm-skel" style="height:160px"></div></div>
   </div>`;
   runDiag();
   loadDropbox();
@@ -1467,56 +1467,54 @@ function genFeedKey(){
 function renderPublish(){
   const box=document.getElementById('sm-publish');if(!box)return;
   const c=pubCfg;
+  const nEv=(c.events||[]).length;
   box.innerHTML=`
-    <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Give your public website tonight's show times. The website fetches this small read-only feed <b>server-to-server</b> (through a tunnel) — visitors never touch this box, and the feed carries show times only, no settings or secrets.</p>
+    <p style="font-size:12px;color:var(--sub);margin:0 0 16px;max-width:720px">Your public website fetches this read-only feed <b>server-to-server</b> through a tunnel — visitors never touch this box, and it carries show times only. Set a key, point a tunnel at the dedicated port, and paste the URL into the site.</p>
 
-    <div style="border:1px solid var(--brdHi,var(--border));border-radius:12px;padding:14px">
-      <div class="sm-ct" style="margin:0 0 4px;font-size:13px">Public feed URL</div>
-      <p style="font-size:12px;color:var(--sub);margin:0 0 10px">The website fetches this server-to-server through a tunnel. The secret key travels on that fetch and never reaches a visitor's browser.</p>
+    <div style="display:grid;gap:14px;max-width:720px">
 
-      <label class="sm-lbl" style="margin:0">Secret key (required on the URL)
+      <label class="sm-lbl" style="margin:0">Secret key <span style="color:var(--mut);font-weight:400">— required on the feed URL</span>
         <div style="display:flex;gap:6px">
-          <input type="text" id="pub-key" class="sm-input" style="flex:1;font-family:var(--mono);font-size:12px" value="${escH(c.feed_key||'')}" placeholder="none set — generate one" oninput="updateFeedUrl()">
+          <input type="text" id="pub-key" class="sm-input" style="flex:1;font-family:var(--mono);font-size:12px" value="${escH(c.feed_key||'')}" placeholder="none set — click Generate" oninput="updateFeedUrl()">
           <button class="sm-btn ghost sm" onclick="genFeedKey()">${_ico('refresh')}Generate</button>
-        </div></label>
-      <div id="pub-keywarn" style="display:${(c.feed_key||'')?'none':'block'};font-size:12px;color:var(--amber);margin-top:6px">${_ico('warn')} No key set — anyone who finds the tunnel URL can read the feed. Generate one.</div>
+        </div>
+        <div id="pub-keywarn" style="display:${(c.feed_key||'')?'none':'block'};font-size:12px;color:var(--amber);margin-top:6px">${_ico('warn')} No key set — anyone who finds the tunnel URL can read the feed.</div>
+      </label>
 
-      <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:12px">
-        <label style="display:flex;align-items:center;gap:8px;font-size:13px"><input type="checkbox" id="pub-fsrv" ${c.feed_server?'checked':''} onchange="updateFeedUrl()">Serve on a dedicated port for the tunnel <span style="color:var(--mint);font-weight:600">(recommended)</span></label>
-        <p style="font-size:12px;color:var(--sub);margin:8px 0 8px">Isolates the feed from FPP's admin — the tunnel reaches <b>only</b> this port, nothing else on the box. Requires the scheduler daemon running.</p>
-        <label class="sm-lbl" style="margin:0;max-width:160px">Port<input type="number" id="pub-fport" class="sm-input" min="1024" max="65535" value="${(c.feed_port||8088)}" oninput="updateFeedUrl()"></label>
-        <div id="pub-tunnel-target" class="sm-hint" style="margin-top:8px"></div>
+      <div>
+        <label style="display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap">
+          <input type="checkbox" id="pub-fsrv" ${c.feed_server?'checked':''} onchange="updateFeedUrl()">
+          <span>Serve on a dedicated port <span style="color:var(--mint);font-weight:600">(recommended)</span></span>
+          <span style="display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--sub)">Port <input type="number" id="pub-fport" class="sm-input" min="1024" max="65535" style="width:92px" value="${(c.feed_port||8088)}" oninput="updateFeedUrl()"></span>
+        </label>
+        <div id="pub-tunnel-target" class="sm-hint" style="margin-top:6px"></div>
       </div>
 
-      <div style="font-size:12px;color:var(--sub);margin:12px 0 4px">Paste this into the website admin's <i>Live schedule source</i>:</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input class="sm-input" id="pub-feedurl" readonly onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
-        <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
-        <a class="sm-btn ghost sm" id="pub-open" href="#" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+      <label class="sm-lbl" style="margin:0">Feed URL <span style="color:var(--mut);font-weight:400">— paste into the site's <i>Live schedule source</i></span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input class="sm-input" id="pub-feedurl" readonly onclick="this.select()" style="flex:1;font-family:var(--mono);font-size:11px">
+          <button class="sm-btn ghost sm" onclick="copyFeedUrl()">${_ico('copy')}Copy</button>
+          <a class="sm-btn ghost sm" id="pub-open" href="#" target="_blank" rel="noopener">${_ico('extlink')}Open</a>
+        </div>
+      </label>
+
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;white-space:nowrap"><input type="checkbox" id="pub-paused" ${c.paused?'checked':''}>Show "paused" banner</label>
+        <input type="text" id="pub-note" class="sm-input" style="flex:1;min-width:220px" value="${escH(c.status_note||'')}" placeholder="Pause note — e.g. Shows paused for high winds">
       </div>
-      <div class="sm-hint" style="margin-top:8px">Click <b>Save</b> after changing the key, port, or server toggle.</div>
     </div>
 
-    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:12px">
-      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="pub-paused" ${c.paused?'checked':''}>Show a "paused" banner on the site</label>
-      <label class="sm-lbl" style="margin:0">Pause note (shown to visitors)<input type="text" id="pub-note" class="sm-input" value="${escH(c.status_note||'')}" placeholder="Shows paused for high winds."></label>
-    </div>
-
-    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:12px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div class="sm-ct" style="margin:0;font-size:13px">Special-event cards <span style="color:var(--mut);font-weight:400">(optional)</span></div>
-        <button class="sm-btn ghost sm" onclick="pubCfg.events.push({name:'',when:'',label:'',desc:''});renderPublish()">${_ico('plus')}Add</button>
+    <details style="margin-top:14px;max-width:720px" ${nEv?'open':''}>
+      <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Special-event cards${nEv?' ('+nEv+')':''} <span style="color:var(--mut)">— optional</span></summary>
+      <div style="margin-top:10px">
+        <div id="pub-events" style="margin-bottom:8px">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:2px 0 8px">Cards some sites show (e.g. "Opening Night & Tree Lighting").</div>'}</div>
+        <button class="sm-btn ghost sm" onclick="pubCfg.events.push({name:'',when:'',label:'',desc:''});renderPublish()">${_ico('plus')}Add event</button>
       </div>
-      <div id="pub-events">${_eventRows()||'<div style="font-size:12px;color:var(--mut);padding:4px 0">No special events. Some sites show these as cards (e.g. "Opening Night & Tree Lighting"); others ignore them.</div>'}</div>
-    </div>
+    </details>
 
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
-      <button class="sm-btn solid" onclick="savePublish()">Save</button>
-    </div>
-
-    <details style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+    <details style="margin-top:10px;max-width:720px" ${(c.enabled||c.url)?'open':''}>
       <summary style="cursor:pointer;font-size:13px;color:var(--sub)">Alternative: push to a static host</summary>
-      <p style="font-size:12px;color:var(--sub);margin:10px 0">Instead of the site pulling, the plugin can <b>upload</b> the feed to a static host on a schedule (opens nothing inbound). Use this only if your site serves its own copy rather than fetching the URL above.</p>
+      <p style="font-size:12px;color:var(--sub);margin:10px 0">Only if your site serves its own copy instead of fetching the URL above. The plugin uploads the feed on a schedule (opens nothing inbound).</p>
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px"><input type="checkbox" id="pub-enabled" ${c.enabled?'checked':''}>Auto-publish on a schedule</label>
       <div style="display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:end">
         <label class="sm-lbl" style="margin:0">Method
@@ -1534,11 +1532,16 @@ function renderPublish(){
         <label class="sm-lbl" style="margin:0">Publish every (minutes)<input type="number" id="pub-int" class="sm-input" min="1" max="1440" value="${(c.interval_mins||5)}"></label>
         <label class="sm-lbl" style="margin:0">Allowed origin (CORS, optional)<input type="text" id="pub-origin" class="sm-input" value="${escH(c.allow_origin||'')}" placeholder="leave blank — not needed for proxy"></label>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div style="display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap">
         <button class="sm-btn" onclick="publishNow()">${_ico('cloudup')}Publish now</button>
+        ${_pubStatus()}
       </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap">${_pubStatus()}</div>
-    </details>`;
+    </details>
+
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+      <button class="sm-btn solid" onclick="savePublish()">Save website link</button>
+      <span class="sm-hint" style="margin-left:10px">Saves the key, port, paused state and events.</span>
+    </div>`;
   updateFeedUrl();
 }
 async function savePublish(){
