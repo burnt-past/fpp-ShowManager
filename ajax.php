@@ -145,7 +145,8 @@ function sm_running_effects() {
     $raw = @file_get_contents('http://localhost/api/fppd/effects', false, $ctx);
     $j = $raw !== false ? json_decode($raw, true) : null;
     if (!is_array($j)) return [];
-    $list = $j['effects'] ?? $j;          // {"effects":[...]} or a bare array
+    // FPP 10 wraps the list in "runningEffects"; 9.x used "effects" or a bare array.
+    $list = $j['runningEffects'] ?? $j['effects'] ?? $j;
     $names = [];
     foreach ((array)$list as $e) {
         if (is_array($e)) {

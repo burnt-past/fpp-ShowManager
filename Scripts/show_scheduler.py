@@ -300,7 +300,9 @@ def _fpp_effects_raw():
     """Running effects FPP reports (list of dicts), or [] — /api/fppd/effects."""
     data = _fpp("/api/fppd/effects")
     if isinstance(data, dict):
-        data = data.get("effects", [])
+        # FPP 10 wraps the list in "runningEffects"; 9.x used "effects" or a
+        # bare array. Accept all three so BG-effect status works on either.
+        data = data.get("runningEffects", data.get("effects", []))
     return data if isinstance(data, list) else []
 
 def fpp_running_effects():
