@@ -1,0 +1,35 @@
+# FPP 10 test VM for fpp-ShowManager
+#
+#   cd test/fpp10-vm && vagrant up          # first boot compiles FPP (~20-40 min)
+#   open http://localhost:8080/             # FPP UI  -> Status/Control -> Plugins -> Show Manager
+#
+# The plugin repo (this checkout) is mounted into the VM and symlinked into
+# FPP's plugin directory, so edits on your machine are live in the VM — just
+# re-run the daemons (see README) or `vagrant reload`.
+#
+# Requires: VirtualBox (or libvirt) + Vagrant on your machine. Debian 13 is
+# FPP 10's clean x86 target; Ubuntu 24.04 is NOT used here (it lacks
+# libsdl3-dev, which FPP 10's installer needs).
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "debian/trixie64"          # Debian 13; fallback: "bento/debian-13"
+  config.vm.hostname = "fpp10-test"
+
+  # FPP web UI -> http://localhost:8080 ; dedicated schedule-feed port -> 8088
+  config.vm.network "forwarded_port", guest: 80,   host: 8080, auto_correct: true
+  config.vm.network "forwarded_port", guest: 8088, host: 8088, auto_correct: true
+
+  # This plugin checkout (repo root is two levels up) -> mounted in the VM.
+  config.vm.synced_folder "../..", "/srv/fpp-showmanager-src"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name   = "fpp10-showmanager-test"
+    vb.cpus   = 4          # the fppd compile is CPU-bound; give it cores
+    vb.memory = 4096       # 4 GB keeps the compile from OOM-ing
+  end
+  # libvirt users: uncomment and `vagrant up --provider=libvirt`
+  # config.vm.provider "libvirt" do |lv| lv.cpus = 4; lv.memory = 4096 end
+
+  config.vm.provision "shell", path: "provision.sh",
+    env: { "FPP_BRANCH" => ENV.fetch("FPP_BRANCH", "v10.1") }
+end
