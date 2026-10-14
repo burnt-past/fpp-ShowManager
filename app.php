@@ -1322,6 +1322,11 @@ function loadSystem(){
       <div class="sm-ct" style="margin-bottom:6px">Dropbox Backup</div>
       <div id="sm-dropbox"><div class="sm-skel" style="height:120px"></div></div>
     </div>
+    <div class="sm-card">
+      <div class="sm-ct" style="margin-bottom:6px">Schedule Presets</div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Load a set of blackout (quiet-hours) windows shipped with the plugin into your calendar. Non-destructive — your shows and rules are untouched, and you can remove a set the same way.</p>
+      <div id="sm-presets"><div class="sm-skel" style="height:80px"></div></div>
+    </div>
   </div>
   <div class="sm-card" style="margin-top:16px">
     <div id="sm-publish"><div class="sm-skel" style="height:160px;max-width:760px;margin:0 auto"></div></div>
@@ -1329,6 +1334,36 @@ function loadSystem(){
   runDiag();
   loadDropbox();
   loadPublish();
+  loadPresets();
+}
+async function loadPresets(){
+  const box=document.getElementById('sm-presets');if(!box)return;
+  const j=await fetch(AJAX+'&action=list_presets').then(r=>r.json()).catch(()=>({presets:[]}));
+  const ps=(j.presets||[]);
+  if(!ps.length){box.innerHTML='<div style="font-size:12px;color:var(--mut)">No presets shipped with this version.</div>';return;}
+  box.innerHTML=ps.map(p=>{
+    const title=p.file.replace(/\.json$/,'').replace(/[-_]/g,' ');
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;text-transform:capitalize">${escH(title)}</div>
+        <div style="font-size:12px;color:var(--sub)">${p.count} blackout window(s)</div>
+      </div>
+      <button class="sm-btn solid sm" onclick="importPreset(${JSON.stringify(p.file)},false)">Import</button>
+      <button class="sm-btn ghost sm" onclick="importPreset(${JSON.stringify(p.file)},true)">Remove</button>
+    </div>`;
+  }).join('');
+}
+async function importPreset(file,remove){
+  const verb=remove?'Remove':'Import';
+  smConfirm(verb+' quiet hours?',
+    remove?'Removes this preset’s blackout windows from your schedule. Your shows and rules are untouched.'
+          :'Adds this preset’s blackout windows to your schedule (idempotent). Your shows and rules are untouched. A backup is saved first.',
+    verb,async()=>{
+    toast(verb+'ing…','amber');
+    const j=await fetch(AJAX+'&action=import_preset',{method:'POST',body:JSON.stringify({file,remove})}).then(r=>r.json()).catch(()=>({error:'network'}));
+    if(j.ok){toast((remove?'Removed. ':'Imported. ')+j.blackouts+' blackout(s) now in the schedule','ok');if(typeof invalidate==='function')invalidate();}
+    else toast(j.error||(verb+' failed'),'err');
+  });
 }
 let dbxCfg={};
 async function loadDropbox(){

@@ -1073,6 +1073,41 @@ switch ($_GET['action'] ?? '') {
         else { http_response_code(502); echo json_encode(['ok' => false, 'error' => $c['last_error']]); }
         break;
 
+    case 'list_presets':
+        // Schedule presets shipped with the plugin (e.g. venue quiet hours).
+        $out = [];
+        foreach (glob(__DIR__ . '/presets/*.json') as $f) {
+            $arr = json_decode(file_get_contents($f), true);
+            $n   = is_array($arr) ? count($arr) : 0;
+            $out[] = ['file' => basename($f), 'count' => $n];
+        }
+        echo json_encode(['presets' => $out]);
+        break;
+
+    case 'import_preset':
+        // Merge a shipped preset into the schedule (non-destructive, idempotent),
+        // or remove it with {"remove":true}. Reuses scripts/import_blackouts.py so
+        // the CLI and the UI share one implementation.
+        $body   = json_decode(file_get_contents('php://input'), true) ?: [];
+        $file   = basename($body['file'] ?? '');        // basename() blocks path traversal
+        $remove = !empty($body['remove']);
+        $path   = __DIR__ . '/presets/' . $file;
+        if ($file === '' || !preg_match('/\.json$/', $file) || !is_file($path)) {
+            http_response_code(400); echo json_encode(['error' => 'unknown preset']); break;
+        }
+        $py = trim(shell_exec('command -v python3 2>/dev/null') ?: '');
+        if ($py === '') { http_response_code(500); echo json_encode(['error' => 'python3 not found']); break; }
+        $cmd = escapeshellarg($py) . ' ' . escapeshellarg(__DIR__ . '/scripts/import_blackouts.py')
+             . ' ' . escapeshellarg($path)
+             . ' --config ' . escapeshellarg($scheduleFile)
+             . ($remove ? ' --remove' : '') . ' 2>&1';
+        $outTxt = shell_exec($cmd);
+        // Report the resulting blackout count so the UI can confirm.
+        $sched = json_decode(file_get_contents($scheduleFile), true) ?: ['entries' => []];
+        $blk = 0; foreach (($sched['entries'] ?? []) as $e) if (($e['type'] ?? '') === 'blackout') $blk++;
+        echo json_encode(['ok' => true, 'removed' => $remove, 'blackouts' => $blk, 'output' => trim((string)$outTxt)]);
+        break;
+
     default:
         http_response_code(400);
         echo json_encode(['error' => 'unknown action']);
