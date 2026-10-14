@@ -164,7 +164,7 @@ function numOr(v,d){const n=parseFloat(v);return isNaN(n)?d:n;}
 function qlabel(e){
   if(e.type==='blackout'){
     const range=(e.start_time||e.end_time)?` ${e.start_time||'00:00'}–${e.end_time||'23:59'}`:'';
-    return 'Blackout'+range;
+    return (e.reason||'Blackout')+range;
   }
   return e.playlist||(e.playlists||[]).join(' / ')||'(show)';
 }
