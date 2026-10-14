@@ -1073,39 +1073,53 @@ switch ($_GET['action'] ?? '') {
         else { http_response_code(502); echo json_encode(['ok' => false, 'error' => $c['last_error']]); }
         break;
 
-    case 'list_presets':
-        // Schedule presets shipped with the plugin (e.g. venue quiet hours).
-        $out = [];
-        foreach (glob(__DIR__ . '/presets/*.json') as $f) {
-            $arr = json_decode(file_get_contents($f), true);
-            $n   = is_array($arr) ? count($arr) : 0;
-            $out[] = ['file' => basename($f), 'count' => $n];
+    case 'import_blackouts':
+        // Merge an uploaded set of blackout (quiet-hours) entries into the
+        // schedule — pure PHP, no external process. Non-destructive and
+        // idempotent: entries are matched by "id", existing shows/rules are
+        // left alone. With ?remove=1 the uploaded ids are removed instead.
+        // The uploaded body is a JSON array of entries (the file the operator
+        // picks); venue data is never stored in the plugin itself.
+        $raw = file_get_contents('php://input');
+        $new = json_decode($raw, true);
+        if (!is_array($new) || !$new || array_keys($new) !== range(0, count($new) - 1)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'File must be a JSON array of schedule entries']);
+            break;
         }
-        echo json_encode(['presets' => $out]);
-        break;
+        $remove  = !empty($_GET['remove']);
+        $entries = $schedule['entries'] ?? [];
 
-    case 'import_preset':
-        // Merge a shipped preset into the schedule (non-destructive, idempotent),
-        // or remove it with {"remove":true}. Reuses scripts/import_blackouts.py so
-        // the CLI and the UI share one implementation.
-        $body   = json_decode(file_get_contents('php://input'), true) ?: [];
-        $file   = basename($body['file'] ?? '');        // basename() blocks path traversal
-        $remove = !empty($body['remove']);
-        $path   = __DIR__ . '/presets/' . $file;
-        if ($file === '' || !preg_match('/\.json$/', $file) || !is_file($path)) {
-            http_response_code(400); echo json_encode(['error' => 'unknown preset']); break;
+        // Best-effort backup of the current schedule (don't fail the import if
+        // the dir isn't writable for a new file — the merge still works).
+        @file_put_contents($scheduleFile . '.bak', json_encode($schedule, JSON_PRETTY_PRINT));
+
+        $ids = [];
+        foreach ($new as $e) { if (is_array($e) && !empty($e['id'])) $ids[$e['id']] = $e; }
+        if (!$ids) { http_response_code(400); echo json_encode(['error' => 'No entries with an "id" found in the file']); break; }
+
+        if ($remove) {
+            $before  = count($entries);
+            $entries = array_values(array_filter($entries, fn($e) => !isset($ids[$e['id'] ?? ''])));
+            $changed = $before - count($entries);
+        } else {
+            $byId = [];
+            foreach ($entries as $e) if (!empty($e['id'])) $byId[$e['id']] = $e;
+            $added = 0;
+            foreach ($ids as $id => $e) { if (!isset($byId[$id])) $added++; $byId[$id] = $e; }
+            // keep any id-less entries, then the merged id'd ones
+            $entries = array_merge(array_values(array_filter($entries, fn($e) => empty($e['id']))), array_values($byId));
+            $changed = $added;
         }
-        $py = trim(shell_exec('command -v python3 2>/dev/null') ?: '');
-        if ($py === '') { http_response_code(500); echo json_encode(['error' => 'python3 not found']); break; }
-        $cmd = escapeshellarg($py) . ' ' . escapeshellarg(__DIR__ . '/scripts/import_blackouts.py')
-             . ' ' . escapeshellarg($path)
-             . ' --config ' . escapeshellarg($scheduleFile)
-             . ($remove ? ' --remove' : '') . ' 2>&1';
-        $outTxt = shell_exec($cmd);
-        // Report the resulting blackout count so the UI can confirm.
-        $sched = json_decode(file_get_contents($scheduleFile), true) ?: ['entries' => []];
-        $blk = 0; foreach (($sched['entries'] ?? []) as $e) if (($e['type'] ?? '') === 'blackout') $blk++;
-        echo json_encode(['ok' => true, 'removed' => $remove, 'blackouts' => $blk, 'output' => trim((string)$outTxt)]);
+
+        $schedule['entries'] = $entries;
+        if (file_put_contents($scheduleFile, json_encode($schedule, JSON_PRETTY_PRINT)) === false) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Could not write the schedule file (permissions?)']);
+            break;
+        }
+        $blk = 0; foreach ($entries as $e) if (($e['type'] ?? '') === 'blackout') $blk++;
+        echo json_encode(['ok' => true, 'removed' => $remove, 'changed' => $changed, 'blackouts' => $blk]);
         break;
 
     default:

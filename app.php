@@ -1323,9 +1323,15 @@ function loadSystem(){
       <div id="sm-dropbox"><div class="sm-skel" style="height:120px"></div></div>
     </div>
     <div class="sm-card">
-      <div class="sm-ct" style="margin-bottom:6px">Schedule Presets</div>
-      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Load a set of blackout (quiet-hours) windows shipped with the plugin into your calendar. Non-destructive — your shows and rules are untouched, and you can remove a set the same way.</p>
-      <div id="sm-presets"><div class="sm-skel" style="height:80px"></div></div>
+      <div class="sm-ct" style="margin-bottom:6px">Blackout / Quiet Hours</div>
+      <p style="font-size:12px;color:var(--sub);margin:0 0 12px">Import a set of blackout (quiet-hours) windows from a JSON file into your calendar — e.g. the venue's "no amplified sound" schedule. Non-destructive: matched by id, your shows and rules are untouched, and re-importing won't duplicate. Remove re-reads the same file and takes just those windows back out.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="sm-btn solid" onclick="document.getElementById('sm-blk-file').click()">${_ico('upload')}Import from file…</button>
+        <button class="sm-btn ghost" onclick="document.getElementById('sm-blk-rm').click()">Remove from file…</button>
+        <input type="file" id="sm-blk-file" accept="application/json,.json" style="display:none" onchange="importBlackouts(this,false)">
+        <input type="file" id="sm-blk-rm"   accept="application/json,.json" style="display:none" onchange="importBlackouts(this,true)">
+      </div>
+      <div class="sm-hint" style="margin-top:10px">A backup of the current schedule is saved first.</div>
     </div>
   </div>
   <div class="sm-card" style="margin-top:16px">
@@ -1334,35 +1340,24 @@ function loadSystem(){
   runDiag();
   loadDropbox();
   loadPublish();
-  loadPresets();
 }
-async function loadPresets(){
-  const box=document.getElementById('sm-presets');if(!box)return;
-  const j=await fetch(AJAX+'&action=list_presets').then(r=>r.json()).catch(()=>({presets:[]}));
-  const ps=(j.presets||[]);
-  if(!ps.length){box.innerHTML='<div style="font-size:12px;color:var(--mut)">No presets shipped with this version.</div>';return;}
-  box.innerHTML=ps.map(p=>{
-    const title=p.file.replace(/\.json$/,'').replace(/[-_]/g,' ');
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;text-transform:capitalize">${escH(title)}</div>
-        <div style="font-size:12px;color:var(--sub)">${p.count} blackout window(s)</div>
-      </div>
-      <button class="sm-btn solid sm" onclick="importPreset(${JSON.stringify(p.file)},false)">Import</button>
-      <button class="sm-btn ghost sm" onclick="importPreset(${JSON.stringify(p.file)},true)">Remove</button>
-    </div>`;
-  }).join('');
-}
-async function importPreset(file,remove){
+function importBlackouts(input,remove){
+  const file=input.files&&input.files[0];
+  input.value='';
+  if(!file)return;
   const verb=remove?'Remove':'Import';
-  smConfirm(verb+' quiet hours?',
-    remove?'Removes this preset’s blackout windows from your schedule. Your shows and rules are untouched.'
-          :'Adds this preset’s blackout windows to your schedule (idempotent). Your shows and rules are untouched. A backup is saved first.',
+  smConfirm(verb+' blackout windows?',
+    remove?'Removes the windows listed in this file from your schedule. Shows and rules are untouched.'
+          :'Adds the blackout windows in this file to your schedule (idempotent). Shows and rules are untouched; a backup is saved first.',
     verb,async()=>{
-    toast(verb+'ing…','amber');
-    const j=await fetch(AJAX+'&action=import_preset',{method:'POST',body:JSON.stringify({file,remove})}).then(r=>r.json()).catch(()=>({error:'network'}));
-    if(j.ok){toast((remove?'Removed. ':'Imported. ')+j.blackouts+' blackout(s) now in the schedule','ok');if(typeof invalidate==='function')invalidate();}
-    else toast(j.error||(verb+' failed'),'err');
+    try{
+      const text=await file.text();
+      toast(verb+'ing…','amber');
+      const r=await fetch(AJAX+'&action=import_blackouts'+(remove?'&remove=1':''),{method:'POST',body:text});
+      const j=await r.json();
+      if(j.ok){toast((remove?'Removed '+j.changed+'. ':'Imported '+j.changed+'. ')+j.blackouts+' blackout(s) now in the schedule','ok');if(typeof invalidate==='function')invalidate();}
+      else toast(j.error||(verb+' failed'),'err');
+    }catch(e){toast(verb+' failed — invalid file','err');}
   });
 }
 let dbxCfg={};

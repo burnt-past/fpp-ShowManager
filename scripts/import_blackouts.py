@@ -9,7 +9,7 @@ untouched. The scheduler reads the schedule live, so changes take effect within
 a few seconds; no restart needed.
 
 Usage:
-    python3 scripts/import_blackouts.py presets/2026-mission-quiet-hours.json
+    python3 scripts/import_blackouts.py path/to/quiet-hours.json
     python3 scripts/import_blackouts.py <file.json> --config /path/to/Schedule.config
     python3 scripts/import_blackouts.py <file.json> --remove   # remove those ids instead
 
