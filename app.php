@@ -168,6 +168,16 @@ function qlabel(e){
   }
   return e.playlist||(e.playlists||[]).join(' / ')||'(show)';
 }
+/* True if this show falls inside a blackout window for the day (mirrors the
+   scheduler) — i.e. it will NOT run because amplified sound is off. */
+function _showBlacked(e,ents){
+  if(e.type!=='show')return false;
+  const blk=(ents||[]).filter(b=>b.type==='blackout');
+  if(blk.some(b=>!b.start_time&&!b.end_time))return true;      // whole-day blackout
+  const t=e.time||'';
+  return blk.some(b=>(b.start_time||'00:00')<=t&&t<=(b.end_time||'23:59'));
+}
+function _blkBadge(){return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#fff;background:var(--red);border-radius:999px;padding:2px 8px;white-space:nowrap">'+_ico('ban')+'quiet hours</span>';}
 function plOptions(sel){return ['<option value="">— none —</option>',...PLAYLISTS.map(p=>`<option value="${escH(p)}"${p===sel?' selected':''}>${escH(p)}</option>`)].join('');}
 function copyText(id){const el=document.getElementById(id);if(!el)return;navigator.clipboard.writeText(el.textContent);toast('Copied to clipboard','ok');}
 
@@ -741,11 +751,13 @@ function renderDayView(){
   const ents=byDate[ds]||[];
   let html=ents.map(e=>{
     const isRule=!!e.rule_id,isBlk=e.type==='blackout';
+    const blacked=_showBlacked(e,ents);
     const c=isBlk?'var(--red)':isRule?'var(--s1)':'var(--mint)';
-    return `<div class="dv-entry">
+    return `<div class="dv-entry"${blacked?' style="opacity:.6"':''}>
       <div style="width:4px;height:36px;border-radius:2px;background:${c};flex-shrink:0"></div>
       <span style="font-family:var(--mono);font-size:14px;color:${c};min-width:52px">${escH(e.time||'')}</span>
-      <span style="flex:1;font-size:14px;font-weight:600">${escH(qlabel(e))}</span>
+      <span style="flex:1;font-size:14px;font-weight:600;${blacked?'text-decoration:line-through;text-decoration-color:var(--red)':''}">${escH(qlabel(e))}</span>
+      ${blacked?_blkBadge():''}
       ${isRule
         ?`<button class="sm-btn ghost sm" onclick="editRule('${escH(e.rule_id)}')">Edit Rule</button><button class="sm-btn danger sm" onclick="deleteRuleConfirm('${escH(e.rule_id)}')">Del Rule</button>`
         :`<button class="sm-btn danger sm" onclick="deleteEntry('${escH(e.id)}')">Remove</button>`}
@@ -861,10 +873,12 @@ function openDayModal(ds){
   const ents=calState.byDate[ds]||[];
   const rows=ents.length?`<div style="background:var(--high);border-radius:10px;padding:6px 14px;margin-bottom:18px">`+ents.map((e,i)=>{
     const isRule=!!e.rule_id,isBlk=e.type==='blackout';
+    const blacked=_showBlacked(e,ents);
     const c=isBlk?'var(--red)':isRule?'var(--s1)':'var(--mint)';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 0;${i<ents.length-1?'border-bottom:1px solid var(--border)':''}">
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;${i<ents.length-1?'border-bottom:1px solid var(--border)':''}${blacked?';opacity:.6':''}">
       <span style="font-family:var(--mono);color:${c};font-size:13px;min-width:44px">${escH(e.time||'')}</span>
-      <span style="font-size:14px;flex:1">${escH(qlabel(e))}</span>
+      <span style="font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${blacked?'text-decoration:line-through;text-decoration-color:var(--red)':''}">${escH(qlabel(e))}</span>
+      ${blacked?_blkBadge():''}
       ${isRule
         ?`<button class="sm-btn ghost sm" onclick="editRule('${escH(e.rule_id)}');">Edit Rule</button><button class="sm-btn danger sm" onclick="deleteRuleConfirm('${escH(e.rule_id)}')">Del</button>`
         :`<button class="sm-btn danger sm" onclick="deleteEntry('${escH(e.id)}')">Remove</button>`}
