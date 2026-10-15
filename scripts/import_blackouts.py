@@ -14,8 +14,8 @@ Usage:
     python3 scripts/import_blackouts.py <file.json> --remove   # remove those ids instead
 
 The JSON file is an array of entries, e.g.:
-    [{"id":"qh_2026-11-14_1100","date":"2026-11-14","type":"blackout",
-      "reason":"...","start_time":"11:00","end_time":"15:30"}]
+    [{"id":"bo_01","date":"YYYY-MM-DD","type":"blackout",
+      "reason":"...","start_time":"HH:MM","end_time":"HH:MM"}]
 """
 import argparse, datetime, json, os, sys
 
