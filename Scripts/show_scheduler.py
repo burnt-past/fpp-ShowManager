@@ -974,14 +974,20 @@ class ShowScheduler:
                 and in_window(now, effect.get("start", "00:00"), effect.get("end", "00:00"))
             )
             if want_effect:
-                if self._bg_effect != (kind, eff):
-                    if self._bg_effect:
+                # Start/restart when our target changed OR when fppd isn't
+                # actually running the effect. fppd clears all effects on its own
+                # restart, so checking ground truth (not just our in-memory flag)
+                # makes the background effect self-heal after an fppd restart
+                # instead of staying dark until the window toggles.
+                running = fpp_running_effects()
+                if self._bg_effect != (kind, eff) or eff not in running:
+                    # Clear a different effect we previously started.
+                    if self._bg_effect and self._bg_effect[1] != eff:
                         fpp_stop_effect(self._bg_effect[1], self._bg_effect[0])
-                    # Stop any existing copy of this effect first — a background
-                    # effect keeps running in fppd across scheduler restarts, so
-                    # starting without stopping would stack two instances.
-                    fpp_stop_effect(eff, kind)
-                    time.sleep(0.3)   # let fppd drop the old instance before restart
+                    # Never stack two copies — stop only if it's actually running.
+                    if eff in running:
+                        fpp_stop_effect(eff, kind)
+                        time.sleep(0.3)   # let fppd drop the old instance first
                     fpp_start_effect(eff, kind)
                     self._bg_effect = (kind, eff)
                 status["effect"] = eff
@@ -1000,11 +1006,17 @@ class ShowScheduler:
             save_json(BG_STATUS_FILE, status)
 
     def _background_loop(self):
-        while not self._stop.wait(45):
+        # Act immediately, then poll — so background music/effects come up right
+        # after a (re)start instead of up to one interval later. If fppd's API
+        # isn't ready yet, the next poll retries (and the ground-truth check in
+        # _apply_background restarts anything fppd dropped).
+        while True:
             try:
                 self._apply_background()
             except Exception as e:
                 log.error("Background loop error: %s", e)
+            if self._stop.wait(15):
+                break
 
     # ---- announcement runner -----------------------------------------------
 
