@@ -180,6 +180,17 @@ def fpp_status():
     st = _fpp("/api/fppd/status")
     return st if isinstance(st, dict) else {}
 
+def fpp_ready():
+    """True if fppd's HTTP API is answering. For the ~15s after an fppd restart
+    Apache returns 503 (fppd not up yet); this lets the background loop skip a
+    cycle quietly instead of logging 503s and a failed effect-start. Quiet by
+    design — it does not log, unlike _fpp()."""
+    try:
+        with urllib.request.urlopen("http://localhost/api/fppd/status", timeout=3) as r:
+            return r.getcode() == 200
+    except Exception:
+        return False
+
 def fpp_start_playlist(name, repeat=False):
     enc = urllib.parse.quote(name, safe='')
     repeat_str = 'true' if repeat else 'false'
@@ -932,6 +943,11 @@ class ShowScheduler:
         stops the current playback — background then resumes per its schedule.
         Idempotent — safe to call from the loop and from show end."""
         with self._bg_lock:
+            # Right after an fppd restart the API 503s for ~15s. Skip this cycle
+            # quietly rather than spamming 503s and a failed effect-start — the
+            # next poll retries and brings the effect up once fppd is ready.
+            if not fpp_ready():
+                return
             cfg = self._bg()
             hw_cfg = self._hw()
             now = datetime.datetime.now()
